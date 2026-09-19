@@ -42,21 +42,27 @@ class BrokenChatModel:
 
 
 @pytest.fixture
-def fake_env(monkeypatch):
-    monkeypatch.setenv("OPENAI_BASE_URL", "http://fake/v1")
-    monkeypatch.setenv("OPENAI_API_KEY", "fake-key")
-    monkeypatch.setenv("MODEL_NAME", "fake-model")
-    from app.core.config import get_settings
+def fake_settings():
+    """显式构造的测试配置（init 参数优先级最高，不受 .env / 系统环境变量影响）。"""
+    from app.core.config import Settings
 
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
+    return Settings(
+        _env_file=None,
+        openai_base_url="http://fake/v1",
+        openai_api_key="fake-key",
+        model_name="fake-model",
+        history_token_budget=4000,
+        temperature=0.7,
+    )
 
 
 @pytest.fixture
-async def client(fake_env):
+async def client(fake_settings):
+    from app.api.routes import dep_settings
     from app.main import app
 
+    app.dependency_overrides[dep_settings] = lambda: fake_settings
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+    app.dependency_overrides.clear()

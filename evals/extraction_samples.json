@@ -1,0 +1,22 @@
+[
+  {
+    "description": "订单 DD20260901001 的耳机右声道没声音，才买一周，我要退货退款。",
+    "expected": {"order_id": "DD20260901001", "issue_type": "退货", "expected_solution_keywords": ["退货", "退款"]}
+  },
+  {
+    "description": "我上周买的鞋子尺码偏小，订单号是 DD20260905077，想换一双大一码的。",
+    "expected": {"order_id": "DD20260905077", "issue_type": "换货", "expected_solution_keywords": ["换"]}
+  },
+  {
+    "description": "DD20260910123 这个订单显示已签收但我根本没收到货，快递到底去哪了？",
+    "expected": {"order_id": "DD20260910123", "issue_type": "物流", "expected_solution_keywords": ["物流", "查", "签收"]}
+  },
+  {
+    "description": "买的杯子收到就是碎的，订单号在手边找不到，希望你们补发一个。",
+    "expected": {"order_id": null, "issue_type": "质量问题", "expected_solution_keywords": ["补发"]}
+  },
+  {
+    "description": "订单 DD20260912888 我拍错颜色了，还没发货的话直接给我退了吧。",
+    "expected": {"order_id": "DD20260912888", "issue_type": "退款", "expected_solution_keywords": ["退"]}
+  }
+]

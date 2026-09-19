@@ -14,17 +14,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def dep_chat_model():
+def dep_settings():
+    """配置依赖注入点：测试用 app.dependency_overrides 替换。"""
+    return get_settings()
+
+
+def dep_chat_model(settings=Depends(dep_settings)):
     """模型依赖注入点：测试用 app.dependency_overrides 替换为 Fake。"""
-    return get_model(get_settings())
+    return get_model(settings)
 
 
 @router.post("/api/chat/stream", response_class=EventSourceResponse)
 async def chat_stream(
-    req: ChatRequest, model=Depends(dep_chat_model)
+    req: ChatRequest,
+    settings=Depends(dep_settings),
+    model=Depends(dep_chat_model),
 ) -> AsyncIterable[ServerSentEvent]:
     try:
-        settings = get_settings()
         messages = build_messages(req.messages, settings)
         async for text in stream_chat(messages, model):
             yield ServerSentEvent(data=text, event="token")
@@ -44,8 +50,9 @@ async def extract(req: ExtractRequest, model=Depends(dep_chat_model)):
 
 
 @router.get("/api/health", response_model=HealthResponse)
-async def health():
-    s = get_settings()
+async def health(settings=Depends(dep_settings)):
     return HealthResponse(
-        status="ok", model=s.model_name, history_token_budget=s.history_token_budget
+        status="ok",
+        model=settings.model_name,
+        history_token_budget=settings.history_token_budget,
     )
