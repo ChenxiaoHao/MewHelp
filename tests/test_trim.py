@@ -34,6 +34,27 @@ def test_trim_noop_under_budget():
     assert len(trimmed) == len(msgs)
 
 
+def test_trim_guard_never_drops_latest_message():
+    """预算小到装不下任何历史时，保底返回 system + 最后一条（当前问题绝不丢）。"""
+    from app.services.chat_service import trim_history
+
+    msgs = _conv(3)
+    trimmed = trim_history(msgs, budget=5)
+    assert isinstance(trimmed[0], SystemMessage)
+    assert trimmed[-1] is msgs[-1]
+
+
+def test_trim_partial_with_realistic_budget():
+    """真实预算下部分裁剪：system + 最近若干轮，最旧的被裁掉。"""
+    from app.services.chat_service import trim_history
+
+    msgs = _conv(10)
+    trimmed = trim_history(msgs, budget=120)
+    assert isinstance(trimmed[0], SystemMessage)
+    assert trimmed[-1].content == msgs[-1].content
+    assert 2 < len(trimmed) < len(msgs)
+
+
 def test_to_langchain_messages_maps_roles():
     from app.schemas.chat import ChatMessage
     from app.services.chat_service import to_langchain_messages

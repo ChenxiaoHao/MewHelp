@@ -164,6 +164,7 @@ trimmed = trim_messages(
 ```
 
 - System Prompt 永远保留，超出预算从最旧历史裁起
+- 保底规则（实施中发现并补入，2026-09-19）：若预算小到连最新一条消息都装不下（trim_messages 实测会将其裁掉、只剩 system），强制返回 [system] + [最后一条]，绝不丢用户当前问题
 - 预算 `.env` 可配：`HISTORY_TOKEN_BUDGET=4000`
 - 用近似 token 计数，不绑定具体上游 tokenizer
 - ⚠️ **实施约束（用户明确要求）**：`trim_messages` 的具体参数与行为（含 `include_system` / `start_on` / `end_on` 语义）在编码前必须再次用 Context7 按**当时实际安装的版本**核对，不得凭记忆实现；上面代码仅为设计意图示意。
