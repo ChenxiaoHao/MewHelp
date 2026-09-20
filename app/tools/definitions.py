@@ -78,7 +78,7 @@ async def query_logistics(order_id: str) -> dict:
 
 @tool
 async def query_faq(keyword: str) -> dict:
-    """按关键词检索平台常见问题（退货政策、发货时间、发票、会员积分等）。用户咨询平台规则/政策类问题时优先使用。keyword: 检索关键词，如「退货政策」。"""
+    """按关键词检索平台常见问题（退换货政策、退款流程、邮费与包邮门槛、发货时间、支持的快递公司、发票、会员积分等）。用户咨询任何平台规则、政策、费用类问题时，必须先调用本工具检索再作答，即使你认为自己知道通用答案。keyword: 检索关键词，如「退货政策」「邮费」。"""
     async with get_session_factory()() as session:
         rows = await search_faq(session, keyword)
     return {

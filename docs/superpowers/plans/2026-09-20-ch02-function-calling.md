@@ -2850,7 +2850,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: 新 SYSTEM_PROMPT（Task 9）、`get_tools()`（Task 5）、`get_model`（ch01）、全部已接入的 HTTP 层（Task 8/9）
 - Produces: 评估通过率记录、三条验收证据（帧序列 + 浏览器表现 + DB 行）、验收 3 漏召回留痕（dev-notes，ch03 输入）
 
-- [ ] **Step 1: 写 `evals/tool_routing_samples.json`（spec 附录 C 逐条转录）**
+- [x] **Step 1: 写 `evals/tool_routing_samples.json`（spec 附录 C 逐条转录）**
 
 ```json
 [
@@ -2869,7 +2869,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 （`expected_tools: []` 即 no_tool = 空集合。样例 5 考察的是**路由**——模型该调 query_faq；漏召回发生在**执行**，由验收 3 单独验证。）
 
-- [ ] **Step 2: 写 `evals/run_tool_routing_eval.py`**
+- [x] **Step 2: 写 `evals/run_tool_routing_eval.py`**
 
 ```python
 """工具路由评估（Prompt 类产出的评估集替代 TDD，spec §10）。
@@ -2928,13 +2928,13 @@ if __name__ == "__main__":
     raise SystemExit(asyncio.run(main()))
 ```
 
-- [ ] **Step 3: 跑评估（真实模型，约 10 次调用）**
+- [x] **Step 3: 跑评估（真实模型，约 10 次调用）**
 
 Run: `uv run python evals/run_tool_routing_eval.py`
 Expected: `通过率: ≥8/10`，退出码 0。
 **未达阈值** → 逐条分析 FAIL 输出：若因 SYSTEM_PROMPT 指引不足 → 回 Task 9 Step 2 微调措辞（保持四关键词）重跑；若模型能力问题（如样例 3 商品名歧义）→ 记 dev-notes 并**停下与用户确认**是否调整样例标注或阈值。
 
-- [ ] **Step 4: 起服 + 三条验收 curl（帧级证据；同时是核对点①的 qwen 真实上游实测）**
+- [x] **Step 4: 起服 + 三条验收 curl（帧级证据；同时是核对点①的 qwen 真实上游实测）**
 
 前提：MySQL 容器 healthy（`docker compose ps`）、`.env` 有效。
 
@@ -2965,7 +2965,7 @@ Expected：
 
 浏览器端（Task 9 已验徽章，此处复核验收 1/2 的徽章 ✓ 状态与悬停 summary 即可）。
 
-- [ ] **Step 5: 落库验证（spec §7 全链路证据）**
+- [x] **Step 5: 落库验证（spec §7 全链路证据）**
 
 ```bash
 docker exec mewhelp-mysql mysql -uroot -pmewhelp_dev mewhelp -e \
@@ -2981,7 +2981,7 @@ docker exec mewhelp-mysql mysql -uroot -pmewhelp_dev mewhelp -e \
 
 （若验收过程让模型创建了工单：status=已转人工 + ticket_no 非空；没有工单调用则仅验证会话行存在。）
 
-- [ ] **Step 6: ch01 全面回归（红线判决）**
+- [x] **Step 6: ch01 全面回归（红线判决）**
 
 ```bash
 kill %1  # 停服
@@ -2990,7 +2990,7 @@ uv run pytest -v          # 全量单测：ch01 34 个零改动全绿 + ch02 全
 
 再跑 README 的三条 ch01 curl 验收命令（health / chat stream / extract；中文 body 走 UTF-8 文件），行为与 ch01 交付时一致。
 
-- [ ] **Step 7:（可选，建议做）启动探活反向验证**
+- [x] **Step 7:（可选，建议做）启动探活反向验证**
 
 ```bash
 docker compose stop mysql
@@ -2998,7 +2998,7 @@ uv run uvicorn app.main:app --port 8000   # 预期：SystemExit 提示启动 Doc
 docker compose start mysql                # 恢复
 ```
 
-- [ ] **Step 8: dev-notes 追记 + commit**
+- [x] **Step 8: dev-notes 追记 + commit**
 
 dev-notes「Task 10」段：评估通过率与 FAIL 分析、核对点① qwen 上游实测结论、三条验收证据摘要（帧序 + 回答要点）、**漏召回记录**（验收 3 原文，ch03 输入）、ch01 回归结果。
 

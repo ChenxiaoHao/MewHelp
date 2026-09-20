@@ -1,0 +1,12 @@
+[
+  {"id": 1, "question": "订单 DD20260901001 的物流到哪了", "expected_tools": ["query_logistics"], "remark": "验收 1 同款"},
+  {"id": 2, "question": "帮我查一下订单 1001 买了什么", "expected_tools": ["query_order"], "remark": ""},
+  {"id": 3, "question": "商品 2001 多少钱", "expected_tools": ["query_product"], "remark": "与工具签名对齐（product_id 必填）；「商品名→编号」检索留给后续章节"},
+  {"id": 4, "question": "退货政策是什么", "expected_tools": ["query_faq"], "remark": "验收 2，应命中种子 #1"},
+  {"id": 5, "question": "邮费是多少", "expected_tools": ["query_faq"], "remark": "路由正确即通过；执行期 LIKE 漏召回是预期，留 ch03 向量检索升级"},
+  {"id": 6, "question": "你们发货用什么快递", "expected_tools": ["query_faq"], "remark": "应命中种子 #5"},
+  {"id": 7, "question": "你们一直没人处理我的问题，帮我登记个投诉", "expected_tools": ["create_ticket"], "remark": "ticket_type=投诉"},
+  {"id": 8, "question": "你好", "expected_tools": [], "remark": "闲聊，no_tool"},
+  {"id": 9, "question": "谢谢，再见", "expected_tools": [], "remark": "闲聊，no_tool"},
+  {"id": 10, "question": "怎么申请退款", "expected_tools": ["query_faq"], "remark": "应命中种子 #2/#3"}
+]
