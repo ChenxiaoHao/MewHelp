@@ -2626,7 +2626,7 @@ Prompt 是"非可单测产出"：结构性护栏用轻量测试（关键词存�
 - Consumes: SSE `conversation`/`tool_call`/`tool_result` 帧（Task 8）
 - Produces: 新 SYSTEM_PROMPT（Task 10 评估集与验收用）；前端 conversationId 闭环（验收 1/2/3 的浏览器载体）
 
-- [ ] **Step 1: 写失败测试 `tests/test_prompts_ch02.py`**
+- [x] **Step 1: 写失败测试 `tests/test_prompts_ch02.py`**
 
 ```python
 def test_system_prompt_keeps_ch01_keywords():
@@ -2654,7 +2654,7 @@ def test_ch01_no_system_claim_replaced():
 
 Run: `uv run pytest tests/test_prompts_ch02.py -v` → Expected: FAIL（当前 Prompt 无「工具」指引、旧声明还在）
 
-- [ ] **Step 2: 改写 `app/prompts/customer_service.py` 的 SYSTEM_PROMPT**
+- [x] **Step 2: 改写 `app/prompts/customer_service.py` 的 SYSTEM_PROMPT**
 
 整段替换为（约束 1/2/5 一字不动；3 微调、4 重写；模板 CUSTOMER_SERVICE_PROMPT 不动）：
 
@@ -2669,12 +2669,12 @@ SYSTEM_PROMPT = """你是「喵帮」电商平台的智能客服喵喵，负责�
 5. 语气友好、简洁，使用中文回答，适当使用「喵」保持品牌风格但不堆砌。"""
 ```
 
-- [ ] **Step 3: 跑测试确认通过（含 ch01 prompt 测试）**
+- [x] **Step 3: 跑测试确认通过（含 ch01 prompt 测试）**
 
 Run: `uv run pytest tests/test_prompts_ch02.py tests/test_prompts.py -v`
 Expected: 全 PASS（ch01 test_prompts 的关键词断言依赖「喵帮/客服/订单号/转人工」，上面文本已保留）
 
-- [ ] **Step 4: 前端四点增量改造 `static/index.html`（Vibe）**
+- [x] **Step 4: 前端四点增量改造 `static/index.html`（Vibe）**
 
 改动 1 —— `<script>` 顶部 `const history = [];` 之后加：
 
@@ -2793,7 +2793,7 @@ d. `history.push({ role: 'assistant', content: answer });` 等 history 逻辑**�
 .tool-badge.fail { background: #E8DCC5; }
 ```
 
-- [ ] **Step 5: JS 语法自检（ch01 模式：提取 script → node --check）**
+- [x] **Step 5: JS 语法自检（ch01 模式：提取 script → node --check）**
 
 ```bash
 uv run python - <<'PY'
@@ -2808,12 +2808,12 @@ node --check _tmp_check.js && echo "JS OK" && rm _tmp_check.js
 
 Expected: `JS OK`
 
-- [ ] **Step 6: 全量回归**
+- [x] **Step 6: 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS
 
-- [ ] **Step 7: 浏览器 Vibe 验证（需 MySQL 容器 + 起服）**
+- [x] **Step 7: 浏览器 Vibe 验证（需 MySQL 容器 + 起服）**
 
 ```bash
 uv run uvicorn app.main:app --port 8000 &
@@ -2827,7 +2827,7 @@ uv run uvicorn app.main:app --port 8000 &
 
 验证通过后 `kill %1` 停服。
 
-- [ ] **Step 8: dev-notes 追记 + commit**
+- [x] **Step 8: dev-notes 追记 + commit**
 
 dev-notes「Task 9」段记：Prompt 改写对照（旧约束 4 → 工具指引）、前端四点增量、用户浏览器验证反馈与迭代（Vibe 留痕：用户原话 + 每轮改了什么）。
 

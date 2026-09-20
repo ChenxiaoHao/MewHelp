@@ -133,6 +133,22 @@
   /* 流式输出时的像素光标 */
   .bubble.typing::after { content: "▌"; margin-left: 1px; animation: blink .8s step-end infinite; }
 
+  /* ch02: 消息列（徽章+气泡纵向排列）与工具徽章（像素风：2px 墨线边框 + 橙底小方块） */
+  .msg-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tool-badge {
+    align-self: flex-start;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 2px 6px;
+    background: #FF9B50;
+    color: #292929;
+    border: 2px solid #292929;
+    box-shadow: 2px 2px 0 rgba(41, 41, 41, .35);
+    white-space: nowrap;
+  }
+  .tool-badge.pending { background: #F6D89C; }
+  .tool-badge.fail { background: #E8DCC5; }
+
   /* ===== 输入区域 ===== */
   #input-bar {
     flex: 0 0 auto; display: flex; gap: 10px;
@@ -307,12 +323,15 @@ const overlay = document.getElementById('extract-overlay');
 // 多轮上下文：历史存 JS 内存，随每次请求携带（数据结构与后端契约不变）
 const history = [];
 
+// ch02: 服务端会话 id（conversation 帧存值；「＋新对话」置 null；null 时请求体省略该字段）
+let conversationId = null;
+
 const GREETING = '喵~ 我是小喵，本店智能客服。\n退换货、订单、售后问题都可以问我，回复会逐字流式显示哦 ✦';
 
 function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
 
-// 创建一条消息行；assistant 带像素猫头像。返回 { row, bubble }，
-// row 用于整行移除（含头像），bubble 用于流式更新文本。
+// 创建一条消息行；assistant 带像素猫头像。返回 { row, bubble, col }，
+// row 用于整行移除（含头像），bubble 用于流式更新文本，col 用于挂工具徽章（ch02）。
 function addMessage(cls, text) {
   const row = document.createElement('div');
   row.className = 'msg ' + cls;
@@ -322,18 +341,32 @@ function addMessage(cls, text) {
     av.innerHTML = '<svg class="cat" aria-hidden="true"><use href="#cat-icon"></use></svg>';
     row.appendChild(av);
   }
+  const col = document.createElement('div');
+  col.className = 'msg-col';
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
   bubble.textContent = text;
-  row.appendChild(bubble);
+  col.appendChild(bubble);
+  row.appendChild(col);
   messagesEl.appendChild(row);
   scrollBottom();
-  return { row, bubble };
+  return { row, bubble, col };
+}
+
+// ch02: 工具徽章（像素风小方块，挂当前 AI 气泡上方；同轮多工具多徽章）
+function addToolBadge(col, name) {
+  const b = document.createElement('div');
+  b.className = 'tool-badge pending';
+  b.textContent = '🔧 ' + name + ' 调用中…';
+  col.insertBefore(b, col.firstChild);
+  scrollBottom();
+  return b;
 }
 
 // 新对话：清空 history 与页面消息，重新开始
 function resetChat() {
   history.length = 0;
+  conversationId = null;  // ch02: 新对话 → 服务端开新会话行
   messagesEl.innerHTML = '';
   addMessage('assistant', GREETING);  // 欢迎语仅展示用，不入 history（后端有自己的 System Prompt）
 }
@@ -346,14 +379,19 @@ async function send() {
   addMessage('user', text);
   history.push({ role: 'user', content: text });
 
-  const { row, bubble } = addMessage('assistant', '');
+  const { row, bubble, col } = addMessage('assistant', '');
   bubble.classList.add('typing');
+  const badges = {};  // ch02: tool_call id → 徽章元素
   let answer = '';
   try {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: history }),
+      body: JSON.stringify(
+        conversationId == null
+          ? { messages: history }
+          : { messages: history, conversation_id: conversationId }
+      ),
     });
     if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
 
@@ -380,6 +418,20 @@ async function send() {
           answer += JSON.parse(data);   // data 是 JSON 字符串化的增量文本
           bubble.textContent = answer;  // 实时逐块显示，不等完整回答
           scrollBottom();               // 自动滚动到底部
+        } else if (event === 'conversation') {
+          conversationId = JSON.parse(data).conversation_id;
+        } else if (event === 'tool_call') {
+          const tc = JSON.parse(data);
+          badges[tc.id] = addToolBadge(col, tc.name);
+        } else if (event === 'tool_result') {
+          const tr = JSON.parse(data);
+          const badge = badges[tr.id];
+          if (badge) {
+            badge.classList.remove('pending');
+            badge.classList.add(tr.ok ? 'ok' : 'fail');
+            badge.textContent = (tr.ok ? '✓ ' : '✗ ') + tr.name;
+            badge.title = tr.summary || '';  // 悬停看摘要
+          }
         } else if (event === 'error') {
           throw new Error(JSON.parse(data).detail || '上游错误');
         }
