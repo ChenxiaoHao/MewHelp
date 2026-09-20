@@ -3073,11 +3073,11 @@ git commit -m "docs(ch02): README 工具链章节 + dev-notes finish 段(交付�
 Co-Authored-By: Claude Code <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 4: 调用 superpowers:finishing-a-development-branch 技能收尾**
+- [x] **Step 4: 调用 superpowers:finishing-a-development-branch 技能收尾**
 
 流程（ch01 先例）：分支上全量测试绿 → merge 到 master → master 上复测全绿 → 删除 ch02-function-calling 分支。合并前确认 `git status` 干净（临时文件已清）。
 
-- [ ] **Step 5: 向用户交付完结摘要**
+- [x] **Step 5: 向用户交付完结摘要**
 
 内容：三条验收标准逐条结论（含验收 3 漏召回留痕位置）、评估通过率、测试总数（ch01 34 + ch02 新增）、演示命令、dev-notes/spec/plan 三个文档路径。
 
