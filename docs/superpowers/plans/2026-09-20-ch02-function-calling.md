@@ -36,7 +36,7 @@
 - Consumes: ch01 的 `Settings`（pydantic-settings，`model_config = SettingsConfigDict(env_file=".env", extra="ignore")`，`settings_customise_sources` 使 .env 优先）
 - Produces: `Settings.mysql_host/mysql_port/mysql_user/mysql_password/mysql_db/demo_user_id/tool_timeout_seconds/tool_max_retries`（全带默认值，ch01 各处 `Settings(_env_file=None)` 构造不受影响）；`Settings.database_url` → `"mysql+aiomysql://{user}:{password}@{host}:{port}/{db}?charset=utf8mb4"`（Task 3 引擎用）
 
-- [ ] **Step 1: 切实施分支**
+- [x] **Step 1: 切实施分支**
 
 ```bash
 git checkout -b ch02-function-calling
@@ -44,7 +44,7 @@ git checkout -b ch02-function-calling
 
 （ch01 先例：spec/plan 提交在 master，实施分支从那里切。）
 
-- [ ] **Step 2: 安装依赖并实测 aiomysql（硬性核对点③）**
+- [x] **Step 2: 安装依赖并实测 aiomysql（硬性核对点③）**
 
 ```bash
 uv add "sqlalchemy[asyncio]" aiomysql cryptography
@@ -54,7 +54,7 @@ uv run python -c "import aiomysql, sqlalchemy; print('aiomysql', aiomysql.__vers
 Expected: 打印两个版本号，无 ImportError。
 **若 aiomysql 安装/导入失败** → `uv add asyncmy` 改试；连接串方言换 `mysql+asyncmy://`（Task 3 同步改），并追记 dev-notes。**两个驱动都不通 → 停工问用户。**
 
-- [ ] **Step 3: 写失败测试 `tests/test_config_ch02.py`**
+- [x] **Step 3: 写失败测试 `tests/test_config_ch02.py`**
 
 ```python
 import pytest
@@ -91,12 +91,12 @@ def test_ch02_defaults(env):
     assert s.tool_max_retries == 1
 ```
 
-- [ ] **Step 4: 跑测试确认失败**
+- [x] **Step 4: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_config_ch02.py -v`
 Expected: FAIL（AttributeError: 'Settings' object has no attribute 'database_url' / mysql_host）
 
-- [ ] **Step 5: 实现 `app/core/config.py` 扩展**
+- [x] **Step 5: 实现 `app/core/config.py` 扩展**
 
 在 Settings 类现有字段之后、`settings_customise_sources` 之前插入（现有字段与 classmethod 一字不动）：
 
@@ -120,12 +120,12 @@ Expected: FAIL（AttributeError: 'Settings' object has no attribute 'database_ur
         )
 ```
 
-- [ ] **Step 6: 跑测试确认通过 + ch01 回归**
+- [x] **Step 6: 跑测试确认通过 + ch01 回归**
 
 Run: `uv run pytest tests/test_config_ch02.py tests/test_config.py -v`
 Expected: 全 PASS（ch01 的 test_config 不受影响，因新字段全有默认值）
 
-- [ ] **Step 7: `.env.example` 追加 ch02 段（文件末尾）**
+- [x] **Step 7: `.env.example` 追加 ch02 段（文件末尾）**
 
 ```dotenv
 
@@ -143,7 +143,7 @@ TOOL_MAX_RETRIES=1
 
 同时把同一段追加到本地 `.env` 末尾（不动已有 OPENAI_* 行；.env 在 .gitignore 中，不进 git）。
 
-- [ ] **Step 8: dev-notes 追记 + commit**
+- [x] **Step 8: dev-notes 追记 + commit**
 
 在 `dev-notes/ch02.md` 末尾追记「Task 1」段（四要素；重点记核对点③实测结果：aiomysql 版本、是否换 asyncmy）。
 
@@ -169,7 +169,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: SQLAlchemy 2.0 `DeclarativeBase` + `Mapped`/`mapped_column`
 - Produces: `Base`（Task 3 create_all 不用——建表走 SQL 脚本，Base 仅供 metadata 断言）；`Conversation`/`Message`/`Faq`/`Ticket` 四个 ORM 类，表名/列名/类型与 spec 附录 A DDL 逐列对齐（Task 4 crud、Task 8 persister 用）
 
-- [ ] **Step 1: 写失败测试 `tests/test_models.py`**
+- [x] **Step 1: 写失败测试 `tests/test_models.py`**
 
 DDL 用户原话（spec 附录 A 原样收录）是列对齐的唯一依据，测试断言关键结构：
 
@@ -223,12 +223,12 @@ def test_ticket_table():
     assert "conversations.id" in fks
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_models.py -v`
 Expected: FAIL（ModuleNotFoundError: No module named 'app.db'）
 
-- [ ] **Step 3: 实现 `app/db/models.py`**
+- [x] **Step 3: 实现 `app/db/models.py`**
 
 ```python
 """ORM 模型：四张表与 spec 附录 A 的 DDL 逐列对齐。
@@ -334,12 +334,12 @@ class Ticket(Base):
 
 注意：`from datetime import date` 若 lint 报未使用则删掉（Ticket 无 Date 列，导入以实际为准；上面代码保留最小集合即可）。
 
-- [ ] **Step 4: 跑测试确认通过 + 全量回归**
+- [x] **Step 4: 跑测试确认通过 + 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS（ch01 34 个 + Task 1 的 2 个配置测试 + 新增 4 个模型测试）
 
-- [ ] **Step 5: dev-notes 追记 + commit**
+- [x] **Step 5: dev-notes 追记 + commit**
 
 ```bash
 git add app/db tests/test_models.py dev-notes/ch02.md
@@ -365,7 +365,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: `Settings.database_url`（Task 1）
 - Produces: `init_engine(settings: Settings) -> None`（幂等，main.py lifespan 调）；`get_engine() -> AsyncEngine`（未 init 抛 RuntimeError）；`get_session_factory() -> async_sessionmaker[AsyncSession]`；`async check_db() -> None`（`SELECT 1`，失败抛异常）；`dispose_engine() -> None`（Task 8 路由依赖、Task 10 冒烟用）
 
-- [ ] **Step 1: 确认 Docker daemon 可用**
+- [x] **Step 1: 确认 Docker daemon 可用**
 
 ```bash
 docker info --format '{{.ServerVersion}}'
@@ -373,7 +373,7 @@ docker info --format '{{.ServerVersion}}'
 
 Expected: 打印版本号。**不通 → 停下来等用户启动 Docker Desktop，不要自己反复重试。**
 
-- [ ] **Step 2: 写 `docker-compose.yml`**
+- [x] **Step 2: 写 `docker-compose.yml`**
 
 ```yaml
 services:
@@ -404,7 +404,7 @@ volumes:
 
 （`db/init/*.sql` 按文件名序在**首次初始化空数据卷**时自动执行；改了 SQL 需 `docker compose down -v` 重建卷。）
 
-- [ ] **Step 3: 写 `db/init/01_schema.sql`**
+- [x] **Step 3: 写 `db/init/01_schema.sql`**
 
 打开 spec 附录 A，把用户提供的四张表 DDL **原样复制**进来（含 `DROP TABLE IF EXISTS` 顺序、`ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`、注释、索引）。复制后核对：
 
@@ -414,7 +414,7 @@ grep -c "CREATE TABLE" db/init/01_schema.sql
 
 Expected: `4`
 
-- [ ] **Step 4: 写 `db/init/02_seed.sql`（faq 种子 10 条，spec 附录 B 表格逐条转 INSERT）**
+- [x] **Step 4: 写 `db/init/02_seed.sql`（faq 种子 10 条，spec 附录 B 表格逐条转 INSERT）**
 
 spec 附录 B 的 10 条 question/category **逐字对齐**，answer 按附录 B 摘要扩写成完整句；外加附录 B 要求的**演示数据**（conversations 1 行 + messages 2 行 + tickets 1 行）：
 
@@ -454,7 +454,7 @@ grep -n "邮费\|运费" db/init/02_seed.sql
 
 Expected: **零输出**（红线：全表不得出现该字样）。若有命中，改写该行措辞后复查。
 
-- [ ] **Step 5: 起容器并等 healthy**
+- [x] **Step 5: 起容器并等 healthy**
 
 ```bash
 docker compose up -d
@@ -464,7 +464,7 @@ docker compose ps --format "table {{.Name}}\t{{.Status}}"
 Expected: `mewhelp-mysql` 状态含 `(healthy)`（首启初始化约 30–60s，可循环等待）。
 **若容器起不来（端口占用/认证报错）** → 贴 `docker compose logs mysql` 关键行给用户，停工等指示（硬性核对点④）。
 
-- [ ] **Step 6: 验证建表灌数 + 认证兼容（硬性核对点④实测）**
+- [x] **Step 6: 验证建表灌数 + 认证兼容（硬性核对点④实测）**
 
 caching_sha2_password 认证需要 cryptography（Task 1 已装）。用 aiomysql 直连实测：
 
@@ -505,7 +505,7 @@ PY
 
 Expected: `OK: 4 tables, 10 faq rows, no 邮费/运费, demo data seeded`。**若报认证错误**（`cryptography is required` / `Authentication plugin 'caching_sha2_password'`）→ 确认 `uv run python -c "import cryptography"`；仍不通则在 compose command 追加 `--default-authentication-plugin=mysql_native_password` 后 `docker compose down -v && docker compose up -d` 重来，并追记 dev-notes。
 
-- [ ] **Step 7: 写失败测试 `tests/test_engine.py`（纯单测，不连库）**
+- [x] **Step 7: 写失败测试 `tests/test_engine.py`（纯单测，不连库）**
 
 ```python
 import pytest
@@ -549,12 +549,12 @@ def test_init_engine_idempotent(monkeypatch):
     eng._engine = None
 ```
 
-- [ ] **Step 8: 跑测试确认失败**
+- [x] **Step 8: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_engine.py -v`
 Expected: FAIL（ModuleNotFoundError: app.db.engine / AttributeError: _engine）
 
-- [ ] **Step 9: 实现 `app/db/engine.py`**
+- [x] **Step 9: 实现 `app/db/engine.py`**
 
 ```python
 """异步引擎与会话工厂。main.py lifespan 负责 init/dispose，业务代码只取 session。"""
@@ -621,12 +621,12 @@ async def dispose_engine() -> None:
     _session_factory = None
 ```
 
-- [ ] **Step 10: 跑测试确认通过 + 全量回归**
+- [x] **Step 10: 跑测试确认通过 + 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS
 
-- [ ] **Step 11: dev-notes 追记 + commit**
+- [x] **Step 11: dev-notes 追记 + commit**
 
 dev-notes「Task 3」段重点记核对点④实测结果（认证方式、是否加 mysql_native_password、healthy 等待时长）与种子红线 grep 自查结果。
 

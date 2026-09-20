@@ -1,0 +1,28 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mewhelp-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mewhelp_dev
+      MYSQL_DATABASE: mewhelp
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"  # 本机原生 MySQL 服务占用 3306，宿主侧改用 3307（.env MYSQL_PORT 同步）
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # Windows bind-mount 的 cnf 是 0777 会被 mysql 客户端忽略，无法用客户端配置修字符集；
+      # 改为服务端忽略客户端字符集声明，强制所有连接（含 initdb 执行 .sql 的客户端）用 utf8mb4，
+      # 否则 UTF-8 的 init SQL 会被 latin1 客户端双重编码入库。
+      - --skip-character-set-client-handshake
+    volumes:
+      - mewhelp_mysql_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pmewhelp_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mewhelp_mysql_data:
