@@ -1368,7 +1368,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
   - `make_summary(name: str, result: Any) -> str`
   - `async execute_tool(name: str, args: dict, tool_call_id: str, context: ToolContext) -> ToolOutcome`——**绝不向上抛异常**：未注册工具/超时/任何 Exception 都包成 `ok=False` 的 ToolOutcome（错误信息回灌模型收敛，spec §9 错误矩阵）
 
-- [ ] **Step 1: 写失败测试 `tests/test_executor.py`**
+- [x] **Step 1: 写失败测试 `tests/test_executor.py`**
 
 ```python
 import asyncio
@@ -1482,12 +1482,12 @@ def test_make_summary_shapes():
     assert len(long) <= 80
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_executor.py -v`
 Expected: FAIL（No module named 'app.tools.executor'）
 
-- [ ] **Step 3: 实现 `app/tools/executor.py`**
+- [x] **Step 3: 实现 `app/tools/executor.py`**
 
 ```python
 """工具执行基础设施：查找注册表、Schema 由 LangChain @tool 声明式校验、
@@ -1581,12 +1581,12 @@ async def execute_tool(
 
 str 兜底分支（`isinstance(result, str)` 段）是否为主路径，以 **Task 5 Step 1-3** 的 dict 透传实测结论为准（已在那里跑过探针，无需重复）：实测为 dict 透传 → 该分支纯属防御；实测被 stringify → 该分支即主路径，`test_string_result_coerced` 覆盖它。两种情况上面代码都成立，把实测结论抄进 dev-notes 即可。
 
-- [ ] **Step 4: 跑测试确认通过 + 全量回归**
+- [x] **Step 4: 跑测试确认通过 + 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS
 
-- [ ] **Step 5: dev-notes 追记 + commit**
+- [x] **Step 5: dev-notes 追记 + commit**
 
 ```bash
 git add app/tools/executor.py tests/test_executor.py dev-notes/ch02.md
