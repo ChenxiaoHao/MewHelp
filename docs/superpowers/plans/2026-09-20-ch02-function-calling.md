@@ -655,7 +655,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
   - `next_ticket_no(today_count: int, today: date) -> str`（纯函数：`T{YYYYMMDD}{today_count+1:03d}`）
   - `async create_ticket(session: AsyncSession, *, conversation_id: int | None, description: str, ticket_type: str) -> Ticket`（撞号 IntegrityError 重算重试一次；成功后把会话 status 置「已转人工」）
 
-- [ ] **Step 1: 写失败测试 `tests/test_crud.py`**
+- [x] **Step 1: 写失败测试 `tests/test_crud.py`**
 
 ```python
 from datetime import date
@@ -756,12 +756,12 @@ async def test_add_message_passes_through_fields():
     assert s.commits == 1
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_crud.py -v`
 Expected: FAIL（No module named 'app.db.crud'）
 
-- [ ] **Step 3: 实现 `app/db/crud.py`**
+- [x] **Step 3: 实现 `app/db/crud.py`**
 
 ```python
 """数据访问层：会话/消息/FAQ 检索/工单。运行期落库失败的降级策略在调用方（persister）。"""
@@ -876,12 +876,12 @@ async def create_ticket(
     raise RuntimeError("unreachable")
 ```
 
-- [ ] **Step 4: 跑测试确认通过 + 全量回归**
+- [x] **Step 4: 跑测试确认通过 + 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS
 
-- [ ] **Step 5: 真库冒烟（需 Task 3 容器仍在跑；crud 全链路 + 验收 3 的漏召回预检）**
+- [x] **Step 5: 真库冒烟（需 Task 3 容器仍在跑；crud 全链路 + 验收 3 的漏召回预检）**
 
 ```bash
 uv run python - <<'PY'
@@ -919,7 +919,7 @@ PY
 
 Expected: `SMOKE OK`（若 ticket_no 非 001 说明库里已有当天冒烟残留，无碍）。冒烟产生的测试行留在库里可接受（演示数据）。
 
-- [ ] **Step 6: dev-notes 追记 + commit**
+- [x] **Step 6: dev-notes 追记 + commit**
 
 ```bash
 git add app/db/crud.py tests/test_crud.py dev-notes/ch02.md
