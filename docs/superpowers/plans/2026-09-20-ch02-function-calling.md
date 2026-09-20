@@ -944,7 +944,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
   - `definitions.py`: `query_order(order_id: str) -> dict`、`query_product(product_id: str) -> dict`、`query_logistics(order_id: str) -> dict`（三个 mock，`random` 造数据）、`query_faq(keyword: str) -> dict`（返回 `{"keyword":..., "hits":[{"id","question","answer","category"}]}`）、`create_ticket(description: str, ticket_type: Literal["售后","投诉","咨询"], config: RunnableConfig) -> dict`（返回 `{"ticket_no":..., "status":"待处理"}`；conversation_id 从 `config["configurable"]["conversation_id"]` 取，**模型 schema 不含此参数**）
   - `registry.py`: `TOOL_REGISTRY: dict[str, BaseTool]`、`get_tools() -> list[BaseTool]`（bind_tools 用，固定顺序）、`get_tool(name: str) -> BaseTool | None`
 
-- [ ] **Step 1: 硬性核对点② —— create_ticket 的 conversation_id 注入机制（Context7 + 本地实测，写实现前做）**
+- [x] **Step 1: 硬性核对点② —— create_ticket 的 conversation_id 注入机制（Context7 + 本地实测，写实现前做）**
 
 1. Context7 查（libraryId 用 resolve-library-id 对 "LangChain" 的结果，选 Python 主库）：query 形如 `python @tool inject RunnableConfig configurable hide argument from model schema InjectedToolArg`。确认当前版本推荐的注入方式。
 2. 本地写探针文件 `_tmp_probe_tool.py` 实测 **RunnableConfig 注入**（首选，spec §4）：
@@ -1019,7 +1019,7 @@ print(type(out).__name__, out)
 
 Expected: `dict {'got': 'hi'}`（当前 langchain_core 对非 str 返回值原样透传）。**若打印 `str`**：Step 2 各测试的 `out[...]` 断言前需先做同款解析（executor 的 str→json 兜底逻辑见 Task 6，届时其 `test_string_result_coerced` 就是主路径而非兜底），dev-notes 记一笔实测结论。
 
-- [ ] **Step 2: 写失败测试 `tests/test_tools.py`**
+- [x] **Step 2: 写失败测试 `tests/test_tools.py`**
 
 mock 三工具用确定性 monkeypatch（random 播种/打桩），DB 两工具用 FakeSession/monkeypatch crud：
 
@@ -1181,12 +1181,12 @@ async def test_create_ticket_without_conversation_raises(monkeypatch):
         )
 ```
 
-- [ ] **Step 3: 跑测试确认失败**
+- [x] **Step 3: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_tools.py -v`
 Expected: FAIL（No module named 'app.tools'）
 
-- [ ] **Step 4: 实现 `app/tools/definitions.py`**
+- [x] **Step 4: 实现 `app/tools/definitions.py`**
 
 mock 数据随机但字段形状固定（spec §4）；docstring 即工具描述（模型选工具的唯一依据，写清楚「什么时候用我」）：
 
@@ -1303,7 +1303,7 @@ async def create_ticket(
 
 （若核对点②判定改用 InjectedToolArg，此处 create_ticket 按 Step 1 备选代码改写，测试 `test_create_ticket_uses_config_conversation_id` 的 invoke 参数同步改为在输入 dict 里带 conversation_id 的形式，并在 dev-notes 记录切换原因。）
 
-- [ ] **Step 5: 实现 `app/tools/registry.py`**
+- [x] **Step 5: 实现 `app/tools/registry.py`**
 
 ```python
 """工具注册管理：唯一权威清单。bind_tools、executor 查找、评估脚本都从这里取，防止三处清单漂移。"""
@@ -1336,12 +1336,12 @@ def get_tool(name: str) -> BaseTool | None:
     return TOOL_REGISTRY.get(name)
 ```
 
-- [ ] **Step 6: 跑测试确认通过 + 全量回归**
+- [x] **Step 6: 跑测试确认通过 + 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS（test_tools 8 个新测试 + 既有全部）
 
-- [ ] **Step 7: dev-notes 追记 + commit**
+- [x] **Step 7: dev-notes 追记 + commit**
 
 dev-notes「Task 5」段重点记核对点②结论（RunnableConfig 还是 InjectedToolArg、探针输出、Context7 查到的说法）。
 
