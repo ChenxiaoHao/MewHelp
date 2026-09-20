@@ -3,64 +3,339 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>喵帮客服 · MewHelp</title>
+<meta name="theme-color" content="#FF9B50">
+<title>小喵 · 智能客服 | MewHelp</title>
 <style>
+  /* ===== 复古像素调色板（4~6 色） ===== */
+  :root {
+    --bg: #F6D89C;      /* 页面米黄 */
+    --win: #FFF8E8;     /* 窗口米白 */
+    --paper: #FFFDF5;   /* 输入纸面 */
+    --orange: #FF9B50;  /* 主题橙 */
+    --ink: #292929;     /* 深色边框/文字 */
+    --aux: #E8DCC5;     /* 辅助米色 */
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, "Microsoft YaHei", sans-serif; background: #f3f4f6; height: 100vh; display: flex; }
-  /* 左侧聊天区 */
-  #chat-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  header { padding: 14px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; font-weight: 600; }
-  header small { color: #9ca3af; font-weight: 400; margin-left: 8px; }
-  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .bubble { max-width: 72%; padding: 10px 14px; border-radius: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-  .user { align-self: flex-end; background: #6366f1; color: #fff; border-bottom-right-radius: 4px; }
-  .assistant { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
-  .error { align-self: center; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 13px; }
-  #input-bar { display: flex; gap: 10px; padding: 14px 20px; background: #fff; border-top: 1px solid #e5e7eb; }
-  #input { flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; }
-  #input:focus { border-color: #6366f1; }
-  button { padding: 10px 18px; border: none; border-radius: 8px; background: #6366f1; color: #fff; font-size: 14px; cursor: pointer; }
-  button:disabled { background: #c7d2fe; cursor: not-allowed; }
-  /* 右侧售后提取面板 */
-  #extract-panel { width: 340px; background: #fff; border-left: 1px solid #e5e7eb; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  #extract-panel h2 { font-size: 15px; }
-  #extract-panel textarea { flex: 0 0 140px; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; resize: vertical; }
-  #extract-result { flex: 1; background: #0f172a; color: #7dd3fc; border-radius: 8px; padding: 12px; font-size: 12px; font-family: Consolas, monospace; overflow: auto; white-space: pre-wrap; min-height: 120px; }
+  html, body { overflow-x: hidden; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: var(--ink);
+    /* 米黄底 + 细方格网格（复古游戏地图/工程纸） */
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(41,41,41,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(41,41,41,.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+
+  /* ===== 中央客服窗口 ===== */
+  .window {
+    width: 500px; max-width: 100%;
+    height: 740px; max-height: calc(100dvh - 48px);
+    background: var(--win);
+    border: 3px solid var(--ink);
+    border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink);   /* 偏移阴影，复古立体感 */
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ===== 顶部 Header（橙色标题栏） ===== */
+  header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    background: var(--orange);
+    border-bottom: 3px solid var(--ink);
+  }
+  .avatar-lg {
+    width: 38px; height: 38px; flex: 0 0 auto;
+    background: var(--win);
+    border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 2px 2px 0 var(--ink);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .avatar-lg .cat { width: 24px; height: 24px; }
+  .title-block { flex: 1; min-width: 0; }
+  .title-block h1 {
+    font-size: 16px; letter-spacing: 1px; line-height: 1.25;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .status { font-size: 10px; letter-spacing: .5px; opacity: .85; white-space: nowrap; }
+  .status .dot { animation: blink 1.2s step-end infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .header-btns { display: flex; gap: 6px; flex: 0 0 auto; }
+
+  /* ===== 复古像素按钮 ===== */
+  .btn {
+    font: inherit; font-weight: 700; color: var(--ink);
+    background: var(--orange);
+    border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 var(--ink);
+    padding: 6px 14px; cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.05); }
+  .btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .btn:disabled {
+    background: var(--aux); color: #8a806c; cursor: not-allowed;
+    border-color: rgba(41,41,41,.55); box-shadow: 3px 3px 0 rgba(41,41,41,.4);
+  }
+  .btn-sm {
+    padding: 4px 8px; font-size: 12px;
+    border-width: 2px; border-radius: 3px;
+    background: var(--win); box-shadow: 2px 2px 0 var(--ink);
+  }
+  .btn-sm:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+
+  /* ===== 聊天消息区域 ===== */
+  #messages {
+    flex: 1 1 auto; overflow-y: auto;
+    padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px;
+    background: var(--win);
+  }
+  #messages::-webkit-scrollbar { width: 10px; }
+  #messages::-webkit-scrollbar-track { background: var(--aux); }
+  #messages::-webkit-scrollbar-thumb { background: var(--ink); border: 2px solid var(--aux); }
+
+  .msg { display: flex; gap: 8px; align-items: flex-end; }
+  .msg.user { justify-content: flex-end; }
+  .msg.error { justify-content: center; }
+  .avatar {
+    width: 28px; height: 28px; flex: 0 0 auto;
+    background: var(--win);
+    border: 2px solid var(--ink); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .avatar .cat { width: 18px; height: 18px; }
+  .bubble {
+    max-width: 78%;
+    padding: 9px 12px;
+    border: 3px solid var(--ink); border-radius: 4px;  /* 轻微圆角，偏像素 UI */
+    box-shadow: 3px 3px 0 var(--ink);
+    font-size: 14px; line-height: 1.65;
+    white-space: pre-wrap;            /* 保留换行 */
+    word-break: break-word;           /* 长文本不撑破窗口 */
+    overflow-wrap: anywhere;
+  }
+  .msg.user .bubble { background: var(--orange); }
+  .msg.assistant .bubble { background: var(--aux); }
+  .msg.error .bubble {
+    background: var(--ink); color: var(--win);
+    box-shadow: 3px 3px 0 var(--orange);
+    font-size: 13px; max-width: 90%;
+  }
+  /* 流式输出时的像素光标 */
+  .bubble.typing::after { content: "▌"; margin-left: 1px; animation: blink .8s step-end infinite; }
+
+  /* ===== 输入区域 ===== */
+  #input-bar {
+    flex: 0 0 auto; display: flex; gap: 10px;
+    padding: 10px 12px;
+    background: var(--aux);
+    border-top: 3px solid var(--ink);
+  }
+  #input {
+    flex: 1; min-width: 0; height: 46px;
+    padding: 0 12px;
+    font: inherit; font-size: 14px; color: var(--ink);
+    background: var(--paper);
+    border: 3px solid var(--ink); border-radius: 4px;
+    outline: none;
+  }
+  #input:focus { box-shadow: 3px 3px 0 var(--orange); }  /* 聚焦：简单明显的反馈 */
+  #send-btn { width: 78px; height: 46px; padding: 0; font-size: 16px; line-height: 1; white-space: nowrap; }
+
+  /* ===== 底部小字提示 ===== */
+  footer.hint {
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    text-align: center;
+    font-size: 10px; letter-spacing: .5px;
+    color: #8a7c60;
+    background: var(--win);
+    border-top: 2px dashed rgba(41,41,41,.3);
+  }
+
+  /* ===== 售后提取 · 复古弹窗 ===== */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(41,41,41,.55);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    width: 430px; max-width: 100%;
+    max-height: calc(100dvh - 32px);
+    background: var(--win);
+    border: 3px solid var(--ink); border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 12px;
+    background: var(--orange);
+    border-bottom: 3px solid var(--ink);
+    font-weight: 700; font-size: 14px; letter-spacing: 1px;
+  }
+  #extract-close { width: 26px; height: 26px; padding: 0; font-size: 13px; line-height: 1; }
+  .modal-body {
+    padding: 12px;
+    display: flex; flex-direction: column; gap: 10px;
+    overflow-y: auto;
+  }
+  .modal-body label { font-size: 12px; font-weight: 700; }
+  #extract-input {
+    width: 100%; min-height: 110px; resize: vertical;
+    padding: 10px;
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--paper);
+    border: 3px solid var(--ink); border-radius: 4px;
+    outline: none;
+  }
+  #extract-input:focus { box-shadow: 3px 3px 0 var(--orange); }
+  /* 复古终端风 JSON 结果 */
+  #extract-result {
+    min-height: 120px; max-height: 240px; overflow: auto;
+    padding: 10px 12px;
+    background: var(--ink); color: var(--bg);
+    border: 3px solid var(--ink); border-radius: 4px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  /* ===== 移动端自适应 ===== */
+  @media (max-width: 560px) {
+    body { padding: 0; display: block; }
+    .window {
+      width: 100vw;
+      height: 100vh; height: 100dvh;
+      max-height: none;
+      border: 0; border-radius: 0; box-shadow: none;  /* 隐藏装饰 */
+    }
+    .title-block h1 { font-size: 14px; }
+    .avatar-lg { width: 34px; height: 34px; }
+    .avatar-lg .cat { width: 20px; height: 20px; }
+    .bubble { max-width: 84%; }
+    .modal { width: calc(100vw - 32px); }
+  }
 </style>
 </head>
 <body>
 
-<div id="chat-panel">
-  <header>🐱 喵帮智能客服 <small>SSE 流式 · 多轮上下文</small></header>
+<!-- 像素猫图标（symbol 定义，页面内复用） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="cat-icon" viewBox="0 0 8 8">
+    <g shape-rendering="crispEdges">
+      <rect x="0" y="0" width="1" height="1" fill="#292929"/>
+      <rect x="7" y="0" width="1" height="1" fill="#292929"/>
+      <rect x="0" y="1" width="2" height="1" fill="#292929"/>
+      <rect x="6" y="1" width="2" height="1" fill="#292929"/>
+      <rect x="0" y="2" width="8" height="1" fill="#292929"/>
+      <rect x="0" y="3" width="1" height="1" fill="#292929"/>
+      <rect x="1" y="3" width="2" height="1" fill="#FFF8E8"/>
+      <rect x="3" y="3" width="2" height="1" fill="#292929"/>
+      <rect x="5" y="3" width="2" height="1" fill="#FFF8E8"/>
+      <rect x="7" y="3" width="1" height="1" fill="#292929"/>
+      <rect x="0" y="4" width="8" height="1" fill="#292929"/>
+      <rect x="0" y="5" width="3" height="1" fill="#292929"/>
+      <rect x="3" y="5" width="2" height="1" fill="#FF9B50"/>
+      <rect x="5" y="5" width="3" height="1" fill="#292929"/>
+      <rect x="0" y="6" width="8" height="1" fill="#292929"/>
+      <rect x="1" y="7" width="6" height="1" fill="#292929"/>
+    </g>
+  </symbol>
+</svg>
+
+<!-- 中央客服窗口 -->
+<div class="window">
+  <header>
+    <div class="avatar-lg"><svg class="cat" aria-hidden="true"><use href="#cat-icon"></use></svg></div>
+    <div class="title-block">
+      <h1>小喵 · 智能客服</h1>
+      <div class="status mono"><span class="dot">●</span> ONLINE · 智能客服</div>
+    </div>
+    <div class="header-btns">
+      <button id="extract-open-btn" class="btn btn-sm" title="售后信息结构化提取">🔧 售后提取</button>
+      <button id="new-chat-btn" class="btn btn-sm" title="清空聊天记录，重新开始">＋ 新对话</button>
+    </div>
+  </header>
+
   <div id="messages"></div>
+
   <div id="input-bar">
     <input id="input" placeholder="请输入您的问题，Enter 发送…" autocomplete="off">
-    <button id="send-btn">发送</button>
+    <button id="send-btn" class="btn" aria-label="发送" title="发送">▶ 发送</button>
   </div>
+
+  <footer class="hint mono">ENTER 发送 · 上下文仅存于本页面 · SSE STREAMING</footer>
 </div>
 
-<div id="extract-panel">
-  <h2>📋 售后信息结构化提取</h2>
-  <textarea id="extract-input" placeholder="贴入售后描述，例如：&#10;订单 DD20260901001 的耳机右声道没声音，才买一周，我要退货退款。"></textarea>
-  <button id="extract-btn">提取 JSON</button>
-  <pre id="extract-result">（提取结果将显示在这里）</pre>
+<!-- 售后提取 · 复古弹窗 -->
+<div class="overlay" id="extract-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="extract-title">
+    <div class="modal-header">
+      <span id="extract-title">📋 售后工单 · 结构化提取</span>
+      <button id="extract-close" class="btn btn-sm" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <label for="extract-input">售后描述</label>
+      <textarea id="extract-input" placeholder="贴入售后描述，例如：&#10;订单 DD20260901001 的耳机右声道没声音，才买一周，我要退货退款。"></textarea>
+      <button id="extract-btn" class="btn">提取 JSON</button>
+      <label class="mono" for="extract-result">&gt; extract_result.json</label>
+      <pre id="extract-result">（提取结果将显示在这里）</pre>
+    </div>
+  </div>
 </div>
 
 <script>
 const messagesEl = document.getElementById('messages');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
+const overlay = document.getElementById('extract-overlay');
 
-// 多轮上下文：历史存 JS 内存，随每次请求携带
+// 多轮上下文：历史存 JS 内存，随每次请求携带（数据结构与后端契约不变）
 const history = [];
 
-function addBubble(cls, text) {
-  const div = document.createElement('div');
-  div.className = 'bubble ' + cls;
-  div.textContent = text;
-  messagesEl.appendChild(div);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  return div;
+const GREETING = '喵~ 我是小喵，本店智能客服。\n退换货、订单、售后问题都可以问我，回复会逐字流式显示哦 ✦';
+
+function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+// 创建一条消息行；assistant 带像素猫头像。返回 { row, bubble }，
+// row 用于整行移除（含头像），bubble 用于流式更新文本。
+function addMessage(cls, text) {
+  const row = document.createElement('div');
+  row.className = 'msg ' + cls;
+  if (cls === 'assistant') {
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.innerHTML = '<svg class="cat" aria-hidden="true"><use href="#cat-icon"></use></svg>';
+    row.appendChild(av);
+  }
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  scrollBottom();
+  return { row, bubble };
+}
+
+// 新对话：清空 history 与页面消息，重新开始
+function resetChat() {
+  history.length = 0;
+  messagesEl.innerHTML = '';
+  addMessage('assistant', GREETING);  // 欢迎语仅展示用，不入 history（后端有自己的 System Prompt）
 }
 
 async function send() {
@@ -68,10 +343,11 @@ async function send() {
   if (!text) return;
   inputEl.value = '';
   sendBtn.disabled = true;
-  addBubble('user', text);
+  addMessage('user', text);
   history.push({ role: 'user', content: text });
 
-  const bubble = addBubble('assistant', '');
+  const { row, bubble } = addMessage('assistant', '');
+  bubble.classList.add('typing');
   let answer = '';
   try {
     const resp = await fetch('/api/chat/stream', {
@@ -102,8 +378,8 @@ async function send() {
         const data = dataLines.join('\n');
         if (event === 'token') {
           answer += JSON.parse(data);   // data 是 JSON 字符串化的增量文本
-          bubble.textContent = answer;
-          messagesEl.scrollTop = messagesEl.scrollHeight;
+          bubble.textContent = answer;  // 实时逐块显示，不等完整回答
+          scrollBottom();               // 自动滚动到底部
         } else if (event === 'error') {
           throw new Error(JSON.parse(data).detail || '上游错误');
         }
@@ -111,26 +387,52 @@ async function send() {
       }
     }
     if (answer) history.push({ role: 'assistant', content: answer });
-    else bubble.remove();
+    else row.remove();
   } catch (err) {
-    bubble.remove();
-    addBubble('error', '⚠ ' + err.message);
+    row.remove();
+    addMessage('error', '⚠ ' + err.message);  // 复古风错误提示（深底米字）
     history.pop();  // 失败的用户消息不入历史
   } finally {
+    bubble.classList.remove('typing');
     sendBtn.disabled = false;
     inputEl.focus();
   }
 }
 
 sendBtn.addEventListener('click', send);
-inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+// Enter 发送（isComposing 保护：中文输入法组合期不误发）
+inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) send(); });
 
-// 售后提取面板
+// ＋ 新对话
+document.getElementById('new-chat-btn').addEventListener('click', () => {
+  resetChat();
+  inputEl.focus();
+});
+
+// ===== 售后提取弹窗：开/关 =====
+function openExtract() {
+  overlay.classList.add('open');
+  document.getElementById('extract-input').focus();
+}
+function closeExtract() {
+  overlay.classList.remove('open');
+  inputEl.focus();
+}
+document.getElementById('extract-open-btn').addEventListener('click', openExtract);
+document.getElementById('extract-close').addEventListener('click', closeExtract);
+overlay.addEventListener('click', e => { if (e.target === overlay) closeExtract(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && overlay.classList.contains('open')) closeExtract();
+});
+
+// ===== 售后信息结构化提取（POST /api/extract，契约不变） =====
 document.getElementById('extract-btn').addEventListener('click', async () => {
   const desc = document.getElementById('extract-input').value.trim();
   const out = document.getElementById('extract-result');
+  const btn = document.getElementById('extract-btn');
   if (!desc) { out.textContent = '请先输入售后描述'; return; }
   out.textContent = '提取中…';
+  btn.disabled = true;
   try {
     const resp = await fetch('/api/extract', {
       method: 'POST',
@@ -141,8 +443,14 @@ document.getElementById('extract-btn').addEventListener('click', async () => {
     out.textContent = JSON.stringify(body, null, 2);
   } catch (err) {
     out.textContent = '请求失败: ' + err.message;
+  } finally {
+    btn.disabled = false;
   }
 });
+
+// 初始欢迎语 + 自动聚焦
+resetChat();
+inputEl.focus();
 </script>
 </body>
 </html>
