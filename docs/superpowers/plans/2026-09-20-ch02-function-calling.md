@@ -3017,7 +3017,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Modify: `README.md`
 - Modify: `dev-notes/ch02.md`（finish 段）
 
-- [ ] **Step 1: README 新增 ch02 章节**
+- [x] **Step 1: README 新增 ch02 章节**
 
 在 ch01 验收命令章节之后插入（结构与既有 README 风格对齐，标题层级按现有文件调整）：
 
@@ -3060,11 +3060,11 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 同时更新 README 的项目结构清单（按现有树的风格补行）：`app/db/`（engine/models/crud）、`app/tools/`（definitions/registry/executor）、`app/services/tool_chat_service.py`、`app/services/persistence.py`、`db/init/`、`docker-compose.yml`、`evals/tool_routing_samples.json`、`evals/run_tool_routing_eval.py`。
 
-- [ ] **Step 2: dev-notes/ch02.md 追记「Finish」段**
+- [x] **Step 2: dev-notes/ch02.md 追记「Finish」段**
 
 四要素齐备：①用户全程关键原话（spec 确认 + 执行约束）②关键产出（11 任务清单、测试总数、评估通过率、三条验收结论、漏召回记录指针）③用户拒绝或纠偏（如实记录执行期发生的）④翻车与返工（如实记录执行期发生的）。外加**完结交付摘要**（用户工作要求）：功能演示命令（docker compose up -d → uvicorn → 浏览器三问）、测试结果、dev-notes 路径。
 
-- [ ] **Step 3: commit docs**
+- [x] **Step 3: commit docs**
 
 ```bash
 git add README.md dev-notes/ch02.md
