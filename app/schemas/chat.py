@@ -10,6 +10,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1)
+    conversation_id: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def last_message_must_be_user(self) -> "ChatRequest":
@@ -22,3 +23,26 @@ class HealthResponse(BaseModel):
     status: str
     model: str
     history_token_budget: int
+
+
+class ConversationEvent(BaseModel):
+    """SSE `conversation` 帧 data：服务端告知本轮会话 id（每轮都推，幂等）。"""
+
+    conversation_id: int
+
+
+class ToolCallEvent(BaseModel):
+    """SSE `tool_call` 帧 data：模型决定调用工具（前端渲染「调用中」徽章）。"""
+
+    id: str
+    name: str
+    args: dict
+
+
+class ToolResultEvent(BaseModel):
+    """SSE `tool_result` 帧 data：工具执行结束（前端更新徽章 ✓/✗ + summary 提示）。"""
+
+    id: str
+    name: str
+    ok: bool
+    summary: str

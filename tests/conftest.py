@@ -1,9 +1,12 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
+from langchain_core.messages import AIMessageChunk
 from langchain_core.runnables import Runnable
 
 
 class FakeChunk:
+    # ch02 起 conftest 不再使用它（FakeChatModel 改吐真实 AIMessageChunk）；
+    # test_stream_chat.py 用的是自己的本地副本，不受影响。
     def __init__(self, text):
         self.text = text
         self.content = text
@@ -20,19 +23,31 @@ class FakeStructuredRunnable(Runnable):
 
 
 class FakeChatModel:
-    """路由测试用假模型：流式吐固定文本，结构化提取返回 structured_result。"""
+    """路由测试用假模型：流式吐固定文本（真实 AIMessageChunk，支持 ch02 编排的
+    chunk 累加/tool_calls 聚合），结构化提取返回 structured_result。"""
 
     structured_result = None  # 由各测试按需覆盖
 
+    def __init__(self):
+        self.bound_tools = None
+
+    def bind_tools(self, tools, **kwargs):
+        """ch02 编排会调用；记录工具清单并返回自身（流脚本已确定）。"""
+        self.bound_tools = tools
+        return self
+
     async def astream(self, messages, **kwargs):
         for t in ["你好", "呀", "喵"]:
-            yield FakeChunk(t)
+            yield AIMessageChunk(content=t)
 
     def with_structured_output(self, schema, **kwargs):
         return FakeStructuredRunnable()
 
 
 class BrokenChatModel:
+    def bind_tools(self, tools, **kwargs):
+        return self
+
     async def astream(self, messages, **kwargs):
         raise RuntimeError("upstream down")
         yield  # pragma: no cover （使其成为 async generator）

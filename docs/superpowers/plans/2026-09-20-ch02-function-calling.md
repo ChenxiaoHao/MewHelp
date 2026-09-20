@@ -2022,7 +2022,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: `crud.*`（Task 4）、`get_session_factory`（Task 3）、`stream_chat_with_tools/ChatPersister`（Task 7）、`ToolOutcome`（Task 6）、`Settings.demo_user_id`（Task 1）
 - Produces: `DBChatPersister(session, conversation_id)`；`dep_db_session()`（async generator 依赖：引擎未初始化 → yield None）；SSE 新事件 `conversation`/`tool_call`/`tool_result`；`ChatRequest.conversation_id`；lifespan 内 `init_engine/check_db/dispose_engine`（Task 9/10 前端与验收用）
 
-- [ ] **Step 1: conftest 加法升级（先做，证明其本身无害）**
+- [x] **Step 1: conftest 加法升级（先做，证明其本身无害）**
 
 `tests/conftest.py` 三处改动，**其余内容一字不动**：
 
@@ -2075,7 +2075,7 @@ class BrokenChatModel:
 Run: `uv run pytest -v`
 Expected: **ch01 全部测试仍绿**（此时路由还没改，升级本身必须无害；若红说明升级写错了，先修）
 
-- [ ] **Step 2: 写失败测试（三个新测试文件）**
+- [x] **Step 2: 写失败测试（三个新测试文件）**
 
 `tests/test_schemas_ch02.py`：
 
@@ -2344,12 +2344,12 @@ async def test_ch01_style_request_without_conversation_id_still_200(client, monk
     assert fake_crud.conv_calls == [(None, "demo_user")]  # 自动建一次性会话
 ```
 
-- [ ] **Step 3: 跑测试确认失败**
+- [x] **Step 3: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_schemas_ch02.py tests/test_persistence.py tests/test_routes_ch02.py -v`
 Expected: FAIL（conversation_id 字段不存在 / No module named app.services.persistence / dep_db_session 不存在）
 
-- [ ] **Step 4: 实现 `app/schemas/chat.py` 扩展**
+- [x] **Step 4: 实现 `app/schemas/chat.py` 扩展**
 
 1）`ChatRequest` 的 `messages` 字段之后加一行（validator 等其余内容不动）：
 
@@ -2385,7 +2385,7 @@ class ToolResultEvent(BaseModel):
 
 （`Field`/`BaseModel` 已在文件头 import；若 `Field` 未 import 则补上。）
 
-- [ ] **Step 5: 实现 `app/services/persistence.py`**
+- [x] **Step 5: 实现 `app/services/persistence.py`**
 
 ```python
 """DBChatPersister：编排层 ChatPersister 协议（spec §7）的实现。
@@ -2445,7 +2445,7 @@ class DBChatPersister:
             logger.warning("persist final answer failed", exc_info=True)
 ```
 
-- [ ] **Step 6: 实现 `app/api/routes.py` 修改**
+- [x] **Step 6: 实现 `app/api/routes.py` 修改**
 
 1）imports 区改为（新增 3 行 import，删去不再直接使用的 `build_messages/stream_chat`；`get_model` 保留）：
 
@@ -2545,7 +2545,7 @@ async def chat_stream(
         yield ServerSentEvent(data={"detail": str(exc)}, event="error")
 ```
 
-- [ ] **Step 7: 实现 `app/main.py` lifespan 扩展**
+- [x] **Step 7: 实现 `app/main.py` lifespan 扩展**
 
 imports 区加一行：
 
@@ -2581,12 +2581,12 @@ async def lifespan(app: FastAPI):
 
 （httpx ASGITransport 不触发 lifespan，单测环境不需要 MySQL——这是 ch01 测试能在无 DB 环境跑通的前提，保持不变。）
 
-- [ ] **Step 8: 全量回归（ch01 红线的判决点）**
+- [x] **Step 8: 全量回归（ch01 红线的判决点）**
 
 Run: `uv run pytest -v`
 Expected: **全绿**——ch01 34 个（零改动）+ ch02 新增全部。任何 ch01 测试变红都是红线事故：先修复实现，**禁止改 ch01 测试**。
 
-- [ ] **Step 9: 起服务人工冒烟（需 Task 3 容器在跑）**
+- [x] **Step 9: 起服务人工冒烟（需 Task 3 容器在跑）**
 
 ```bash
 uv run uvicorn app.main:app --port 8000 &
@@ -2600,7 +2600,7 @@ kill %1
 
 Expected: health 200；SSE 首帧 `event: conversation`，随后 token 帧与 `[DONE]`；启动日志有「MySQL 已连接」。（此步用真实 qwen，消耗少量 token；若模型不可用仅验证 conversation 帧与错误帧即可，完整验证在 Task 10。）
 
-- [ ] **Step 10: dev-notes 追记 + commit**
+- [x] **Step 10: dev-notes 追记 + commit**
 
 dev-notes「Task 8」段记：conftest 加法升级内容、ch01 回归判决结果、冒烟输出摘要。
 

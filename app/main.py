@@ -9,21 +9,36 @@ from pydantic import ValidationError
 
 from app.api.routes import router
 from app.core.config import get_settings
+from app.db.engine import check_db, dispose_engine, init_engine
 
 logging.basicConfig(level=logging.INFO)
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        get_settings()  # 启动即校验 .env 必填项，不带病启动
+        settings = get_settings()  # 启动即校验 .env 必填项，不带病启动
     except ValidationError as exc:
         raise SystemExit(
             f"[启动失败] .env 配置缺失或非法，请参考 .env.example 补全：\n{exc}"
         ) from exc
+    init_engine(settings)
+    try:
+        await check_db()  # 硬性核对点④的运行期形态：连不上快速失败
+    except Exception as exc:  # noqa: BLE001
+        raise SystemExit(
+            "[启动失败] 无法连接 MySQL。请先启动 Docker Desktop，然后执行 "
+            f"`docker compose up -d`，等容器 healthy 后重试。详情: {exc}"
+        ) from exc
+    logger.info(
+        "MySQL 已连接 %s:%s/%s", settings.mysql_host, settings.mysql_port, settings.mysql_db
+    )
     yield
+    await dispose_engine()
 
 
 app = FastAPI(title="MewHelp 电商智能客服", lifespan=lifespan)
