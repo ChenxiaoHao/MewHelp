@@ -1610,7 +1610,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
   - `ChatPersister`（Protocol）：`async on_tool_calls(conversation_id: int, content: str, tool_calls: list)`、`async on_tool_result(conversation_id: int, outcome: ToolOutcome)`、`async on_final_answer(conversation_id: int, content: str)`（spec §7 的 on_turn_start 挂点在路由层直接走 crud，不经此协议——见 Task 8）
   - `async stream_chat_with_tools(chat_messages: list[ChatMessage], settings: Settings, model, *, conversation_id: int | None = None, persister: ChatPersister | None = None) -> AsyncIterator[ToolEvent]`
 
-- [ ] **Step 1: 硬性核对点① —— chunk 累加与 tool_calls 聚合（Context7 + 本地实测，写实现前做）**
+- [x] **Step 1: 硬性核对点① —— chunk 累加与 tool_calls 聚合（Context7 + 本地实测，写实现前做）**
 
 1. Context7 查（LangChain Python 主库）：query 形如 `bind_tools astream streaming tool call chunks AIMessageChunk aggregation add chunks together`。记录文档说法。
 2. 本地实测（零 token，纯 langchain_core）：
@@ -1642,7 +1642,7 @@ PY
 
 Expected: `AGGREGATION OK`。**若断言失败**（聚合行为与预期不符，如 args 未拼接/字段名不同）→ 把实际输出贴进 dev-notes，停工问用户（spec §12-① 约定）。核对通过后，Step 3 实现中的 `full = chunk if full is None else full + chunk` 与 `full.tool_calls` 即为经实测的写法。
 
-- [ ] **Step 2: 写失败测试 `tests/test_tool_chat_service.py`**
+- [x] **Step 2: 写失败测试 `tests/test_tool_chat_service.py`**
 
 ```python
 import pytest
@@ -1845,12 +1845,12 @@ async def test_no_persister_is_noop(settings):
     assert events == [("token", "喵")]
 ```
 
-- [ ] **Step 3: 跑测试确认失败**
+- [x] **Step 3: 跑测试确认失败**
 
 Run: `uv run pytest tests/test_tool_chat_service.py -v`
 Expected: FAIL（No module named 'app.services.tool_chat_service'）
 
-- [ ] **Step 4: 实现 `app/services/tool_chat_service.py`**
+- [x] **Step 4: 实现 `app/services/tool_chat_service.py`**
 
 ```python
 """单轮 Function Calling 编排（spec §5）。
@@ -1988,12 +1988,12 @@ async def stream_chat_with_tools(
     await _persist(persister, "on_final_answer", conversation_id, "".join(parts))
 ```
 
-- [ ] **Step 5: 跑测试确认通过 + 全量回归**
+- [x] **Step 5: 跑测试确认通过 + 全量回归**
 
 Run: `uv run pytest -v`
 Expected: 全 PASS（新增 5 个编排测试）
 
-- [ ] **Step 6: dev-notes 追记 + commit**
+- [x] **Step 6: dev-notes 追记 + commit**
 
 dev-notes「Task 7」段重点记核对点①结论：Context7 说法、本地探针输出（聚合后 tool_calls 的实际字段）、qwen 真实上游留待 Task 10 实测。
 
