@@ -17,6 +17,12 @@ async def test_mine_two_runs_idempotent():
 
     init_engine(get_settings())
     try:
+        # 可重入化(Task 11 现场修):计划默认"首跑后状态",但 Task 11/12 要求纯文档库、必然发生重建,
+        # 一次性状态会让本测试重建后必挂(kept1=0 在第 32/33 行断言前无从恢复)。
+        # 入口先走本测试自己钉死的官方找回路径:全量重建(清 qa_mined)→ kept 翻回 extracted → 再跑原断言链。
+        await indexer.ingest_docs("knowledge")
+        async with get_session_factory()() as session:
+            await crud.reprocess_kept_staging(session)
         await mine_qa.extract_phase(batch_size=100)
         kept1 = await mine_qa.dedup_phase()
         async with get_session_factory()() as session:
