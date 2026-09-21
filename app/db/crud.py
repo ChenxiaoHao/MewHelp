@@ -3,11 +3,11 @@
 import logging
 from datetime import date
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, delete, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Conversation, Faq, Message, Ticket
+from app.db.models import Conversation, Faq, KnowledgeChunk, Message, QaExtractionStaging, Ticket
 
 logger = logging.getLogger(__name__)
 
@@ -108,3 +108,178 @@ async def create_ticket(
         await session.refresh(ticket)
         return ticket
     raise RuntimeError("unreachable")
+
+
+# ---------- ch03: knowledge_chunks / qa_extraction_staging ----------
+
+def chunk_fingerprint(category: str, questions: str, answer: str) -> str:
+    import hashlib
+
+    return hashlib.sha1(f"{category}|{questions}|{answer}".encode("utf-8")).hexdigest()
+
+
+async def add_chunk_drafts(session, drafts, commit: bool = True):
+    """pending 入库 + 本批内 prev/next 链(同文档/同批首尾 NULL,§4 尾注)。"""
+    rows = [
+        KnowledgeChunk(
+            category=d.category, questions=d.questions, answer=d.answer,
+            section_path=d.section_path, content_type=d.content_type,
+            is_key_clause=d.is_key_clause, vectorize_status="pending",
+        )
+        for d in drafts
+    ]
+    session.add_all(rows)
+    await session.flush()
+    for i, r in enumerate(rows):
+        r.prev_chunk_id = rows[i - 1].id if i > 0 else None
+        r.next_chunk_id = rows[i + 1].id if i + 1 < len(rows) else None
+    if commit:
+        await session.commit()
+    return rows
+
+
+async def truncate_knowledge_chunks(session) -> None:
+    """核对点⑤:自引用 FK 直接 TRUNCATE 报 1701 → session 级开关包裹。活库实测在 Task 9 Step 6。"""
+    await session.execute(text("SET FOREIGN_KEY_CHECKS=0"))
+    await session.execute(text("TRUNCATE TABLE knowledge_chunks"))
+    await session.execute(text("SET FOREIGN_KEY_CHECKS=1"))
+    await session.commit()
+
+
+async def fetch_pending_chunks(session):
+    stmt = (
+        select(KnowledgeChunk)
+        .where(KnowledgeChunk.vectorize_status == "pending")
+        .order_by(KnowledgeChunk.id)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def fetch_done_ids(session) -> list[int]:
+    stmt = select(KnowledgeChunk.id).where(KnowledgeChunk.vectorize_status == "done")
+    return [r[0] for r in (await session.execute(stmt)).all()]
+
+
+async def count_chunks_by_status(session) -> dict[str, int]:
+    stmt = select(KnowledgeChunk.vectorize_status, func.count()).group_by(KnowledgeChunk.vectorize_status)
+    return {r[0]: r[1] for r in (await session.execute(stmt)).all()}
+
+
+async def fetch_chunks_by_ids(session, ids: list[int]):
+    return list((await session.execute(select(KnowledgeChunk).where(KnowledgeChunk.id.in_(ids)))).scalars().all())
+
+
+async def existing_chunk_fingerprints(session) -> set[str]:
+    rows = (await session.execute(
+        select(KnowledgeChunk.category, KnowledgeChunk.questions, KnowledgeChunk.answer)
+    )).all()
+    return {chunk_fingerprint(c, q, a) for c, q, a in rows}
+
+
+async def mark_chunks_vectorized(session, ids: list[int]) -> None:
+    """vector_id = str(chunk_id)(§3.1 恒等约定)。demo 规模逐行 update,够用且最直白。"""
+    for cid in ids:
+        await session.execute(
+            update(KnowledgeChunk)
+            .where(KnowledgeChunk.id == cid)
+            .values(vector_id=str(cid), vectorize_status="done")
+        )
+    await session.commit()
+
+
+async def add_qa_staging_rows(session, batch_no: str, source_ref: str, items,
+                              status: str = "extracted") -> int:
+    session.add_all(
+        [
+            QaExtractionStaging(batch_no=batch_no, source_ref=source_ref,
+                                question=q, answer=a, status=status)
+            for q, a in items
+        ]
+    )
+    await session.commit()
+    return len(items)
+
+
+async def reprocess_kept_staging(session) -> int:
+    """kept → extracted 整体翻回。仅在「全量重建清空 qa_mined 后找回」场景使用:
+    必须先重建库再翻,否则闸3 会撞上自家旧 chunk(cosine=1.0)全军覆没(Task 10 集成测试钉死此顺序)。"""
+    res = await session.execute(
+        update(QaExtractionStaging).where(QaExtractionStaging.status == "kept").values(status="extracted")
+    )
+    await session.commit()
+    return res.rowcount
+
+
+async def seen_source_refs(session) -> set[str]:
+    rows = (await session.execute(
+        select(QaExtractionStaging.source_ref).where(QaExtractionStaging.source_ref.is_not(None))
+    )).all()
+    return {r[0] for r in rows}
+
+
+def build_unmined_conversations_query(limit: int):
+    """§6 候选:user 与 assistant 都有、且 'conv:{id}' 从未在 staging 出现(会话级记账即幂等)。"""
+    has_user = select(Message.conversation_id).where(Message.role == "user")
+    has_assistant = select(Message.conversation_id).where(Message.role == "assistant")
+    mined = select(QaExtractionStaging.source_ref).where(QaExtractionStaging.source_ref.is_not(None))
+    return (
+        select(Conversation.id)
+        .where(
+            Conversation.id.in_(has_user),
+            Conversation.id.in_(has_assistant),
+            func.concat("conv:", Conversation.id).not_in(mined),
+        )
+        .order_by(Conversation.id)
+        .limit(limit)
+    )
+
+
+async def unmined_conversation_ids(session, limit: int) -> list[int]:
+    rows = (await session.execute(build_unmined_conversations_query(limit))).all()
+    return [r[0] for r in rows]
+
+
+async def conversation_transcript(session, conversation_id: int) -> str | None:
+    rows = (await session.execute(
+        select(Message.role, Message.content)
+        .where(Message.conversation_id == conversation_id,
+               Message.role.in_(["user", "assistant"]))
+        .order_by(Message.id)
+    )).all()
+    if not rows:
+        return None
+    return "\n".join(f"{'用户' if role == 'user' else '客服'}: {content}" for role, content in rows)
+
+
+async def fetch_extracted_staging(session):
+    stmt = (
+        select(QaExtractionStaging)
+        .where(QaExtractionStaging.status == "extracted")
+        .order_by(QaExtractionStaging.id)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def finalize_qa(session, kept, discarded_ids: list[int]) -> int:
+    """单事务:kept 簇 → qa_mined chunk(pending,批内链)+ staging 翻面(§6 幂等论证所在)。"""
+    from dataclasses import replace as _dc_replace
+
+    drafts = [_dc_replace(d, content_type="qa_mined") for d, _ in kept]  # 入库统一记 qa_mined(§6)
+    await add_chunk_drafts(session, drafts, commit=False)
+    if kept:
+        kept_ids = [sid for _, ids in kept for sid in ids]
+        await session.execute(
+            update(QaExtractionStaging).where(QaExtractionStaging.id.in_(kept_ids)).values(status="kept")
+        )
+    if discarded_ids:
+        await session.execute(
+            update(QaExtractionStaging).where(QaExtractionStaging.id.in_(discarded_ids)).values(status="discarded")
+        )
+    await session.commit()
+    return len(drafts)
+
+
+async def clear_staging(session) -> int:
+    res = await session.execute(delete(QaExtractionStaging))
+    await session.commit()
+    return res.rowcount
