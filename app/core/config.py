@@ -23,6 +23,19 @@ class Settings(BaseSettings):
     tool_timeout_seconds: float = 5.0
     tool_max_retries: int = 1
 
+    # --- ch03: RAG 知识库(全部带默认值,不破坏 ch01/ch02 构造) ---
+    milvus_uri: str = "http://127.0.0.1:19530"
+    milvus_collection: str = "knowledge"
+    embedding_model: str = "text-embedding-v4"
+    embedding_dimensions: int = 1024
+    embedding_batch_size: int = 10
+    chunk_size: int = 500
+    chunk_overlap: int = 80
+    rag_top_k: int = 5
+    rag_score_threshold: float = 0.3  # Task 12 评估集校准值
+    qa_dedup_threshold: float = 0.92
+    qa_mine_batch_conversations: int = 5
+
     @property
     def database_url(self) -> str:
         return (

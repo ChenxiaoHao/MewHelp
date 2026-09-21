@@ -10,6 +10,7 @@ dependencies = [
     "langchain>=1.4.2",
     "langchain-openai>=1.6.2",
     "pydantic-settings>=2.15.0",
+    "pymilvus>=3.0.2",
     "sqlalchemy[asyncio]>=2.0.54",
     "uvicorn[standard]>=0.53.0",
 ]
@@ -23,3 +24,7 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = ["-m", "not integration"]
+markers = [
+    "integration: 需要活的 Milvus/MySQL/DashScope 环境,默认跳过,uv run pytest -m integration 单跑",
+]

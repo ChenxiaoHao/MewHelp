@@ -1,5 +1,5 @@
 """五个业务工具。query_order/query_product/query_logistics 为 mock（不接真实接口、不建表）；
-query_faq 查 faq 表（SQL LIKE）；create_ticket 写 tickets 表。
+query_faq 走向量语义检索(app/rag/retriever.py,ch03);create_ticket 写 tickets 表。
 
 工具函数一律返回 dict（结构化结果），异常向上抛由 executor 统一包装——
 definitions 里不写错误处理（职责分离）。
@@ -13,8 +13,8 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from app.db.crud import create_ticket as crud_create_ticket
-from app.db.crud import search_faq
 from app.db.engine import get_session_factory
+from app.rag.retriever import retrieve_hits
 
 _ORDER_STATUSES = ["待付款", "待发货", "运输中", "已签收", "已取消"]
 _CARRIERS = ["中通快递", "圆通速递", "韵达快递", "顺丰速运"]
@@ -78,14 +78,13 @@ async def query_logistics(order_id: str) -> dict:
 
 @tool
 async def query_faq(keyword: str) -> dict:
-    """按关键词检索平台常见问题（退换货政策、退款流程、邮费与包邮门槛、发货时间、支持的快递公司、发票、会员积分等）。用户咨询任何平台规则、政策、费用类问题时，必须先调用本工具检索再作答，即使你认为自己知道通用答案。keyword: 检索关键词，如「退货政策」「邮费」。"""
-    async with get_session_factory()() as session:
-        rows = await search_faq(session, keyword)
+    """语义检索平台知识库,回答规则、政策、费用与商品使用类问题(退换货政策、运费与包邮门槛、售后流程、积分等)。用户咨询任何平台规则、政策、费用、商品用法类问题时,必须先调用本工具再作答,即使你认为自己知道通用答案。keyword: 用户的原始问题完整句子(语义检索按整句匹配,请勿自行拆词)。"""
+    hits = await retrieve_hits(keyword)
     return {
         "keyword": keyword,
         "hits": [
-            {"id": f.id, "question": f.question, "answer": f.answer, "category": f.category}
-            for f in rows
+            {"id": c.id, "question": c.questions.splitlines()[0], "answer": c.answer, "category": c.category}
+            for c in hits
         ],
     }
 

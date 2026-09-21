@@ -1,0 +1,12 @@
+[
+  {"id": "Q1", "dialog": "用户: 买多少钱的东西才免邮寄费\n客服: 单笔订单实付满 99 元包邮,未满 99 元收 8 元基础运费哦。",
+   "expect_question_any": ["免邮寄费", "包邮", "邮寄费"], "expect_answer_all": ["99", "8"], "hallucination_forbidden": ["199"]},
+  {"id": "Q2", "dialog": "用户: 冻干能拌在普通猫粮里一起喂吗\n客服: 可以,冻干能当拌粮或零食,幼猫每天不超过 10 克,成猫 15-20 克。",
+   "expect_question_any": ["冻干", "拌"], "expect_answer_all": ["10", "成猫"], "hallucination_forbidden": ["每天 50 克"]},
+  {"id": "Q3", "dialog": "用户: 你好在吗\n客服: 在的喵,有什么可以帮您?\n用户: 没事,随便看看",
+   "expect_items_max": 0, "expect_question_any": [], "expect_answer_all": [], "hallucination_forbidden": []},
+  {"id": "Q4", "dialog": "用户: 能买个运费险吗,退货运费太贵了\n客服: 抱歉,平台暂不支持运费险;7 天无理由的寄回运费需自理,质量问题运费我们承担。",
+   "expect_question_any": ["运费险"], "expect_answer_all": ["暂不支持"], "hallucination_forbidden": ["支持运费险", "可以买"]},
+  {"id": "Q5", "dialog": "用户: 积分怎么获得?能当钱花吗\n客服: 每消费 1 元积 1 分,签收后到账,下单结算时可抵扣,100 积分抵 1 元。",
+   "expect_question_any": ["积分"], "expect_answer_all": ["1 元", "100"], "hallucination_forbidden": ["10 积分"]}
+]

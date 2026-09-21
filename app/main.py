@@ -37,6 +37,15 @@ async def lifespan(app: FastAPI):
     logger.info(
         "MySQL 已连接 %s:%s/%s", settings.mysql_host, settings.mysql_port, settings.mysql_db
     )
+
+    from app.rag import milvus_store  # 模块级 import 亦可;pymilvus 已是硬依赖
+
+    try:
+        _mv = milvus_store.get_client(settings.milvus_uri, timeout=3.0)
+        if not milvus_store.health_ok(_mv):
+            logger.warning("Milvus 不可达(%s):query_faq 将运行期报错,请 docker compose up -d", settings.milvus_uri)
+    except Exception as exc:  # noqa: BLE001 —— 探活本身永不阻塞启动
+        logger.warning("Milvus 探活异常(不阻塞启动): %s", exc)
     yield
     await dispose_engine()
 

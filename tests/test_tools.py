@@ -61,42 +61,32 @@ async def test_query_order_and_product_shape():
 
 
 async def test_query_faq_hits(monkeypatch):
-    from app.db.models import Faq
+    """ch03 契约测试:返回键结构逐字段不变;question = questions 首行(多问法取首个)。"""
+    from types import SimpleNamespace
+
     from app.tools import definitions as d
 
-    class Sess:
-        async def __aenter__(self):
-            return self
+    row = SimpleNamespace(id=12, questions="幼猫一天喂几次\n小猫咪一天要吃几顿",
+                          answer="每天 3-4 次。", category="猫粮")
 
-        async def __aexit__(self, *a):
-            return False
+    async def fake_retrieve(keyword, settings=None):
+        assert keyword == "幼猫喂几次"
+        return [row]
 
-    async def fake_search_faq(session, keyword, limit=3):
-        return [Faq(id=1, question=f"{keyword}是什么", answer="答案A", category="售后政策")]
-
-    monkeypatch.setattr(d, "search_faq", fake_search_faq)
-    monkeypatch.setattr(d, "get_session_factory", lambda: (lambda: Sess()))
-    out = await d.query_faq.ainvoke({"keyword": "退货政策"})
-    assert out["keyword"] == "退货政策"
-    assert out["hits"][0]["answer"] == "答案A"
+    monkeypatch.setattr(d, "retrieve_hits", fake_retrieve)
+    out = await d.query_faq.ainvoke({"keyword": "幼猫喂几次"})
+    assert out == {"keyword": "幼猫喂几次", "hits": [{"id": 12, "question": "幼猫一天喂几次",
+                                                     "answer": "每天 3-4 次。", "category": "猫粮"}]}
 
 
 async def test_query_faq_miss_shape(monkeypatch):
-    """漏召回也要返回结构化空结果（模型据此如实告知）。"""
+    """空命中返回结构化空数组,不回退 LIKE(§0-5 决策的测试化)。"""
     from app.tools import definitions as d
 
-    class Sess:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *a):
-            return False
-
-    async def fake_search_faq(session, keyword, limit=3):
+    async def fake_retrieve(keyword, settings=None):
         return []
 
-    monkeypatch.setattr(d, "search_faq", fake_search_faq)
-    monkeypatch.setattr(d, "get_session_factory", lambda: (lambda: Sess()))
+    monkeypatch.setattr(d, "retrieve_hits", fake_retrieve)
     out = await d.query_faq.ainvoke({"keyword": "邮费"})
     assert out == {"keyword": "邮费", "hits": []}
 
