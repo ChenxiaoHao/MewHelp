@@ -1,0 +1,47 @@
+import pytest
+
+pytestmark = pytest.mark.integration
+
+
+async def test_mine_two_runs_idempotent():
+    """确定性断言放幂等与状态机上;附录 D 的闸靶子判定交给 qa_mining eval + 一次人工观察(打印),
+    防 LLM 措辞漂移把 CI 化断言变成抛硬币。"""
+    from sqlalchemy import select, func
+
+    from app.core.config import get_settings
+    from app.db import crud
+    from app.db.engine import dispose_engine, get_session_factory, init_engine
+    from app.db.models import KnowledgeChunk, QaExtractionStaging
+    from app.jobs import mine_qa
+    from app.rag import indexer
+
+    init_engine(get_settings())
+    try:
+        await mine_qa.extract_phase(batch_size=100)
+        kept1 = await mine_qa.dedup_phase()
+        async with get_session_factory()() as session:
+            staging_total_1 = (await session.execute(select(func.count()).select_from(QaExtractionStaging))).scalar()
+            mined = (await session.execute(
+                select(func.count()).select_from(KnowledgeChunk).where(KnowledgeChunk.content_type == "qa_mined")
+            )).scalar()
+            ins = (await session.execute(
+                select(KnowledgeChunk.questions, KnowledgeChunk.answer).where(
+                    KnowledgeChunk.content_type == "qa_mined")
+            )).all()
+        joined = "\n".join(q + a for q, a in ins)
+        assert mined >= 4 and "运费险" in joined and "积分" in joined   # D 的 C6/C7 kept(话题词稳定,措辞漂移不影响包含)
+        assert kept1 >= 4
+        # 第二轮:抽取阶段应零新行(source_ref 记账幂等),dedup 零变化
+        assert await mine_qa.extract_phase(batch_size=100) == 0
+        async with get_session_factory()() as session:
+            assert (await session.execute(select(func.count()).select_from(QaExtractionStaging))).scalar() == staging_total_1
+        # 全量重建后找回路径(§5 副作用闭环)。顺序必须是 先重建、后翻档:
+        # 不重建直接 reprocess,闸3 会撞上自家旧 qa_mined chunk(cosine=1.0)全部被判重——这个坑由本测试钉死
+        await indexer.ingest_docs("knowledge")          # 全量重建:清表+drop 集合+文档块 pending(旧 qa_mined 清零)
+        async with get_session_factory()() as session:
+            n = await crud.reprocess_kept_staging(session)
+        assert n >= 4
+        kept2 = await mine_qa.dedup_phase()             # 找回 kept 块,尾部 vectorize_pending 顺带补齐全部 pending
+        assert kept2 >= 4
+    finally:
+        await dispose_engine()
