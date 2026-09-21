@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text, func, text
 from sqlalchemy.dialects.mysql import BIGINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -91,6 +91,60 @@ class Ticket(Base):
         Enum("待处理", "已处理", name="ticket_status"),
         nullable=False,
         server_default="待处理",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+
+class KnowledgeChunk(Base):
+    """知识库原文权威源;DDL 与 spec 附录 A 逐列对齐,建表以 03_ch03_schema.sql 为准。"""
+
+    __tablename__ = "knowledge_chunks"
+
+    id: Mapped[int] = _pk()
+    category: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    questions: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    section_path: Mapped[str | None] = mapped_column(String(512))
+    content_type: Mapped[str | None] = mapped_column(String(32))
+    is_key_clause: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("0"))
+    prev_chunk_id: Mapped[int | None] = mapped_column(
+        BIGINT(unsigned=True),
+        ForeignKey("knowledge_chunks.id", ondelete="SET NULL"),
+    )
+    next_chunk_id: Mapped[int | None] = mapped_column(
+        BIGINT(unsigned=True),
+        ForeignKey("knowledge_chunks.id", ondelete="SET NULL"),
+    )
+    vector_id: Mapped[str | None] = mapped_column(String(64))
+    vectorize_status: Mapped[str] = mapped_column(
+        Enum("pending", "done", name="vectorize_status"),
+        nullable=False,
+        server_default="pending",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class QaExtractionStaging(Base):
+    """历史对话抽 QA 的中转表;保留行可追溯,--clear-staging 才物理清。"""
+
+    __tablename__ = "qa_extraction_staging"
+
+    id: Mapped[int] = _pk()
+    batch_no: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_ref: Mapped[str | None] = mapped_column(String(255))
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        Enum("extracted", "kept", "discarded", name="staging_status"),
+        nullable=False,
+        server_default="extracted",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
