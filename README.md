@@ -108,7 +108,7 @@ curl -N -X POST http://127.0.0.1:8000/api/chat/stream -H "Content-Type: applicat
 printf '{"messages":[{"role":"user","content":"退货政策是什么"}]}' > a2.json
 curl -N -X POST http://127.0.0.1:8000/api/chat/stream -H "Content-Type: application/json" -d @a2.json
 
-# 验收3: 邮费 → query_faq 漏召回（LIKE 检索的预期结果）→ 如实告知查不到并建议转人工
+# 验收3: 邮费 → query_faq 漏召回（LIKE 检索的预期结果）→ 如实告知查不到并建议转人工（**ch03 起此问已能语义命中，见下文 ch03 节**）
 printf '{"messages":[{"role":"user","content":"邮费是多少"}]}' > a3.json
 curl -N -X POST http://127.0.0.1:8000/api/chat/stream -H "Content-Type: application/json" -d @a3.json
 # 漏召回原文留痕 dev-notes/ch02.md「Task 10」段，ch03 向量检索升级的输入
@@ -147,3 +147,29 @@ dev-notes/             # 开发过程留痕（ch01 / ch02）
 ## ch02 不做（后续章节）
 
 多轮 Agent 循环、RAG/向量检索（ch03：修复 FAQ LIKE 漏召回）、鉴权、部署。
+
+## ch03:RAG 知识库(query_faq 语义检索版)
+
+### 准备(老库升级一次性)
+```bash
+docker compose up -d
+docker compose exec -i mysql mysql -uroot -pmewhelp_dev mewhelp < db/init/03_ch03_schema.sql
+docker compose exec -i mysql mysql -uroot -pmewhelp_dev mewhelp < db/init/04_ch03_seed.sql
+```
+
+### 建库与挖知识
+```bash
+uv run python -m app.jobs.build_knowledge          # 全量重建 knowledge/*.md → MySQL pending → Milvus → done
+uv run python evals/run_rag_eval.py                # 检索评估 hit-rate@3 ≥10/12(纯文档库上跑)
+uv run python -m app.jobs.mine_qa                  # 历史对话 → LLM 抽 QA → 三道闸 → 入库+向量化
+uv run python evals/run_qa_mining_eval.py          # 抽取质量评估(真 LLM)
+```
+
+### 验收演示
+- 验收 1:`uv run uvicorn app.main:app` 后问「邮费是多少」→ query_faq 徽章 + 99 包邮/8 元答案
+- 验收 2:`--fault-after 3`(exit 42)→ 查 pending → `--skip-existing` 补齐 → `--check` 差集 ∅;
+  全量重建会清 qa_mined(设计内),`mine_qa --reprocess-kept --dedup-only` 找回
+- 对账:`uv run python -m app.jobs.build_knowledge --check`
+
+参数在 `.env`(RAG_TOP_K / RAG_SCORE_THRESHOLD / QA_DEDUP_THRESHOLD…,默认值见 app/core/config.py)。
+开发过程留痕:`dev-notes/ch03.md`;设计:`docs/superpowers/specs/2026-09-21-…-design.md`。

@@ -1,0 +1,14 @@
+[
+  {"id": 1, "query": "邮费是多少", "expect_path": "退货政策 > 运费说明", "type": "direct", "confusable_with": []},
+  {"id": 2, "query": "退回去的东西，寄回的快递钱谁出", "expect_path": "退货政策 > 运费说明", "type": "synonym", "confusable_with": [6]},
+  {"id": 3, "query": "买多少东西才能免邮寄费", "expect_path": "退货政策 > 运费说明", "type": "synonym", "confusable_with": []},
+  {"id": 4, "query": "我在拉萨，买 120 元的猫粮要付配送费吗", "expect_path": "退货政策 > 运费说明", "type": "indirect", "confusable_with": []},
+  {"id": 5, "query": "一元抢购的还要出派送钱吗", "expect_path": "退货政策 > 运费说明", "type": "indirect", "confusable_with": []},
+  {"id": 6, "query": "东西收到就坏了，七天无理由能用上吗", "expect_path": "退货政策 > 退换货条件", "type": "confusable", "confusable_with": [2, 7, 11]},
+  {"id": 7, "query": "猫粮拆封了还能退吗", "expect_path": "退货政策 > 不支持退换的情形", "type": "confusable", "confusable_with": [6]},
+  {"id": 8, "query": "钱退回到银行卡要几个工作日", "expect_path": "退货政策 > 退款到账", "type": "synonym", "confusable_with": []},
+  {"id": 9, "query": "三个月的小猫一顿放几克粮", "expect_path": "商品 FAQ > 猫粮 > 冻干猫粮喂食量表", "type": "indirect", "confusable_with": []},
+  {"id": 10, "query": "饮水机用久了有水垢怎么处理", "expect_path": "商品 FAQ > 用品", "type": "indirect", "confusable_with": []},
+  {"id": 11, "query": "快递把猫砂盆压瘪了找谁赔", "expect_path": "售后服务手册 > 物流异常赔付标准", "type": "confusable", "confusable_with": [6]},
+  {"id": 12, "query": "夜里十一点客服还在线吗", "expect_path": "售后服务手册 > 售后服务时间", "type": "synonym", "confusable_with": []}
+]
