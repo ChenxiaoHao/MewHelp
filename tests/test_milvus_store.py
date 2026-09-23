@@ -98,8 +98,10 @@ def test_ensure_collection_declares_bm25_schema():
     fn = c.schema.functions[0]
     assert fn.type is FunctionType.BM25 and fn.name == "bm25_fn"  # 实测:公开访问器是 .type(计划预核的 .function_type 仅构造参数名,Context7 复核)
     assert list(fn.input_field_names) == ["text"] and list(fn.output_field_names) == ["sparse"]
-    assert (c.index_params.indexes[0][0], c.index_params.indexes[0][1]["metric_type"]) == ("embedding", "COSINE")
-    assert (c.index_params.indexes[1][0], c.index_params.indexes[1][1]["index_type"]) == ("sparse", "SPARSE_INVERTED_INDEX")
+    assert (c.index_params.indexes[0][0], c.index_params.indexes[0][1]["index_type"],
+            c.index_params.indexes[0][1]["metric_type"]) == ("embedding", "AUTOINDEX", "COSINE")
+    assert (c.index_params.indexes[1][0], c.index_params.indexes[1][1]["index_type"],
+            c.index_params.indexes[1][1]["metric_type"]) == ("sparse", "SPARSE_INVERTED_INDEX", "BM25")
     kw = [call for call in c.calls if call[0] == "create"][0][1]
     assert kw["collection_name"] == "knowledge" and kw["schema"] is c.schema
     c2 = FakeClient(has=True)
@@ -126,6 +128,7 @@ def test_search_dense_and_bm25_shapes():
     assert search_vectors(c, "knowledge", [0.0], 2) == [(2, 0.9), (1, 0.31)]
     kw = [call for call in c.calls if call[0] == "search"][0][1]
     assert kw["data"] == [[0.0]] and "filter" not in kw
+    assert kw["anns_field"] == "embedding"  # 实测:双向量列集合缺省 anns_field 报 1100,门面必须显式传
     c2 = FakeClient(search_out=[[{"chunk_id": 7, "distance": 12.5}]])
     assert bm25_search(c2, "knowledge", "MH-LP100", 3, expr='category == "商品参数"') == [(7, 12.5)]
     kw2 = [call for call in c2.calls if call[0] == "search"][0][1]
@@ -149,6 +152,17 @@ def test_hybrid_search_builds_two_legs_with_rrf():
     assert isinstance(kw["ranker"], RRFRanker)
     assert kw["ranker"].dict()["params"] == {"k": 60}  # 实测:RRFRanker 无公开 .k 属性,文档口径=dict() 序列化(Context7 复核)
     assert kw["collection_name"] == "knowledge" and kw["limit"] == 10
+
+
+def test_empty_results_map_to_empty_lists():
+    """三检索出口空结果契约:res=[[]](零命中)与 res=[](空回包)都必须归一为 [],不炸索引。"""
+    from app.rag.milvus_store import bm25_search, hybrid_search, search_vectors
+
+    for kw in ({}, {"search_out": [], "hybrid_out": []}):
+        c = FakeClient(**kw)
+        assert search_vectors(c, "knowledge", [0.0], 3) == []
+        assert bm25_search(c, "knowledge", "猫砂盆", 3) == []
+        assert hybrid_search(c, "knowledge", [0.0], "猫砂盆", limit=3, recall_k=5, rrf_k=60) == []
 
 
 def test_health_drop_flush_count_ids():

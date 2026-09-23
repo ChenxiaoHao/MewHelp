@@ -1,8 +1,10 @@
-"""ch03 两段双写(spec §5)。
+"""ch03 两段双写、ch04 集合 v2(spec §3/§5)。
 
 Stage1 ingest_docs:默认全量重建(清 MySQL 表 + drop Milvus 集合 → 重灌 pending);
   --skip-existing:不清表,sha1 指纹跳过重复,只追加新块。
-Stage2 vectorize_pending:扫 pending → embed_batch → upsert(chunk_id=pk) → 回填 done。
+Stage2 vectorize_pending:扫 pending → embed_batch → upsert_rows(
+  {chunk_id,text,embedding,category,content_type})→ 回填 done。
+  text 与 embed 输入同源三格拼接(§3.1);sparse 列由服务端 BM25 Function 生成,客户端不写。
   任一点崩溃:行仍 pending 或已 done 但向量同 pk 可覆写,重跑即自愈——「按主键幂等」。
 fault_after:N 之后(批粒度)SystemExit(42),验收 2 的注入。
 """
