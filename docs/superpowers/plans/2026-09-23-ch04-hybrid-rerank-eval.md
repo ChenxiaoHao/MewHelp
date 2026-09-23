@@ -2632,7 +2632,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - [ ] **Step 1: 写失败测试 `tests/test_faith_crud_ch04.py`(FakeSession 纯逻辑:upsert 三态与流转)**
 
 ```python
-"""台账 upsert 复发流转(spec §3.3):created/updated/reactivated 三态;
+"""台账 upsert 复发流转(spec §3.2/附录A(← 引用订正:spec 无 §3.3,台账重判语义在 §3.2,DDL 注释在附录A)):created/updated/reactivated 三态;
 复发自动退回未解决+清 resolution;resolved_at 保留;seen_count 递增;uk_eval_id 一题一行。"""
 
 from datetime import datetime
@@ -2726,7 +2726,7 @@ async def upsert_faith_case(session, *, eval_id: str, bucket: str, query: str, a
                             reason: str, citations, judge_model,
                             strategy: str = "hybrid_rerank") -> str:
     """一题一行(uk_eval_id):created/updated/reactivated。复发即退回未解决、清 resolution,
-    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.3)。"""
+    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.2/附录A)。"""
     row = (await session.execute(select(FaithCase).where(FaithCase.eval_id == eval_id))).scalar_one_or_none()
     now = datetime.now()
     if row is None:
@@ -2999,7 +2999,7 @@ async def test_ledger_roundtrip_live():
             row = (await crud.list_faith_cases(session, status="未解决", bucket="D_absent"))
             mine = [r for r in row if r.eval_id == eid][0]
             # ← 实施 T10 修订(计划缺陷:本节自带断言与自带实现自相矛盾——上面第二次 upsert 照原文传
-            #   citations=None,而 crud.upsert_faith_case 按 spec §3.3 为无条件覆写(含 None),故重判后
+            #   citations=None,而 crud.upsert_faith_case 按 spec §3.2/附录A(← 引用订正:spec 无 §3.3,台账重判语义在 §3.2,DDL 注释在附录A) 为无条件覆写(含 None),故重判后
             #   快照必为 None,原断言 citations[0]["n"]==1 永不可能成立。修法=断言跟随代码语义,输入保持
             #   brief 原文;另在 FakeSession 单测层补钉「None 覆写旧快照」用例(断言只增不减)。
             #   注:本回写由 controller 于 T10 评审前补做(commit 见 ledger);实施期并无 controller 裁决,
@@ -3682,7 +3682,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 1. 跑过 Task 12 后打开页面能看到个案、按「未解决+D_absent」过滤正确;
 2. 置「已解决」不填说明 → 前端提示(服务端 422 兜底,手工 curl 复验一次);
 3. 填说明保存 → 徽章变绿、显示处置说明;
-4. 重跑 `run_faith_eval.py` 该题再判编造 → 刷新后行自动回「未解决」、seen_count+1(spec §3.3 复发流转,**核对 T10 已测、此处端到端再验**);
+4. 重跑 `run_faith_eval.py` 该题再判编造 → 刷新后行自动回「未解决」、seen_count+1(spec §3.2/附录A(← 引用订正:spec 无 §3.3,台账重判语义在 §3.2,DDL 注释在附录A) 复发流转,**核对 T10 已测、此处端到端再验**);
 5. 窄屏(浏览器缩到手机宽)表格横向滚动不破版;零新依赖。
 
 - [ ] **Step 4: 提交**
