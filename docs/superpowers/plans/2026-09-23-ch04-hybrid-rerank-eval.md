@@ -458,7 +458,7 @@ def test_ensure_collection_declares_bm25_schema():
     assert _field_kw(c)["embedding"]["dim"] == 1024
     assert _field_kw(c)["category"]["max_length"] == 765
     fn = c.schema.functions[0]
-    assert fn.function_type is FunctionType.BM25 and fn.name == "bm25_fn"
+    assert fn.type is FunctionType.BM25 and fn.name == "bm25_fn"  # 2026-09-23 T2 实测:pymilvus 3.0.2 公开访问器是 .type(.function_type 仅构造参数名,Context7 复核)
     assert list(fn.input_field_names) == ["text"] and list(fn.output_field_names) == ["sparse"]
     assert (c.index_params.indexes[0][0], c.index_params.indexes[0][1]["metric_type"]) == ("embedding", "COSINE")
     assert (c.index_params.indexes[1][0], c.index_params.indexes[1][1]["index_type"]) == ("sparse", "SPARSE_INVERTED_INDEX")
@@ -508,7 +508,8 @@ def test_hybrid_search_builds_two_legs_with_rrf():
     reqs = kw["reqs"]
     assert (reqs[0].anns_field, reqs[0].limit, reqs[0].expr) == ("embedding", 50, 'category == "x"')
     assert (reqs[1].anns_field, reqs[1].limit, reqs[1].data) == ("sparse", 50, ["猫砂盆 清理"])
-    assert isinstance(kw["ranker"], RRFRanker) and kw["ranker"].k == 60
+    assert isinstance(kw["ranker"], RRFRanker)
+    assert kw["ranker"].dict()["params"] == {"k": 60}  # 2026-09-23 T2 实测:RRFRanker 无公开 .k 属性,文档口径=dict() 序列化(Context7 复核)
     assert kw["collection_name"] == "knowledge" and kw["limit"] == 10
 
 
@@ -697,14 +698,21 @@ def test_collection_v2_bm25_hybrid_roundtrip():
         assert zh and zh[0][0] == 1
         dense = milvus_store.search_vectors(client, COLL, [1.0, 0.0, 0.0, 0.0], 3)
         assert dense[0][0] == 1
-        # 标量过滤(需求3):品类 expr 只放行该品类块
-        filt = milvus_store.bm25_search(client, COLL, "猫", 3, expr='category == "退货政策"')
+        # 标量过滤(需求3):品类 expr 只放行该品类块。
+        # 2026-09-23 T2 实测修正:原「猫→只{3}」物理不成立(row3 无「猫」token),改用 1/3 行共有「7 天」,
+        # 无过滤先证 {1,3} 都在、过滤后只放行 3——才真正测到「排除其它品类」语义。
+        assert {cid for cid, _ in milvus_store.bm25_search(client, COLL, "7 天", 3)} == {1, 3}
+        filt = milvus_store.bm25_search(client, COLL, "7 天", 3, expr='category == "退货政策"')
         assert {cid for cid, _ in filt} == {3}
         # hybrid:dense 腿偏 2、BM25 腿偏 3 → 融合含两者且形状 [(int, float)]
         hyb = milvus_store.hybrid_search(client, COLL, [0.0, 1.0, 0.0, 0.0], "7 天无理由退货",
                                          limit=3, recall_k=3, rrf_k=60)
         assert hyb and all(isinstance(cid, int) and isinstance(s, float) for cid, s in hyb)
-        assert {cid for cid, _ in hyb} == {2, 3}
+        # 2026-09-23 T2 实测修正:原「=={2,3}」不成立——recall_k=3 在 3 行小库=全库进融合,
+        # chunk1 双腿中游(dense 第3+BM25 第2)RRF 反超单腿冠军 chunk2;实测序 [3,1,2] 与
+        # RRFRanker(k=60) 公式 1/(k+rank) 逐项吻合(0.0325/0.0320/0.0164),按「融合含两者」本意改 ⊇。
+        assert {2, 3} <= {cid for cid, _ in hyb}
+        assert [cid for cid, _ in hyb] == [3, 1, 2]
         # 同 PK 覆写幂等 + flush 语义沿用
         assert milvus_store.upsert_rows(client, COLL, [dict(ROWS[0])]) == 1
         milvus_store.flush(client, COLL)
