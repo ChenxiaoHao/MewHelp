@@ -1,4 +1,4 @@
-"""台账 upsert 复发流转(spec §3.3):created/updated/reactivated 三态;
+"""台账 upsert 复发流转(spec §3.2/附录A):created/updated/reactivated 三态;
 复发自动退回未解决+清 resolution;resolved_at 保留;seen_count 递增;uk_eval_id 一题一行。"""
 
 from datetime import datetime
@@ -69,7 +69,7 @@ async def test_reactivation_resets_status_and_clears_resolution():
 
 
 async def test_rejudge_with_none_citations_overwrites_snapshot():
-    """计划修订回写(2026-09-24,T10 Step 3)配套新案:spec §3.3「重判→更新 citations 快照」
+    """计划缺陷修订(实施者自判;锚点订正见 test_ledger_integration 同注)配套新案:spec §3.2/附录A「重判→更新 citations 快照」
     为无条件覆写——重判传 None 时旧快照被覆写为 NULL(非保留旧值);与集成层
     test_ledger_roundtrip_live 的 `mine.citations is None` 断言同向钉死(只增不减)。"""
     old = FaithCase(eval_id="A22", bucket="A_policy", query="q", strategy="hybrid_rerank",
