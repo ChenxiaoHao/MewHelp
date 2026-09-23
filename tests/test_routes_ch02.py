@@ -125,6 +125,10 @@ async def test_tool_frames_order_and_shape(client, monkeypatch):
 
     monkeypatch.setattr(svc, "execute_tool", fake_execute)
 
+    async def fake_check(question, hits, settings, *, model=None):
+        return None  # 闸2 = 不判即放行(降级语义);路由帧断言不触真实自评
+    monkeypatch.setattr(svc, "evaluate_evidence", fake_check)
+
     r = await client.post(
         "/api/chat/stream",
         json={"messages": [{"role": "user", "content": "退货政策是什么"}]},
@@ -160,6 +164,11 @@ async def test_tool_result_frame_carries_citations(client, monkeypatch):
                            "命中 1 条", citations=cites)
 
     monkeypatch.setattr(svc, "execute_tool", fake_execute)
+
+    async def fake_check(question, hits, settings, *, model=None):
+        return None  # 闸2 = 不判即放行(降级语义);路由帧断言不触真实自评
+    monkeypatch.setattr(svc, "evaluate_evidence", fake_check)
+
     r = await client.post("/api/chat/stream",
                           json={"messages": [{"role": "user", "content": "退货政策"}]})
     tr_line = [l for l in r.text.splitlines() if l.startswith("data:") and '"citations"' in l][0]

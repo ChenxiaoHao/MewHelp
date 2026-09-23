@@ -76,6 +76,30 @@ def tc_chunk(args_fragment, first=False):
     )
 
 
+def faq_chunk(args_fragment, first=False):
+    return AIMessageChunk(
+        content="",
+        tool_call_chunks=[{"name": "query_faq" if first else None, "args": args_fragment,
+                           "id": "call_f" if first else None, "index": 0, "type": "tool_call_chunk"}],
+    )
+
+
+def faq_outcome(refused=False, hits=None, note=""):
+    return ToolOutcome(
+        "query_faq", "call_f", True,
+        {"keyword": "退货款几天到账", "hits": hits or [], "refused": refused, "note": note},
+        "未命中" if not hits else f"命中 {len(hits)} 条",
+    )
+
+
+HIT1 = [{"n": 1, "id": 5, "question": "q", "answer": "a", "category": "c", "section_path": "s"}]
+
+
+async def _ret(v):
+    """把同步值包成 awaitable（给 monkeypatch 的 lambda 用）。"""
+    return v
+
+
 async def test_pure_chat_passthrough(settings):
     """无工具决策：token 实时透传，第二轮根本不发生，行为与 ch01 等价。"""
     model = FakeToolModel(
@@ -196,3 +220,83 @@ async def test_no_persister_is_noop(settings):
         svc.stream_chat_with_tools(user_msg(), settings, model)
     )
     assert events == [("token", "喵")]
+
+
+async def test_gate1_refused_exits_with_fixed_refusal_no_round2(settings, monkeypatch):
+    model = FakeToolModel(
+        round1=[faq_chunk('{"keyword": ', first=True), faq_chunk('"退货款几天到账"}')],
+        round2=[AIMessageChunk(content="不该走到第二轮")],
+    )
+
+    async def fake_execute(name, args, tcid, ctx):
+        return faq_outcome(refused=True, note="证据置信度不足")
+
+    monkeypatch.setattr(svc, "execute_tool", fake_execute)
+    p = FakePersister()
+    events = await collect(svc.stream_chat_with_tools(
+        user_msg("退货款几天到账"), settings, model, conversation_id=9, persister=p))
+    assert [k for k, _ in events] == ["tool_call", "tool_result", "token"]
+    assert events[-1][1] == svc.REFUSAL_ANSWER
+    assert model.calls == 1
+    assert [c[0] for c in p.calls] == ["tool_calls", "tool_result", "final"]
+    assert p.calls[-1][2] == svc.REFUSAL_ANSWER  # 固定文案落库(与 yield 同源,§5.2)
+
+
+async def test_gate2_insufficient_refuses_and_pools(settings, monkeypatch):
+    from app.services.self_check import EvidenceCheck
+
+    model = FakeToolModel(
+        round1=[faq_chunk('{"keyword": ', first=True), faq_chunk('"退货款几天到账"}')], round2=[])
+    seen = {}
+
+    async def fake_execute(name, args, tcid, ctx):
+        return faq_outcome(hits=HIT1)
+
+    async def fake_check(question, hits, st, *, model=None):
+        seen["q"] = question
+        return EvidenceCheck(sufficient=False, reason="证据只沾边")
+
+    async def fake_pool(cid, q, source, reason):
+        seen.update(cid=cid, source=source, reason=reason)
+
+    monkeypatch.setattr(svc, "execute_tool", fake_execute)
+    monkeypatch.setattr(svc, "evaluate_evidence", fake_check)
+    monkeypatch.setattr(svc, "pool_low_confidence", fake_pool)
+    events = await collect(svc.stream_chat_with_tools(
+        user_msg("退货款几天到账"), settings, model, conversation_id=11, persister=None))
+    assert events[-1] == ("token", svc.REFUSAL_ANSWER)
+    assert model.calls == 1  # 不进第二轮
+    assert seen == {"q": "退货款几天到账", "cid": 11, "source": "self_check", "reason": "证据只沾边"}
+
+
+async def test_gate2_verdict_none_passes_through(settings, monkeypatch):
+    model = FakeToolModel(
+        round1=[faq_chunk('{"keyword": ', first=True), faq_chunk('"退货款几天到账"}')],
+        round2=[AIMessageChunk(content="最终回答")],
+    )
+    monkeypatch.setattr(svc, "execute_tool",
+                        lambda *a: _ret(faq_outcome(hits=HIT1)))
+
+    async def fake_check(question, hits, st, *, model=None):
+        return None  # 自评失败 = 放行(§0-2)
+    monkeypatch.setattr(svc, "evaluate_evidence", fake_check)
+    events = await collect(svc.stream_chat_with_tools(
+        user_msg("退货款几天到账"), settings, model, conversation_id=None, persister=None))
+    assert model.calls == 2 and events[-1] == ("token", "最终回答")
+
+
+async def test_gate2_disabled_skips_check_entirely(settings, monkeypatch):
+    st = settings.model_copy(update={"self_check_enabled": False})
+    model = FakeToolModel(
+        round1=[faq_chunk('{"keyword": ', first=True), faq_chunk('"退货款几天到账"}')],
+        round2=[AIMessageChunk(content="最终回答")],
+    )
+    monkeypatch.setattr(svc, "execute_tool", lambda *a: _ret(faq_outcome(hits=HIT1)))
+
+    async def never_called(*a, **k):
+        raise AssertionError("开关关闭时不得触发自评")
+
+    monkeypatch.setattr(svc, "evaluate_evidence", never_called)
+    events = await collect(svc.stream_chat_with_tools(
+        user_msg("退货款几天到账"), st, model, conversation_id=None, persister=None))
+    assert events[-1] == ("token", "最终回答")

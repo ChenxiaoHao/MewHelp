@@ -19,6 +19,8 @@ from langchain_core.messages import AIMessageChunk, ToolMessage
 from app.core.config import Settings
 from app.schemas.chat import ChatMessage
 from app.services.chat_service import build_messages, stream_chat
+from app.services.refusals import REFUSAL_ANSWER, pool_low_confidence
+from app.services.self_check import evaluate_evidence
 from app.tools.executor import ToolContext, ToolOutcome, execute_tool
 from app.tools.registry import get_tools
 
@@ -105,6 +107,8 @@ async def stream_chat_with_tools(
     )
 
     round2: list = [*messages, full]  # 第一轮完整 AIMessage（含 tool_calls）回传上游
+    faq_refused = False
+    faq_hits: list | None = None
     for tc in tool_calls:
         yield ("tool_call", {"id": tc["id"], "name": tc["name"], "args": tc.get("args") or {}})
         outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
@@ -124,6 +128,26 @@ async def stream_chat_with_tools(
             )
         )
         await _persist(persister, "on_tool_result", conversation_id, outcome)
+        if outcome.name == "query_faq" and outcome.ok:
+            if outcome.result.get("refused"):
+                faq_refused = True
+            if outcome.result.get("hits"):
+                faq_hits = outcome.result["hits"]
+
+    # ---- 固定拒答出口(spec §5.2):闸1/闸2 任一触发 → 不进第二轮,落库=出口同源 ----
+    # 闸1 的池写入在 query_faq 工具内已完成——本出口不重复落池(一个写方原则,T7 已锁)。
+    question = chat_messages[-1].content
+    if faq_refused:
+        yield ("token", REFUSAL_ANSWER)
+        await _persist(persister, "on_final_answer", conversation_id, REFUSAL_ANSWER)
+        return
+    if faq_hits and settings.self_check_enabled:
+        verdict = await evaluate_evidence(question, faq_hits, settings)
+        if verdict is not None and not verdict.sufficient:
+            await pool_low_confidence(conversation_id, question, "self_check", verdict.reason)
+            yield ("token", REFUSAL_ANSWER)
+            await _persist(persister, "on_final_answer", conversation_id, REFUSAL_ANSWER)
+            return
 
     # ---- 第二轮：裸 model（不 bind_tools）+ ch01 stream_chat，物理保证单轮收敛 ----
     parts: list[str] = []
