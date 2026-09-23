@@ -974,7 +974,7 @@ def test_parse_rewrite_strips_code_fence():
 def test_parse_rewrite_cleans_synonyms():
     raw = {"standard_query": "猫粮", "synonyms": ["猫粮", " 主粮 ", "", "主粮", "冻干", "湿粮", "零食", "处方粮"]}
     std, syn = parse_rewrite(raw)
-    assert syn == ["主粮", "冻干", "湿粮", "处方粮"]  # 去重/去空/去等于标准问法/≤4 截断
+    assert syn == ["主粮", "冻干", "湿粮", "零食"]  # 去重/去空/去等于标准问法/≤4 截断(← 实施 T4 实测修订:清洗后剩 [主粮,冻干,湿粮,零食,处方粮] 5 项,截断只可能裁尾丢「处方粮」;原计划期望值与本节实现及其注释自相矛盾)
 
 
 def test_parse_rewrite_rejects_garbage():
@@ -1028,7 +1028,7 @@ REWRITE_PROMPT = ChatPromptTemplate.from_messages([
 - standard_query:保留全部关键信息(型号数字/金额/时限一个字不能丢),去掉语气词与口水话,输出单句;
 - synonyms:只给实词(名词/型号/术语),不给整句、不给虚词;想不出就输出空数组;
 - 同义词只服务关键词召回,不得引入问题里没有的实体或立场;
-- 只输出 JSON,不加解释:{"standard_query": "...", "synonyms": ["..."]}"""),
+- 只输出 JSON,不加解释:{{"standard_query": "...", "synonyms": ["..."]}}"""),  # ← 实施 T4 实测修订:ChatPromptTemplate 按 format 模板解析,示例 JSON 的花括号必须 {{ }} 转义,否则渲染即 KeyError;转义后模型可见文本与未转义原文逐字节一致
     ("human", "{question}"),
 ])
 ```
@@ -1102,9 +1102,12 @@ async def understand_query(query: str, st: Settings, *, model=None) -> Understan
         from app.services.chat_service import get_model  # 延迟 import:rag 层不反向拖 services 依赖
 
         m = model or get_model(st)
-        resp = await asyncio.wait_for(
-            (REWRITE_PROMPT | m).ainvoke({"question": query}), timeout=LLM_TIMEOUT_SECONDS
-        )
+        # ← 实施 T4 实测修订:两段式等价于 REWRITE_PROMPT | m —— installed langchain-core 1.x 的 `|`
+        # 要求右端 RunnableLike,会拒测试用最小替身(纯类,非 Runnable,TypeError 被 except 吞成
+        # degraded=True → test_success_path 假红);format_messages → ainvoke 与 RunnableSequence
+        # 末步一致,评审用 RunnableLambda 对照实验证实模型可见输入完全相同。
+        messages = REWRITE_PROMPT.format_messages(question=query)
+        resp = await asyncio.wait_for(m.ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS)
         parsed = parse_rewrite(getattr(resp, "content", resp))
         if parsed is None:
             raise ValueError(f"rewrite 输出不合 schema: {str(resp)[:200]}")
@@ -1115,7 +1118,7 @@ async def understand_query(query: str, st: Settings, *, model=None) -> Understan
         return UnderstandResult(standard_query=query, degraded=True)
 ```
 
-Run: `uv run pytest tests/test_query_understanding.py -q` → PASS(7 个全过)
+Run: `uv run pytest tests/test_query_understanding.py -q` → PASS(8 个全过;← 实施 T4 实测修订:本节逐字测试文件实含 8 个用例「4 parse + 4 understand」,原「7」为计划笔误)
 
 - [ ] **Step 4: 写 `evals/smoke_query_rewrite.py` 并实跑(替代 TDD 的标注样例验证)**
 
