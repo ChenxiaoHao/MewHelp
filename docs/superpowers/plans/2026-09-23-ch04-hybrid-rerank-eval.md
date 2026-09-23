@@ -1511,10 +1511,15 @@ async def test_category_expr_flows_into_all_legs(legs):
     assert legs["hyb"][2] == 'category == "退货政策"'
 
 
-@pytest.mark.parametrize("bad", ['x" or 1=1', "a;b", "drop table", "括号（）测", ""])
+# ← 实施 T6 实测修订:原 bad 列表含 "drop table" 与本节逐字白名单正则(spec §4.2,
+# ^[\w一-鿿 >()×/,-]+$)互斥——纯字母+空格词组不可能「既放行合法含空格品类(如
+# 商品与购物 FAQ)又拒 drop table」,词组黑名单非白名单语义;真实注入面(引号破壳/
+# 分号/全角括号/空值)4 例照旧必拒,另加反向断言把该词组钉死为无害等值 expr。
+@pytest.mark.parametrize("bad", ['x" or 1=1', "a;b", "括号（）测", ""])
 def test_build_category_expr_whitelist(bad):
     assert r.build_category_expr(None) is None
     assert r.build_category_expr("商品参数") == 'category == "商品参数"'
+    assert r.build_category_expr("drop table") == 'category == "drop table"'  # 反向钉死
     with pytest.raises(ValueError):
         r.build_category_expr(bad)
 
@@ -1729,7 +1734,7 @@ def ensure_knowledge_built():
         return
     from app.jobs import build_knowledge as bk
 
-    asyncio.run(bk.main([]))  # 若 main 签名不带 argv,改为 asyncio.run 两段:ingest_docs+vectorize_pending
+    bk.main([])  # ← 实施 T6 实测修订×3:①main(argv) 本体自带 init_engine+asyncio.run+dispose 且返回 int,外层 asyncio.run 必 TypeError(brief 注释原授权「以现有 CLI 入口为准删另一支」);②计划遗漏 init_engine——各测试文件按 test_indexer_integration 惯例补 autouse engine_in_test_loop 夹具(函数级,loop 建/拆引擎,防 session 级跨 loop 交替红);③「库为空才重建」前提改「空或混(存在 qa_mined)均现场全量重建」——活库确有 ch03 挖点行且其 section_path=None 会炸纯文档锚,锚断言零改动
 
 
 async def test_bm25_arm_hits_model_number():
