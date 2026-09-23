@@ -324,7 +324,7 @@ Run: `uv run pytest -m integration tests/test_models_ch04.py -q` → PASS(顺带
 
 - [ ] **Step 12: 全量回归不破**
 
-Run: `uv run pytest -q` → Expected: **138 passed, 4 failed**(仅 test_corpus_ch03 预期红)
+Run: `uv run pytest -q` → Expected: **135 passed, 4 failed**(本任务逐字新增单测 = 3 config + 2 model;`test_live_schema_matches_ch04_orm` 带 integration 标记被默认 addopts deselect,另在集成步骤跑;4 红=仅 test_corpus_ch03 预期红。2026-09-23 实施 T1 实测修订,原写 138 为误算)
 
 - [ ] **Step 13: dev-notes 追记 + 提交**
 
