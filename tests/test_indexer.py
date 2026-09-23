@@ -7,7 +7,8 @@ import pytest
 
 def _make_pending(n):
     return [
-        SimpleNamespace(id=i, category=f"c{i}", questions=f"q{i}", answer=f"a{i}" * 3)
+        SimpleNamespace(id=i, category=f"c{i}", questions=f"q{i}", answer=f"a{i}" * 3,
+                        content_type=None)  # v2 行组装读 r.content_type(None→"")
         for i in range(1, n + 1)
     ]
 
@@ -37,10 +38,10 @@ async def test_vectorize_batches_and_marks(monkeypatch):
     monkeypatch.setattr(indexer.milvus_store, "health_ok", lambda c: True)
 
     def ensure(c, name, dim): calls["ensure"].append((name, dim))
-    def upsert(c, name, pairs): calls["upsert"].append(pairs); return len(pairs)
+    def upsert(c, name, rows): calls["upsert"].append(rows); return len(rows)
 
     monkeypatch.setattr(indexer.milvus_store, "ensure_collection", ensure)
-    monkeypatch.setattr(indexer.milvus_store, "upsert_vectors", upsert)
+    monkeypatch.setattr(indexer.milvus_store, "upsert_rows", upsert)
     monkeypatch.setattr(indexer.milvus_store, "flush", lambda c, n: None)
     async def fake_pending(session): return _make_pending(25)
     monkeypatch.setattr(indexer.crud, "fetch_pending_chunks", fake_pending)
@@ -66,7 +67,7 @@ async def test_vectorize_fault_after(monkeypatch):
     monkeypatch.setattr(indexer.milvus_store, "get_client", lambda uri, timeout=10.0: object())
     monkeypatch.setattr(indexer.milvus_store, "health_ok", lambda c: True)
     monkeypatch.setattr(indexer.milvus_store, "ensure_collection", lambda *a: None)
-    monkeypatch.setattr(indexer.milvus_store, "upsert_vectors", lambda c, n, p: len(p))
+    monkeypatch.setattr(indexer.milvus_store, "upsert_rows", lambda c, n, r: len(r))
 
     async def fake_embed(self, texts): return [[0.1] for _ in texts]
     monkeypatch.setattr(indexer.EmbeddingClient, "embed_texts", fake_embed)

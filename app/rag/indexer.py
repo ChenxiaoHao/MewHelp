@@ -68,7 +68,12 @@ async def vectorize_pending(fault_after: int | None = None) -> int:
         ids = [r.id for r in batch]
         texts = [f"{r.category}\n{r.questions}\n{r.answer}" for r in batch]
         vectors = await emb.embed_texts(texts)  # OpenAIEmbeddings 内置 max_retries=3 退避
-        milvus_store.upsert_vectors(client, st.milvus_collection, list(zip(ids, vectors)))
+        rows = [
+            {"chunk_id": cid, "text": t, "embedding": vec,
+             "category": r.category, "content_type": r.content_type or ""}
+            for cid, t, vec, r in zip(ids, texts, vectors, batch)
+        ]  # text 与 embed 输入同源三格拼接(§3.1);r 来自 batch(ORM 行)
+        milvus_store.upsert_rows(client, st.milvus_collection, rows)
         async with get_session_factory()() as session:  # 每批独立事务(§5)
             await crud.mark_chunks_vectorized(session, ids)
         done_total += len(ids)
