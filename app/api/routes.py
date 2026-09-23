@@ -92,7 +92,7 @@ async def chat_stream(
                 )
             elif kind == "tool_result":
                 yield ServerSentEvent(
-                    data=ToolResultEvent(**payload).model_dump(), event="tool_result"
+                    data=ToolResultEvent(**payload).model_dump(exclude_none=True), event="tool_result"
                 )
         yield ServerSentEvent(raw_data="[DONE]", event="done")
     except Exception as exc:  # noqa: BLE001 —— SSE 惯例：错误进事件流后正常关流

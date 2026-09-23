@@ -154,9 +154,3 @@ def head_tail_indices(n: int) -> list[int]:
 
 def apply_head_tail(items: list) -> list:
     return [items[i - 1] for i in head_tail_indices(len(items))]
-
-
-async def retrieve_hits(query: str, settings: Settings | None = None) -> list:
-    """ch03 兼容 shim(返回 ORM 行列表):T7 切 query_faq v2 后即删,勿增新调用方。"""
-    res = await retrieve(query, strategy="hybrid", settings=settings)
-    return [c.row for c in res.chunks]

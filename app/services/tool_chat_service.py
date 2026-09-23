@@ -108,15 +108,15 @@ async def stream_chat_with_tools(
     for tc in tool_calls:
         yield ("tool_call", {"id": tc["id"], "name": tc["name"], "args": tc.get("args") or {}})
         outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
-        yield (
-            "tool_result",
-            {
-                "id": outcome.tool_call_id,
-                "name": outcome.name,
-                "ok": outcome.ok,
-                "summary": outcome.summary,
-            },
-        )
+        payload = {
+            "id": outcome.tool_call_id,
+            "name": outcome.name,
+            "ok": outcome.ok,
+            "summary": outcome.summary,
+        }
+        if outcome.citations:  # 仅 query_faq 且有命中时加键,其余帧与旧结构逐字符一致
+            payload["citations"] = outcome.citations
+        yield ("tool_result", payload)
         round2.append(
             ToolMessage(
                 content=json.dumps(outcome.result, ensure_ascii=False, default=str),

@@ -142,6 +142,30 @@ async def test_tool_frames_order_and_shape(client, monkeypatch):
     }
 
 
+async def test_tool_result_frame_carries_citations(client, monkeypatch):
+    """ch04: query_faq 命中帧带 citations 键;前端弹窗数据链路。"""
+    from app.api import routes as routes_mod
+    from app.main import app
+    from app.services import tool_chat_service as svc
+    from app.tools.executor import ToolOutcome
+
+    monkeypatch.setattr(routes_mod, "crud", FakeCrud())
+    _override(app, routes_mod.dep_db_session, object())
+    _override(app, routes_mod.dep_chat_model, ScriptedToolModel())
+
+    cites = [{"n": 1, "chunk_id": 7, "section_path": "手册 > 节1", "question": "q", "answer": "a"}]
+
+    async def fake_execute(name, args, tcid, ctx):
+        return ToolOutcome(name, tcid, True, {"keyword": "k", "hits": [{"n": 1}], "refused": False, "note": ""},
+                           "命中 1 条", citations=cites)
+
+    monkeypatch.setattr(svc, "execute_tool", fake_execute)
+    r = await client.post("/api/chat/stream",
+                          json={"messages": [{"role": "user", "content": "退货政策"}]})
+    tr_line = [l for l in r.text.splitlines() if l.startswith("data:") and '"citations"' in l][0]
+    assert json.loads(tr_line[len("data:"):].strip())["citations"] == cites
+
+
 async def test_conversation_id_zero_rejected_422(client):
     from app.main import app  # noqa: F401 —— 确保 app 已构建
 

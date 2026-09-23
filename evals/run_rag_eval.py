@@ -23,7 +23,10 @@ PASS_MIN = 10
 async def _main(samples, top_k) -> int:
     bad = []
     for s in samples:
-        hits = await retriever.retrieve_hits(s["query"])
+        # ch04 T7:ch03 兼容 shim 已删,strategy="hybrid" 与 shim 原语义逐字等价
+        # (brief Files 清单漏列本文件,但 Step 7 grep 覆盖面含 evals → 最小适配,dev-notes ④ 记录)。
+        res = await retriever.retrieve(s["query"], strategy="hybrid")
+        hits = [c.row for c in res.chunks]
         paths = [h.section_path or "" for h in hits][:top_k]
         hit_rank = next((i for i, p in enumerate(paths) if s["expect_path"] in p), None)
         ok = hit_rank is not None

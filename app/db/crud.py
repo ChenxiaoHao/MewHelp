@@ -7,7 +7,15 @@ from sqlalchemy import Select, delete, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Conversation, Faq, KnowledgeChunk, Message, QaExtractionStaging, Ticket
+from app.db.models import (
+    Conversation,
+    Faq,
+    KnowledgeChunk,
+    LowConfidenceQuestion,
+    Message,
+    QaExtractionStaging,
+    Ticket,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -283,3 +291,12 @@ async def clear_staging(session) -> int:
     res = await session.execute(delete(QaExtractionStaging))
     await session.commit()
     return res.rowcount
+
+
+async def add_low_confidence_question(session, *, conversation_id: int | None,
+                                      raw_question: str, source: str,
+                                      reason: str | None) -> None:
+    """低置信问题池;conversation_id 可空(评估 runner 无会话)。"""
+    session.add(LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
+                                      source=source, reason=reason))
+    await session.commit()

@@ -1,5 +1,5 @@
 """五个业务工具。query_order/query_product/query_logistics 为 mock（不接真实接口、不建表）；
-query_faq 走向量语义检索(app/rag/retriever.py,ch03);create_ticket 写 tickets 表。
+query_faq 走混合检索+重排(app/rag/retriever.py,ch04);create_ticket 写 tickets 表。
 
 工具函数一律返回 dict（结构化结果），异常向上抛由 executor 统一包装——
 definitions 里不写错误处理（职责分离）。
@@ -14,7 +14,9 @@ from langchain_core.tools import tool
 
 from app.db.crud import create_ticket as crud_create_ticket
 from app.db.engine import get_session_factory
-from app.rag.retriever import retrieve_hits
+from app.rag.hit_format import format_hits
+from app.rag.retriever import apply_head_tail, retrieve
+from app.services.refusals import pool_low_confidence
 
 _ORDER_STATUSES = ["待付款", "待发货", "运输中", "已签收", "已取消"]
 _CARRIERS = ["中通快递", "圆通速递", "韵达快递", "顺丰速运"]
@@ -77,16 +79,15 @@ async def query_logistics(order_id: str) -> dict:
 
 
 @tool
-async def query_faq(keyword: str) -> dict:
-    """语义检索平台知识库,回答规则、政策、费用与商品使用类问题(退换货政策、运费与包邮门槛、售后流程、积分等)。用户咨询任何平台规则、政策、费用、商品用法类问题时,必须先调用本工具再作答,即使你认为自己知道通用答案。keyword: 用户的原始问题完整句子(语义检索按整句匹配,请勿自行拆词)。"""
-    hits = await retrieve_hits(keyword)
-    return {
-        "keyword": keyword,
-        "hits": [
-            {"id": c.id, "question": c.questions.splitlines()[0], "answer": c.answer, "category": c.category}
-            for c in hits
-        ],
-    }
+async def query_faq(keyword: str, config: RunnableConfig) -> dict:
+    """语义检索平台知识库,回答规则、政策、费用与商品使用类问题(退换货政策、运费与包邮门槛、售后流程、积分等)。用户咨询任何平台规则、政策、费用、商品用法类问题时,必须先调用本工具再作答,即使你认为自己知道通用答案。keyword: 用户的原始问题完整句子(语义检索按整句匹配,请勿自行拆词)。返回的 hits 按相关性首尾排布:[1] 与末位最相关,回答引用时用其 n 编号;refused=true 表示证据不足,此时必须拒答不得编造。"""
+    res = await retrieve(keyword)
+    if res.refused:
+        conversation_id = (config.get("configurable") or {}).get("conversation_id")
+        await pool_low_confidence(conversation_id, keyword, "retrieval_low_conf", res.note)
+        return {"keyword": keyword, "hits": [], "refused": True, "note": res.note}
+    return {"keyword": keyword, "hits": format_hits(apply_head_tail(res.chunks)),
+            "refused": False, "note": ""}
 
 
 @tool

@@ -60,35 +60,57 @@ async def test_query_order_and_product_shape():
     assert {"name", "price", "stock", "category"} <= set(p.keys())
 
 
-async def test_query_faq_hits(monkeypatch):
-    """ch03 契约测试:返回键结构逐字段不变;question = questions 首行(多问法取首个)。"""
+async def test_query_faq_contract_v2(monkeypatch):
+    """契约 v2:refused/note 顶层键、hits 带 n 与 section_path、首尾排布生效、question=首行。"""
     from types import SimpleNamespace
 
+    from app.rag.retriever import RetrieveResult, ScoredRow
     from app.tools import definitions as d
 
-    row = SimpleNamespace(id=12, questions="幼猫一天喂几次\n小猫咪一天要吃几顿",
-                          answer="每天 3-4 次。", category="猫粮")
+    def row(i):
+        return SimpleNamespace(id=i, category="c", questions=f"q{i}a\nq{i}b", answer=f"a{i}",
+                               section_path=f"手册 > 节{i}", content_type="policy")
 
-    async def fake_retrieve(keyword, settings=None):
-        assert keyword == "幼猫喂几次"
-        return [row]
+    chunks = [ScoredRow(i, 1.0 - i / 10, row(i)) for i in range(1, 11)]
 
-    monkeypatch.setattr(d, "retrieve_hits", fake_retrieve)
+    async def fake_retrieve(query, **kw):
+        assert query == "幼猫喂几次"
+        return RetrieveResult(chunks=chunks)
+
+    monkeypatch.setattr(d, "retrieve", fake_retrieve)
     out = await d.query_faq.ainvoke({"keyword": "幼猫喂几次"})
-    assert out == {"keyword": "幼猫喂几次", "hits": [{"id": 12, "question": "幼猫一天喂几次",
-                                                     "answer": "每天 3-4 次。", "category": "猫粮"}]}
+    assert out["refused"] is False and out["note"] == "" and len(out["hits"]) == 10
+    assert [h["id"] for h in out["hits"]] == [1, 3, 5, 7, 9, 10, 8, 6, 4, 2]  # §4.4 排布
+    assert [h["n"] for h in out["hits"]] == list(range(1, 11))
+    assert out["hits"][0]["question"] == "q1a" and out["hits"][0]["section_path"] == "手册 > 节1"
 
 
-async def test_query_faq_miss_shape(monkeypatch):
-    """空命中返回结构化空数组,不回退 LIKE(§0-5 决策的测试化)。"""
+async def test_query_faq_refused_pools_and_keeps_shape(monkeypatch):
+    from app.rag.retriever import RetrieveResult
     from app.tools import definitions as d
 
-    async def fake_retrieve(keyword, settings=None):
-        return []
+    seen = {}
 
-    monkeypatch.setattr(d, "retrieve_hits", fake_retrieve)
-    out = await d.query_faq.ainvoke({"keyword": "邮费"})
-    assert out == {"keyword": "邮费", "hits": []}
+    async def fake_retrieve(query, **kw):
+        return RetrieveResult(chunks=[], refused=True, note="证据置信度不足(top1=0.05 < 阈值 0.3)")
+
+    async def fake_pool(cid, q, source, reason):
+        seen.update(cid=cid, q=q, source=source)
+
+    monkeypatch.setattr(d, "retrieve", fake_retrieve)
+    monkeypatch.setattr(d, "pool_low_confidence", fake_pool)
+    out = await d.query_faq.ainvoke({"keyword": "太空电梯门票"},
+                                    config={"configurable": {"conversation_id": 42}})
+    assert out == {"keyword": "太空电梯门票", "hits": [], "refused": True,
+                   "note": "证据置信度不足(top1=0.05 < 阈值 0.3)"}
+    assert seen == {"cid": 42, "q": "太空电梯门票", "source": "retrieval_low_conf"}
+
+
+def test_query_faq_visible_args_still_only_keyword():
+    """核对点④复核:config: RunnableConfig 不进模型可见 schema,签名兼容红线。"""
+    from app.tools.registry import get_tool
+
+    assert sorted(get_tool("query_faq").args.keys()) == ["keyword"]
 
 
 async def test_create_ticket_uses_config_conversation_id(monkeypatch):
