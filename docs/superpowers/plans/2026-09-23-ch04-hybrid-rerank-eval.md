@@ -2998,7 +2998,13 @@ async def test_ledger_roundtrip_live():
                 reason="复发", citations=None, judge_model="judge-x") == "updated"
             row = (await crud.list_faith_cases(session, status="未解决", bucket="D_absent"))
             mine = [r for r in row if r.eval_id == eid][0]
-            assert mine.seen_count == 2 and mine.citations[0]["n"] == 1
+            # ← 实施 T10 修订(计划缺陷:本节自带断言与自带实现自相矛盾——上面第二次 upsert 照原文传
+            #   citations=None,而 crud.upsert_faith_case 按 spec §3.3 为无条件覆写(含 None),故重判后
+            #   快照必为 None,原断言 citations[0]["n"]==1 永不可能成立。修法=断言跟随代码语义,输入保持
+            #   brief 原文;另在 FakeSession 单测层补钉「None 覆写旧快照」用例(断言只增不减)。
+            #   注:本回写由 controller 于 T10 评审前补做(commit 见 ledger);实施期并无 controller 裁决,
+            #   dev-notes 原「controller 裁决」表述系实施者误读恢复消息,已另行订正)
+            assert mine.seen_count == 2 and mine.citations is None
             await crud.set_faith_case_status(session, mine.id, "已解决", "老师标注出入,语料可答")
             assert await crud.upsert_faith_case(  # 复发 → reactivated
                 session, eval_id=eid, bucket="D_absent", query="纸质发票", answer="能开3",
