@@ -1233,7 +1233,7 @@ async def test_success_returns_index_scores_sorted_passthrough():
     body = seen["body"]
     assert body["model"] == "BAAI/bge-reranker-v2-m3" and body["query"] == "猫砂盆清理"
     assert body["documents"] == ["a", "b", "c"]  # 核对点③:字段名 documents,不是 texts
-    assert body["top_n"] == 10 and body["return_documents"] is False
+    assert body["top_n"] == 3 and body["return_documents"] is False  # ← 实施 T5 实测修订:3 候选文档下实现按 min(rerank_top_n, len(texts)) 送 3;原期望 10 与本章实现及姊妹用例 test_top_n_capped_to_candidate_count(2→2)自相矛盾,==3 反而把 min 计算值钉死(丢 min 即红)
 
 
 async def test_top_n_capped_to_candidate_count():
@@ -1361,7 +1361,7 @@ async def test_siliconflow_rerank_live():
 
 - [ ] **Step 4: 单测全绿;集成若有 key 实跑并把 `[rerank-live]` 输出行记 dev-notes(核对点③销账+0.3 初值依据);无 key → 红着不行、skip 可接受**
 
-Run: `uv run pytest tests/test_reranker.py -q` → PASS(7 个)
+Run: `uv run pytest tests/test_reranker.py -q` → PASS(8 个;← 实施 T5 实测修订:逐字文件实含 8 用例,原「7」与 T4 节同族笔误)
 Run: `uv run pytest -m integration tests/test_reranker_integration.py -q` → PASS 或 SKIPPED
 
 - [ ] **Step 5: 回归 + 提交**
