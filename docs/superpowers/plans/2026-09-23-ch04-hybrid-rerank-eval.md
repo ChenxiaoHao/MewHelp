@@ -1784,7 +1784,8 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 **Files:**
 - Create: `app/rag/hit_format.py`、`app/services/refusals.py`
-- Modify: `app/tools/definitions.py`、`app/tools/executor.py`、`app/schemas/chat.py`、`app/services/tool_chat_service.py`(仅 tool_result payload)、`app/api/routes.py`、`app/db/crud.py`、`app/rag/retriever.py`(删 shim)
+- Modify: `app/tools/definitions.py`、`app/tools/executor.py`、`app/schemas/chat.py`、`app/services/tool_chat_service.py`(仅 tool_result payload)、`app/api/routes.py`、`app/db/crud.py`、`app/rag/retriever.py`(删 shim)、`evals/run_rag_eval.py`(← 实施 T7 实测补漏:计划文件清单漏记——它是 retrieve_hits 第三个消费方,Step7 grep 强制其随迁 `retrieve(query, strategy="hybrid")`,评审对照 eea7480 旧 shim 源码证实行为逐字等价,旧评估数字含义不变,T11 再标 DEPRECATED)
+- 注:`tests/test_executor_citations.py` 计划仅有文件名无逐字正文(计划空缺,评审 R-g1 确认)——T7 按 Step-5 语义自行落 5 用例,评审判为真断言非注水
 - Test: Create `tests/test_hit_format.py`、`tests/test_refusals.py`、`tests/test_crud_ch04.py`、`tests/test_executor_citations.py`、`tests/test_pool_refusal_integration.py`;Modify `tests/test_tools.py`(两 query_faq 用例+schema 断言)、`tests/test_schemas_ch02.py`(帧形状)、`tests/test_routes_ch02.py`(新增 citations 帧用例)
 
 **Interfaces:**
