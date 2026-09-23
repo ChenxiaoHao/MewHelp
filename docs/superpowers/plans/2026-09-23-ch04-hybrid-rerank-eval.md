@@ -2599,6 +2599,7 @@ Run: `uv run pytest tests/test_prompts_ch04.py tests/test_prompts_ch02.py -q` �
 
 Run: `uv run python evals/run_tool_routing_eval.py`
 Expected: 全部样本 PASS(ch02 基线行为不因三改回退);若样本因新增 [n]/拒答措辞导致判定漂移,只允许在 dev-notes 记录并如实报告,**不放宽 eval 判定器**。输出贴 dev-notes。
+  ← 实施 T9+评审独立 A/B 实测修订:「全部样本 PASS」为编写期过时期望——#6「你们发货用什么快递」与 #10 在**新旧两版 prompt 下同挂**(实施者新 8/9/8、评审活体复跑新 9/8 旧 8/9,#6 旧基线亦挂、#10 新基线曾过一次),判定漂移发生在 T9 之前(两版共用同一 query_faq docstring,漂移源与 T7 工具描述演化相符但 A/B 无法定因),非三改回退。生效门槛=本段漂移从句(记录+如实+不放宽判定器),已满足:PASS_THRESHOLD=8 未动、样本未动、判定器文件自 ch02 6058309 零改动。#6/#10 根因分析随 T11 失败样例桶/T12 报告处理;任何触及 spec 钉死文案的修复路线=停下问用户。
 
 - [ ] **Step 4: 全量回归 + 提交**
 
