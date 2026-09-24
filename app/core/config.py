@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     hybrid_recall_k: int = 50      # dense/BM25 双腿各召回 Top-50
     rrf_k: int = 60                # RRFRanker(k=60)
     rerank_top_n: int = 10         # 精排后喂给模型的证据数
-    retrieval_low_conf_threshold: float = 0.3  # 闸1;Task 12 D 桶校准后回写终值
+    retrieval_low_conf_threshold: float = 0.161  # 闸1 终值=Task 12 回写(策略报告 D 桶校准表:误拒 4.2%/自信 3.3%)
     self_check_enabled: bool = True            # 闸2 总开关(评估对照/省调用)
     query_rewrite_enabled: bool = True         # 查询理解开关
     faith_judge_model: str = ""                # 空=model_name

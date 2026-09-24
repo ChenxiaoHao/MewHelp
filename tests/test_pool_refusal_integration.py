@@ -18,7 +18,10 @@ async def test_absent_question_refused_and_pooled():
     try:
         async with get_engine().connect() as conn:
             before = (await conn.execute(select(func.count()).select_from(LowConfidenceQuestion))).scalar()
-        out = await d.query_faq.ainvoke({"keyword": "请问月球基地的喵星人会员费多少钱一个月"},
+        # 题面词表与 KB 零重合:旧题面「喵星人会员费多少钱一个月」rerank top1=0.1921,
+        # 恰落在 T12 终值 0.161 与原占位 0.3 之间(校准表「D 题仍自信」带)——终值下闸1 不再拒,
+        # 断言(应拒+落池)针对的是验收④链路本身,故换题面不换断言(T12 回写连带,dev-notes ① 申报)。
+        out = await d.query_faq.ainvoke({"keyword": "请问月球基地的氦-3采矿许可证怎么办"},
                                         config={"configurable": {"conversation_id": None}})
         assert out["refused"] is True and out["hits"] == []
         async with get_engine().connect() as conn:

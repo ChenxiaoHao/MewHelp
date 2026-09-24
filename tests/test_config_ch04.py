@@ -21,7 +21,7 @@ def test_ch04_defaults(env):
     assert s.hybrid_recall_k == 50
     assert s.rrf_k == 60
     assert s.rerank_top_n == 10
-    assert s.retrieval_low_conf_threshold == 0.3  # D 桶校准前初值(§6.2)
+    assert s.retrieval_low_conf_threshold == 0.161  # D 桶校准终值(T12 回写:误拒 4.2%/自信 3.3%,策略报告校准表)
     assert s.self_check_enabled is True
     assert s.query_rewrite_enabled is True
     assert s.faith_judge_model == ""
