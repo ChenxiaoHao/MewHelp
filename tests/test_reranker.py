@@ -1,6 +1,7 @@
 """rerank 门面:MockTransport 断言请求形状(documents/top_n/Bearer)+ 五种降级路径 → None。"""
 
 import json
+import logging
 
 import httpx
 import pytest
@@ -83,3 +84,24 @@ async def test_timeout_degrades_to_none():
         raise httpx.ReadTimeout("slow", request=request)
 
     assert await rr.rerank("q", ["a"], _st(), transport=_transport(handler)) is None
+
+
+async def test_warn_once_per_process_and_pins_degrade_log_substrings(caplog):
+    """终审批次(2026-09-24,收 T5-F1):钉降级日志两事实——
+    ① 反复失败 WARN 每进程只响一次(后续同事件降为 INFO,§8 防评估批量刷屏;依赖
+       autouse _reset_warn 复位模块级 _warned);
+    ② 两个消息子串「rerank 不可用」「rerank 再次失败」被 evals/run_strategy_eval.py::
+       _DegradeCounter.emit(该文件 L102)按字面子串匹配计降级数——改文案必须两边同改。
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down", request=request)
+
+    with caplog.at_level(logging.INFO, logger="app.rag.reranker"):
+        for _ in range(3):  # 首条 WARN,第 2、3 条 INFO
+            assert await rr.rerank("q", ["a"], _st(), transport=_transport(handler)) is None
+    mine = [r for r in caplog.records if r.name == "app.rag.reranker"]
+    warns = [r.getMessage() for r in mine if r.levelno == logging.WARNING]
+    infos = [r.getMessage() for r in mine if r.levelno == logging.INFO]
+    assert len(warns) == 1 and len(infos) == 2, "WARN 每进程只响一次,余下同事件走 INFO"
+    assert "rerank 不可用" in warns[0] and "降级 RRF 序(WARN 只响一次)" in warns[0]
+    assert "rerank 再次失败" in infos[0] and "已降级" in infos[0]

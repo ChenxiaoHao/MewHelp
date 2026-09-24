@@ -9,7 +9,6 @@ strategy 是唯一开关:评估四臂=在线一路,差异只在配置——rag_s
 from __future__ import annotations
 
 import asyncio
-import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -20,8 +19,6 @@ from app.db.engine import get_session_factory
 from app.rag import milvus_store, reranker
 from app.rag.embeddings import EmbeddingClient, build_embeddings
 from app.rag.query_understanding import UnderstandResult, understand_query
-
-logger = logging.getLogger(__name__)
 
 STRATEGIES = ("dense", "bm25", "hybrid", "hybrid_rerank")
 _clients: dict[str, Any] = {}  # uri → MilvusClient 进程级缓存(grpc 通道不宜每请求新建,ch03 同款)

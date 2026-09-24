@@ -1,4 +1,4 @@
-"""ch04 原文回查与忠实度台账的 REST 契约(spec §5.4)。"""
+"""ch04 原文回查与忠实度台账的 REST 契约(spec §5.5)。"""
 
 from datetime import datetime
 from typing import Literal

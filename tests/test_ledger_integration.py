@@ -29,7 +29,7 @@ async def test_ledger_roundtrip_live():
             row = (await crud.list_faith_cases(session, status="未解决", bucket="D_absent"))
             mine = [r for r in row if r.eval_id == eid][0]
             # 计划缺陷修订(实施者自判;计划回写由 controller 补做,commit 21267a3):重判行照 brief 原文(citations=None);
-            # spec §3.2/附录A「重判→更新 citations 快照」为无条件覆写,None 亦覆写(旧值不留),
+            # spec §3.2/附录 A「重判→更新 citations 快照」为无条件覆写,None 亦覆写(旧值不留),
             # 故 brief 原文断言 mine.citations[0]["n"] == 1 不成立——按修订改钉 None
             # (此路由 FakeSession 单测同向加钉,见 test_faith_crud_ch04 末案;断言只增不减)。
             assert mine.seen_count == 2 and mine.citations is None

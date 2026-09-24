@@ -313,7 +313,7 @@ async def upsert_faith_case(session, *, eval_id: str, bucket: str, query: str, a
                             reason: str, citations, judge_model,
                             strategy: str = "hybrid_rerank") -> str:
     """一题一行(uk_eval_id):created/updated/reactivated。复发即退回未解决、清 resolution,
-    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.2/附录A)。"""
+    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.2/附录 A)。"""
     row = (await session.execute(select(FaithCase).where(FaithCase.eval_id == eval_id))).scalar_one_or_none()
     now = datetime.now()
     if row is None:

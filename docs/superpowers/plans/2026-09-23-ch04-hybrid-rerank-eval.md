@@ -3633,6 +3633,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: tool_result 帧可选 `citations: [{n,chunk_id,section_path,question,answer}]`(T7);`GET /api/chunks/{id}`(T10)
 - Produces: 纯前端行为;localStorage key 格式(数据飞轮读侧约定):`mewhelp.feedback.v1:{conversationId}:{assistantSeq}` → `{"v":"up"|"down","ts":"ISO"}`
+  ← 终审注记(2026-09-24):实现键=`mewhelp.feedback.v1:{conversationId}:{assistantSeq}`(brief 锁定格式);spec §7-2 之 `fb:*` 系设计简写,同步注记 Spec 待用户批准(晨间队列②)
 
 **工作方式(用户工作要求①前端例外):** 不写单测;按下面契约与验收清单 Vibe 实现;每改一处**手动刷新页面走一遍清单**,清单结果与偏差逐条记 dev-notes(④翻车段照记)。
 

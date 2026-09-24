@@ -192,3 +192,5 @@ uv run python evals/demo_ch04.py            # 验收②③④数据面演练
 uv run pytest -q                            # 全量单测
 uv run pytest -m integration -q             # 集成(需 docker mysql/milvus + key)
 ```
+
+注意:重跑 `run_strategy_eval`/`run_faith_eval` 会**覆盖** `evals/reports/` 两份已提交报告(忠实度报告尾部手工「补充解读」策展节需重附);全量跑为 live 云调用、有成本(成本闸见各脚本 `--limit`/`--sample`);`run_faith_eval --sample 0 --d-limit 0` 会把报告洗成空表。

@@ -1,4 +1,4 @@
-"""ORM 模型：四张表与 spec 附录 A 的 DDL（用户原文）逐列对齐。
+"""ORM 模型：与 spec 附录 A 的 DDL（用户原文）逐列对齐。
 
 建表不走 metadata.create_all——以 db/init/01_schema.sql（用户 DDL 原样）为准，
 容器首启自动执行；本文件仅供查询/写入映射与结构测试。

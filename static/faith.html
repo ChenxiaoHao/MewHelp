@@ -59,7 +59,7 @@
 
   /* 窄屏不破版:表容器横向滚动 + 表格最小宽(spec §2 图/T14 清单5) */
   .table-wrap { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; min-width: 920px; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; min-width: 1150px; font-size: 13px; }
   th, td { border-bottom: 2px solid rgba(41,41,41,.25); padding: 7px 8px; text-align: left; vertical-align: top; }
   th { background: var(--aux); font-size: 12px; letter-spacing: 1px; position: sticky; top: 0; }
   td.q, td.reason, td.resolution, td.answer { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -104,6 +104,12 @@
   #d-cites { max-height: 190px; }
   .cite-item { padding: 3px 0; border-bottom: 1px dashed rgba(41,41,41,.25); }
   .cite-item:last-child { border-bottom: 0; }
+  /* §7-3「实际引用」标记:正文出现 [n] 的证据加粗+橙签,仅回放的候选灰化(纯 CSS,零依赖) */
+  .cite-item.cite-used { font-weight: 700; }
+  .cite-item.cite-offer { color: #8a7c60; }
+  .cite-tag { display: inline-block; margin-left: 6px; padding: 0 5px; font-size: 10px; font-weight: 700; border: 1px solid var(--ink); border-radius: 2px; }
+  .cite-used .cite-tag { background: var(--orange); color: var(--ink); }
+  .cite-offer .cite-tag { background: var(--aux); color: #8a7c60; }
   select#d-status { font: inherit; font-size: 13px; background: var(--paper); border: 2px solid var(--ink); border-radius: 3px; padding: 4px 6px; }
   #d-resolution {
     width: 100%; min-height: 70px; resize: vertical;
@@ -159,8 +165,9 @@
     <table aria-label="faith_cases 台账">
       <thead>
         <tr>
-          <th>eval_id</th><th>桶</th><th>问题</th><th>裁判理由</th>
-          <th>复发次数</th><th>最近发现</th><th>状态</th><th>处置</th>
+          <th>eval_id</th><th>桶</th><th>策略</th><th>问题</th>
+          <th>裁判理由</th><th>裁判模型</th><th>复发次数</th>
+          <th>首次发现</th><th>最近发现</th><th>状态</th><th>处置</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -239,6 +246,14 @@ async function load() {
 }
 
 function fmtTime(iso) { return (iso || '').replace('T', ' ').slice(0, 16); }
+/* §7-3「实际引用」:与 index.html citationSegments 同款 /\[(\d+)\]/g 正文扫描(纯 DOM 节点构造) */
+function citedNsInAnswer(answer) {
+  const set = new Set();
+  const re = /\[(\d+)\]/g;
+  let m;
+  while ((m = re.exec(answer || ''))) set.add(parseInt(m[1], 10));
+  return set;
+}
 function cell(cls, text, title) {
   const td = document.createElement('td');
   td.className = cls;
@@ -252,18 +267,21 @@ function makeRow(r) {
   tr.dataset.id = String(r.id);
   tr.appendChild(cell('', r.eval_id));
   tr.appendChild(cell('', r.bucket));
+  tr.appendChild(cell('', r.strategy));                          // §7-3 三列:API FaithCaseOut 已供,只渲染
   tr.appendChild(cell('q', r.query, r.query));
   tr.appendChild(cell('reason', r.reason, r.reason));           // 截断 hover 全显(CSS ellipsis+title)
+  tr.appendChild(cell('', r.judge_model || '—'));               // 可空字段:占位横线
   const seenTd = cell('', String(r.seen_count));
   if (r.seen_count >= 2) {                                       // spec §7-3「复发」标(本人加性判断,见 dev-notes)
     const pill = document.createElement('span');
     pill.className = 'pill';
     pill.textContent = '复发';
-    pill.title = 'resolved_at 后再次被判编造(§3.2/附录A 复发流转)';
+    pill.title = 'resolved_at 后再次被判编造(§3.2/附录 A 复发流转)';
     seenTd.appendChild(document.createTextNode(' '));
     seenTd.appendChild(pill);
   }
   tr.appendChild(seenTd);
+  tr.appendChild(cell('', fmtTime(r.first_seen_at)));              // 与最近发现同款日期格式(§7-3)
   tr.appendChild(cell('', fmtTime(r.last_seen_at)));
   const stTd = document.createElement('td');
   stTd.appendChild(badgeFor(r.status));
@@ -322,6 +340,7 @@ function openPatch(id) {
   dReason.textContent = r.reason;
   dCites.textContent = '';
   const cites = Array.isArray(r.citations) ? r.citations : [];
+  const cited = citedNsInAnswer(r.answer);   // 答案正文实际出现的 [n] 集
   if (!cites.length) {
     const div = document.createElement('div');
     div.textContent = '(该行无 citations 快照——绕开 KB 的生成/拒答带前言,见报告解读)';
@@ -334,6 +353,15 @@ function openPatch(id) {
     div.textContent = '[' + c.n + '] ' + (c.section_path || '') + ' — ' + ans +
       ((c.answer || '').length > 60 ? '…' : '');
     div.title = c.answer || '';
+    if (cited.size) {                        // 正文有 [n] 才区分;有 citations 而正文零角标的行原样呈现
+      const used = cited.has(Number(c.n));
+      div.classList.add(used ? 'cite-used' : 'cite-offer');
+      const tag = document.createElement('span');
+      tag.className = 'cite-tag';
+      tag.textContent = used ? '实际引用' : '供选证据';
+      tag.title = used ? '答案正文出现了该角标' : '仅供选证据回放,正文未引用';
+      div.appendChild(tag);
+    }
     dCites.appendChild(div);
   }
   dStatus.value = r.status;

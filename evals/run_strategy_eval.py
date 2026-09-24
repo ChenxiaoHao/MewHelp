@@ -67,11 +67,11 @@ def _save_cache(cache: dict) -> None:
 
 # ---- embed 韧性:进程内替换 retriever._embed(dev-notes T11 ①)——同文本一次云调用 + 磁盘缓存 + 断流退避 ----
 _orig_embed = retriever._embed
-_embed_backoffs: dict = {}
+_embed_vec_cache: dict = {}
 
 
 async def _embed_patient(text: str, st) -> list[float]:
-    vec = _embed_backoffs.get(text)
+    vec = _embed_vec_cache.get(text)
     if vec is not None:
         return vec
     for delay in (0, 10, 20, 40, 80, 160):  # 等过 1-2 分钟级代理断流窗口
@@ -84,9 +84,9 @@ async def _embed_patient(text: str, st) -> list[float]:
         except Exception:  # noqa: BLE001 — 云侧瞬态错退避重试;最终仍抛
             if delay == 160:
                 raise
-    _embed_backoffs[text] = vec
-    if len(_embed_backoffs) % 10 == 0:  # 每 10 个新向量落一次盘:崩溃最多丢 10 次 embed
-        _save_json(EMBED_CACHE_FILE, _embed_backoffs)
+    _embed_vec_cache[text] = vec
+    if len(_embed_vec_cache) % 10 == 0:  # 每 10 个新向量落一次盘:崩溃最多丢 10 次 embed
+        _save_json(EMBED_CACHE_FILE, _embed_vec_cache)
     return vec
 
 
@@ -183,7 +183,7 @@ async def run(args) -> int:
     use_cache = not args.no_cache
     cache = _load_cache() if use_cache else {}
     if use_cache:  # 韧性件生效前先加载(仅 eval 进程内;--no-cache 全关,重测漂移语义不变)
-        _embed_backoffs.update(_load_json(EMBED_CACHE_FILE, {}))
+        _embed_vec_cache.update(_load_json(EMBED_CACHE_FILE, {}))
         retriever._embed = _embed_patient
         _rlog = logging.getLogger("app.rag.reranker")
         _rlog.setLevel(logging.INFO)
@@ -226,7 +226,7 @@ async def run(args) -> int:
         print(f"[strategy-eval] {q.id} ok", flush=True)
     if use_cache:
         _save_cache(cache)
-        _save_json(EMBED_CACHE_FILE, _embed_backoffs)
+        _save_json(EMBED_CACHE_FILE, _embed_vec_cache)
         _save_json(PROGRESS_FILE, prog)
     d_top1 = []
     for q in d_questions:
@@ -235,7 +235,7 @@ async def run(args) -> int:
         d_top1.append(rec["top1"] if rec["top1"] is not None else 0.0)
     if use_cache:
         _save_cache(cache)
-        _save_json(EMBED_CACHE_FILE, _embed_backoffs)
+        _save_json(EMBED_CACHE_FILE, _embed_vec_cache)
 
     client = milvus_store.get_client(st.milvus_uri)
     total_blocks = milvus_store.count_rows(client, st.milvus_collection)
