@@ -211,6 +211,7 @@ rewrite/self_check/faith_judge 三 Prompt:标注样例(从老师题库存样例+
 
 1. **引用角标**:回答文本 `[n]` 渲染可点像素小方块(仅该条回答有 citations 时);点击弹窗:section_path 面包屑+category+原文+上一块/下一块(`GET /api/chunks/{id}`,弹窗按 id 缓存);citations 随 tool_result 帧存该条回答 JS 状态,新对话清空
 2. **满意度反馈**:每条 AI 回答左下角 👍/👎;点击点亮所选+显示「已反馈」+**一次性锁定**(再点无效);持久 `localStorage`(`fb:{conversationId}:{序号}`);零后端(§0-12)
+   > 注(2026-09-24 经用户批准):`fb:*` 为设计速记,实现落盘键为 `mewhelp.feedback.v1:{conversationId}:{assistantSeq}`(带项目前缀防同域串键,见计划 T13 brief 与 static/index.html `FEEDBACK_PREFIX`)。文档澄清,不改实现。
 3. **台账页 `static/faith.html`**(同款复古风):列表+状态/桶筛选+题号搜索;列 eval_id/bucket/query/seen_count(≥2 标「复发」)/strategy/judge_model/first·last_seen_at/status;行按钮已解决/无需解决/退回未解决(前两者弹框强制 resolution);行展开 citations 全集并标答案实际引用项
 
 ## §8 错误处理矩阵
