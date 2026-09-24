@@ -91,6 +91,7 @@
     background: var(--win); box-shadow: 2px 2px 0 var(--ink);
   }
   .btn-sm:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+  a.btn { text-decoration: none; }   /* ch04 T14:顶栏「忠实度台账」入口(链接套按钮皮) */
 
   /* ===== 聊天消息区域 ===== */
   #messages {
@@ -315,6 +316,7 @@
       <div class="status mono"><span class="dot">●</span> ONLINE · 智能客服</div>
     </div>
     <div class="header-btns">
+      <a id="faith-link" class="btn btn-sm" href="/static/faith.html" title="faith_cases 忠实度台账(ch04)">📜 忠实度台账</a>
       <button id="extract-open-btn" class="btn btn-sm" title="售后信息结构化提取">🔧 售后提取</button>
       <button id="new-chat-btn" class="btn btn-sm" title="清空聊天记录，重新开始">＋ 新对话</button>
     </div>
