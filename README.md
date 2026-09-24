@@ -173,3 +173,22 @@ uv run python evals/run_qa_mining_eval.py          # 抽取质量评估(真 LLM)
 
 参数在 `.env`(RAG_TOP_K / RAG_SCORE_THRESHOLD / QA_DEDUP_THRESHOLD…,默认值见 app/core/config.py)。
 开发过程留痕:`dev-notes/ch03.md`;设计:`docs/superpowers/specs/2026-09-21-…-design.md`。
+
+## ch04 RAG 进阶:混合检索 + 重排 + 评估体系
+
+- **混合检索**:Milvus 原生 BM25(text 字段挂 BM25 Function、内置 chinese analyzer)+ dense 向量各 Top-50 → `hybrid_search` + RRF(k=60)融合;品类元数据先过滤再检索。
+- **重排**:SiliconFlow `bge-reranker-v2-m3` 精排 Top-10;组装 prompt 用首尾排布(奇数位升序+偶数位降序),最相关在两端。
+- **Query 理解**:口语→标准问法改写 + 检索侧同义词扩展(不入库);评估走 `evals/cache/rewrite_cache.json` 保四臂同输入。
+- **前置双闸拒答**:检索侧 top1 置信 < `retrieval_low_conf_threshold`(实测校准终值)→ 拒答+进池;生成前证据自评不足 → 拒答+进池(`low_confidence_questions`,source 标写方)。
+- **引用与反馈**:回答 `[n]` ↔ tool_result 帧 `citations` → 聊天页点角标弹窗看原文+章节路径(`GET /api/chunks/{id}`);每条回答 👍/👎 一次性锁定(纯前端 localStorage,数据飞轮入口)。
+- **忠实度**:LLM-as-judge(`evals/run_faith_eval.py`)判 fabricated → `faith_cases` 台账(`static/faith.html`,GET/PATCH `/api/faith_cases`,复发自动退回)。
+- **评估**:`evals/run_strategy_eval.py` 四策略×分桶 Hit/Recall@3、@10 + MRR@10 + D 桶阈值校准表 → `evals/reports/`。
+
+```bash
+uv run python -m app.jobs.build_knowledge   # 老师 6 文档重建(knowledge_chunks + Milvus 双写)
+uv run python evals/run_strategy_eval.py    # 验收①:四策略对比报告
+uv run python evals/run_faith_eval.py       # 忠实度评估 + 台账落盘
+uv run python evals/demo_ch04.py            # 验收②③④数据面演练
+uv run pytest -q                            # 全量单测
+uv run pytest -m integration -q             # 集成(需 docker mysql/milvus + key)
+```
