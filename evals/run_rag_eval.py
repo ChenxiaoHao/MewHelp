@@ -1,4 +1,6 @@
-"""RAG 检索评估(§9:替代 TDD 的验收数据门)。通过线:hit-rate@3 ≥10/12 且运费组(1-5)5/5。
+"""[DEPRECATED · ch04] 老师语料换代后本 12 题期望路径失效,保留作 ch03 历史参照,不再运行;本章评估入口 = evals/run_strategy_eval.py(spec 附录 C)。
+
+RAG 检索评估(§9:替代 TDD 的验收数据门)。通过线:hit-rate@3 ≥10/12 且运费组(1-5)5/5。
 
 confusable 规则(spec 附录 C):对偶块与期望块同现 top-3 时,对偶不得排在期望之前。
 前置:docker compose up + build_knowledge 完成 + mine_qa 尚未跑。
