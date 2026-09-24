@@ -46,3 +46,4 @@ class ToolResultEvent(BaseModel):
     name: str
     ok: bool
     summary: str
+    citations: list[dict] | None = None  # ch04 可选增列;routes 帧 dump 用 exclude_none,无引用时键不出现

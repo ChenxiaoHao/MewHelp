@@ -125,6 +125,10 @@ async def test_tool_frames_order_and_shape(client, monkeypatch):
 
     monkeypatch.setattr(svc, "execute_tool", fake_execute)
 
+    async def fake_check(question, hits, settings, *, model=None):
+        return None  # 闸2 = 不判即放行(降级语义);路由帧断言不触真实自评
+    monkeypatch.setattr(svc, "evaluate_evidence", fake_check)
+
     r = await client.post(
         "/api/chat/stream",
         json={"messages": [{"role": "user", "content": "退货政策是什么"}]},
@@ -140,6 +144,35 @@ async def test_tool_frames_order_and_shape(client, monkeypatch):
     assert json.loads(tr_line[len("data:"):].strip()) == {
         "id": "c1", "name": "query_faq", "ok": True, "summary": "命中 1 条"
     }
+
+
+async def test_tool_result_frame_carries_citations(client, monkeypatch):
+    """ch04: query_faq 命中帧带 citations 键;前端弹窗数据链路。"""
+    from app.api import routes as routes_mod
+    from app.main import app
+    from app.services import tool_chat_service as svc
+    from app.tools.executor import ToolOutcome
+
+    monkeypatch.setattr(routes_mod, "crud", FakeCrud())
+    _override(app, routes_mod.dep_db_session, object())
+    _override(app, routes_mod.dep_chat_model, ScriptedToolModel())
+
+    cites = [{"n": 1, "chunk_id": 7, "section_path": "手册 > 节1", "question": "q", "answer": "a"}]
+
+    async def fake_execute(name, args, tcid, ctx):
+        return ToolOutcome(name, tcid, True, {"keyword": "k", "hits": [{"n": 1}], "refused": False, "note": ""},
+                           "命中 1 条", citations=cites)
+
+    monkeypatch.setattr(svc, "execute_tool", fake_execute)
+
+    async def fake_check(question, hits, settings, *, model=None):
+        return None  # 闸2 = 不判即放行(降级语义);路由帧断言不触真实自评
+    monkeypatch.setattr(svc, "evaluate_evidence", fake_check)
+
+    r = await client.post("/api/chat/stream",
+                          json={"messages": [{"role": "user", "content": "退货政策"}]})
+    tr_line = [l for l in r.text.splitlines() if l.startswith("data:") and '"citations"' in l][0]
+    assert json.loads(tr_line[len("data:"):].strip())["citations"] == cites
 
 
 async def test_conversation_id_zero_rejected_422(client):

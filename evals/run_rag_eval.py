@@ -1,4 +1,6 @@
-"""RAG 检索评估(§9:替代 TDD 的验收数据门)。通过线:hit-rate@3 ≥10/12 且运费组(1-5)5/5。
+"""[DEPRECATED · ch04] 老师语料换代后本 12 题期望路径失效,保留作 ch03 历史参照,不再运行;本章评估入口 = evals/run_strategy_eval.py(spec 附录 C)。
+
+RAG 检索评估(§9:替代 TDD 的验收数据门)。通过线:hit-rate@3 ≥10/12 且运费组(1-5)5/5。
 
 confusable 规则(spec 附录 C):对偶块与期望块同现 top-3 时,对偶不得排在期望之前。
 前置:docker compose up + build_knowledge 完成 + mine_qa 尚未跑。
@@ -23,7 +25,10 @@ PASS_MIN = 10
 async def _main(samples, top_k) -> int:
     bad = []
     for s in samples:
-        hits = await retriever.retrieve_hits(s["query"])
+        # ch04 T7:ch03 兼容 shim 已删,strategy="hybrid" 与 shim 原语义逐字等价
+        # (brief Files 清单漏列本文件,但 Step 7 grep 覆盖面含 evals → 最小适配,dev-notes ④ 记录)。
+        res = await retriever.retrieve(s["query"], strategy="hybrid")
+        hits = [c.row for c in res.chunks]
         paths = [h.section_path or "" for h in hits][:top_k]
         hit_rank = next((i for i, p in enumerate(paths) if s["expect_path"] in p), None)
         ok = hit_rank is not None

@@ -15,6 +15,7 @@ from app.schemas.chat import (
     ToolResultEvent,
 )
 from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
+from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
@@ -92,7 +93,7 @@ async def chat_stream(
                 )
             elif kind == "tool_result":
                 yield ServerSentEvent(
-                    data=ToolResultEvent(**payload).model_dump(), event="tool_result"
+                    data=ToolResultEvent(**payload).model_dump(exclude_none=True), event="tool_result"
                 )
         yield ServerSentEvent(raw_data="[DONE]", event="done")
     except Exception as exc:  # noqa: BLE001 —— SSE 惯例：错误进事件流后正常关流
@@ -116,3 +117,34 @@ async def health(settings=Depends(dep_settings)):
         model=settings.model_name,
         history_token_budget=settings.history_token_budget,
     )
+
+
+@router.get("/api/chunks/{chunk_id}", response_model=ChunkOut)
+async def get_chunk(chunk_id: int, session=Depends(dep_db_session)):
+    """引用弹窗原文(T13)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.get_chunk(session, chunk_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="chunk 不存在")
+    return row
+
+
+@router.get("/api/faith_cases", response_model=list[FaithCaseOut])
+async def list_faith_cases(status: str | None = None, bucket: str | None = None,
+                           session=Depends(dep_db_session)):
+    """台账页列表(T14):last_seen_at 降序,可按状态/桶过滤。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    return await crud.list_faith_cases(session, status=status, bucket=bucket)
+
+
+@router.patch("/api/faith_cases/{case_id}", response_model=FaithCaseOut)
+async def patch_faith_case(case_id: int, req: FaithCasePatch, session=Depends(dep_db_session)):
+    """处置流转:非「未解决」必须带 resolution(schema 422);「未解决」强制清处置说明。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.set_faith_case_status(session, case_id, req.status, req.resolution)
+    if row is None:
+        raise HTTPException(status_code=404, detail="个案不存在")
+    return row

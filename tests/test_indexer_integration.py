@@ -23,3 +23,25 @@ async def test_full_build_then_fault_and_resume():
         assert await indexer.check() == 0
     finally:
         await dispose_engine()
+
+
+@pytest.mark.integration
+async def test_corpus_block_count_pinned():
+    """实测锚(附录 C 重锚定):当前老师语料全量重建后总块数 = EXPECTED_TOTAL。
+    语料再被替换时此测试红 → 人工确认后更新数字并在 dev-notes 说明(回归绊线,非可调阈值)。"""
+    from app.core.config import get_settings
+    from app.db import crud
+    from app.db.engine import dispose_engine, get_session_factory, init_engine
+    from app.rag import milvus_store
+
+    EXPECTED_TOTAL = 51  # ← Step 4 实测输出 N 替换本行数字(实施时唯一运行时填值,来源已在 Step 4 说明)
+    st = get_settings()
+    init_engine(st)
+    try:
+        async with get_session_factory()() as session:
+            counts = await crud.count_chunks_by_status(session)
+        assert counts.get("done", 0) == EXPECTED_TOTAL and counts.get("pending", 0) == 0
+        client = milvus_store.get_client(st.milvus_uri)
+        assert milvus_store.count_rows(client, st.milvus_collection) == EXPECTED_TOTAL
+    finally:
+        await dispose_engine()

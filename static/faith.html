@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#FF9B50">
+<title>忠实度台账 · MewHelp</title>
+<style>
+  /* ===== 与 index.html 同款复古像素调色板(ch04 T14,零新依赖) ===== */
+  :root {
+    --bg: #F6D89C; --win: #FFF8E8; --paper: #FFFDF5;
+    --orange: #FF9B50; --ink: #292929; --aux: #E8DCC5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: var(--ink); background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(41,41,41,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(41,41,41,.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 100vh; padding: 18px;
+  }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .sheet {
+    max-width: 1100px; margin: 0 auto;
+    background: var(--win); border: 3px solid var(--ink); border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink); overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--orange); border-bottom: 3px solid var(--ink);
+  }
+  header h1 { font-size: 16px; letter-spacing: 1px; flex: 1; min-width: 160px; }
+  .btn {
+    font: inherit; font-weight: 700; color: var(--ink);
+    background: var(--orange); border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 var(--ink); padding: 5px 12px; cursor: pointer;
+    display: inline-block; text-decoration: none; font-size: 13px;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.05); }
+  .btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .btn:disabled { background: var(--aux); color: #8a806c; cursor: not-allowed; }
+  .btn-sm { padding: 3px 8px; font-size: 12px; border-width: 2px; background: var(--win); box-shadow: 2px 2px 0 var(--ink); }
+
+  /* 工具条:状态/桶筛选 + eval_id 本地搜索(M-4 授权的客户端加性过滤) */
+  .toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 12px; background: var(--aux); border-bottom: 3px solid var(--ink);
+    font-size: 13px;
+  }
+  .toolbar label { font-weight: 700; }
+  .toolbar select, .toolbar input {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--paper); border: 2px solid var(--ink); border-radius: 3px; padding: 3px 6px;
+  }
+  #f-evalid { width: 190px; }
+  #count { margin-left: auto; font-size: 11px; color: #8a7c60; }
+
+  /* 窄屏不破版:表容器横向滚动 + 表格最小宽(spec §2 图/T14 清单5) */
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 1150px; font-size: 13px; }
+  th, td { border-bottom: 2px solid rgba(41,41,41,.25); padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--aux); font-size: 12px; letter-spacing: 1px; position: sticky; top: 0; }
+  td.q, td.reason, td.resolution, td.answer { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr:hover td { background: #FFF3D6; }
+  .pill {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    padding: 1px 6px; border: 2px solid var(--ink); border-radius: 3px; background: var(--orange);
+  }
+  .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border: 2px solid var(--ink); border-radius: 3px; }
+  .st-open  { background: #E86A5E; color: #FFF8E8; }  /* 未解决=红 */
+  .st-fixed { background: #6FBF73; color: #292929; }  /* 已解决=绿 */
+  .st-naf   { background: #B9B4A6; color: #292929; }  /* 无需解决=灰 */
+  .res-line { display: block; margin-top: 3px; font-size: 11px; color: #6b5f49; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #load-error { display: none; padding: 10px 12px; background: var(--ink); color: var(--win); font-size: 13px; }
+  #load-error.show { display: block; }
+
+  /* 处置弹层(仿 index 弹窗基调) */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; background: rgba(41,41,41,.55);
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    width: 560px; max-width: 100%; max-height: calc(100dvh - 32px);
+    background: var(--win); border: 3px solid var(--ink); border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 12px; background: var(--orange); border-bottom: 3px solid var(--ink);
+    font-weight: 700; font-size: 14px; letter-spacing: 1px;
+  }
+  .modal-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .modal-body label { font-size: 12px; font-weight: 700; }
+  .req-star { color: #C0392B; }
+  .box {
+    padding: 8px 10px; background: var(--paper); border: 2px solid var(--ink); border-radius: 3px;
+    font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+    max-height: 160px; overflow-y: auto;
+  }
+  #d-cites { max-height: 190px; }
+  .cite-item { padding: 3px 0; border-bottom: 1px dashed rgba(41,41,41,.25); }
+  .cite-item:last-child { border-bottom: 0; }
+  /* §7-3「实际引用」标记:正文出现 [n] 的证据加粗+橙签,仅回放的候选灰化(纯 CSS,零依赖) */
+  .cite-item.cite-used { font-weight: 700; }
+  .cite-item.cite-offer { color: #8a7c60; }
+  .cite-tag { display: inline-block; margin-left: 6px; padding: 0 5px; font-size: 10px; font-weight: 700; border: 1px solid var(--ink); border-radius: 2px; }
+  .cite-used .cite-tag { background: var(--orange); color: var(--ink); }
+  .cite-offer .cite-tag { background: var(--aux); color: #8a7c60; }
+  select#d-status { font: inherit; font-size: 13px; background: var(--paper); border: 2px solid var(--ink); border-radius: 3px; padding: 4px 6px; }
+  #d-resolution {
+    width: 100%; min-height: 70px; resize: vertical;
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--paper);
+    border: 3px solid var(--ink); border-radius: 4px; outline: none; padding: 8px;
+  }
+  #res-hint { font-size: 11px; color: #8a7c60; }
+  #res-hint.over { color: #C0392B; font-weight: 700; }
+  #patch-msg { min-height: 18px; font-size: 12px; font-weight: 700; }
+  #patch-msg.err { color: #C0392B; }
+  #patch-msg.ok { color: #2E7D32; }
+
+  @media (max-width: 640px) {
+    body { padding: 8px; }
+    header h1 { font-size: 14px; }
+    .modal { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <a class="btn btn-sm" href="/static/index.html" id="back-link">← 返回聊天</a>
+    <h1>📜 faith_cases 忠实度台账</h1>
+    <button id="reload-btn" class="btn btn-sm">⟳ 重读</button>
+  </header>
+
+  <div class="toolbar">
+    <label for="f-status">状态</label>
+    <select id="f-status">
+      <option value="">全部</option>
+      <option value="未解决">未解决</option>
+      <option value="已解决">已解决</option>
+      <option value="无需解决">无需解决</option>
+    </select>
+    <label for="f-bucket">桶</label>
+    <select id="f-bucket">
+      <option value="">全部</option>
+      <option value="A_policy">A_policy</option>
+      <option value="B_model">B_model</option>
+      <option value="C_colloquial">C_colloquial</option>
+      <option value="D_absent">D_absent</option>
+      <option value="E_multi">E_multi</option>
+    </select>
+    <label for="f-evalid">题号</label>
+    <input id="f-evalid" placeholder="搜索 eval_id(本地筛已载行)" autocomplete="off">
+    <span id="count" class="mono"></span>
+  </div>
+
+  <div id="load-error" class="mono"></div>
+
+  <div class="table-wrap">
+    <table aria-label="faith_cases 台账">
+      <thead>
+        <tr>
+          <th>eval_id</th><th>桶</th><th>策略</th><th>问题</th>
+          <th>裁判理由</th><th>裁判模型</th><th>复发次数</th>
+          <th>首次发现</th><th>最近发现</th><th>状态</th><th>处置</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 处置弹层 -->
+<div class="overlay" id="patch-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <div class="modal-header">
+      <span id="d-title">🧾 处置个案</span>
+      <button id="d-close" class="btn btn-sm" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>问题</label><div class="box" id="d-query"></div>
+      <label>完整答案(answer 快照)</label><div class="box" id="d-answer"></div>
+      <label>裁判理由(reason)</label><div class="box" id="d-reason"></div>
+      <label>citations 展平(n + 章节 + 原文截断)</label><div class="box mono" id="d-cites"></div>
+      <label for="d-status">状态</label>
+      <select id="d-status">
+        <option value="未解决">未解决</option>
+        <option value="已解决">已解决</option>
+        <option value="无需解决">无需解决</option>
+      </select>
+      <label for="d-resolution"><span id="res-star" class="req-star">*</span> 处置说明(非「未解决」必填)</label>
+      <textarea id="d-resolution" maxlength="300" placeholder="服务端限 VARCHAR(300):写清结论与去向,如「裁判口径歧义,已复核非编造」"></textarea>
+      <div id="res-hint" class="mono">0/300</div>
+      <div id="patch-msg" class="mono" role="status"></div>
+      <div><button id="d-save" class="btn">保存 PATCH</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== ch04 T14:faith_cases 轻量台账(Vibe 例外,零新依赖,数据契约=T10 三面) ===== */
+const rowsEl = document.getElementById('rows');
+const countEl = document.getElementById('count');
+const errBar = document.getElementById('load-error');
+const fStatus = document.getElementById('f-status');
+const fBucket = document.getElementById('f-bucket');
+const fEvalId = document.getElementById('f-evalid');
+
+let loaded = [];       // 服务端原序缓存
+let editing = null;    // 当前弹层个案行数据
+
+const STATUS_CLS = { '未解决': 'st-open', '已解决': 'st-fixed', '无需解决': 'st-naf' };
+
+function apiListUrl() {
+  const p = new URLSearchParams();
+  if (fStatus.value) p.set('status', fStatus.value);
+  if (fBucket.value) p.set('bucket', fBucket.value);
+  const qs = p.toString();
+  return '/api/faith_cases' + (qs ? '?' + qs : '');
+}
+
+async function load() {
+  errBar.classList.remove('show');
+  errBar.textContent = '';
+  try {
+    const resp = await fetch(apiListUrl());
+    if (!resp.ok) {
+      let detail = 'HTTP ' + resp.status;
+      try { const b = await resp.json(); if (b && b.detail) detail = b.detail; } catch (e) {}
+      throw new Error(detail);
+    }
+    loaded = await resp.json();
+    renderRows();                       // 服务端已按 last_seen_at 降序,前端不再排序(M-3)
+  } catch (err) {
+    loaded = [];
+    rowsEl.textContent = '';
+    countEl.textContent = '';
+    errBar.textContent = '⚠ 台账读取失败:' + err.message;
+    errBar.classList.add('show');
+  }
+}
+
+function fmtTime(iso) { return (iso || '').replace('T', ' ').slice(0, 16); }
+/* §7-3「实际引用」:与 index.html citationSegments 同款 /\[(\d+)\]/g 正文扫描(纯 DOM 节点构造) */
+function citedNsInAnswer(answer) {
+  const set = new Set();
+  const re = /\[(\d+)\]/g;
+  let m;
+  while ((m = re.exec(answer || ''))) set.add(parseInt(m[1], 10));
+  return set;
+}
+function cell(cls, text, title) {
+  const td = document.createElement('td');
+  td.className = cls;
+  td.textContent = text;
+  if (title != null) td.title = title;
+  return td;
+}
+
+function makeRow(r) {
+  const tr = document.createElement('tr');
+  tr.dataset.id = String(r.id);
+  tr.appendChild(cell('', r.eval_id));
+  tr.appendChild(cell('', r.bucket));
+  tr.appendChild(cell('', r.strategy));                          // §7-3 三列:API FaithCaseOut 已供,只渲染
+  tr.appendChild(cell('q', r.query, r.query));
+  tr.appendChild(cell('reason', r.reason, r.reason));           // 截断 hover 全显(CSS ellipsis+title)
+  tr.appendChild(cell('', r.judge_model || '—'));               // 可空字段:占位横线
+  const seenTd = cell('', String(r.seen_count));
+  if (r.seen_count >= 2) {                                       // spec §7-3「复发」标(本人加性判断,见 dev-notes)
+    const pill = document.createElement('span');
+    pill.className = 'pill';
+    pill.textContent = '复发';
+    pill.title = 'resolved_at 后再次被判编造(§3.2/附录 A 复发流转)';
+    seenTd.appendChild(document.createTextNode(' '));
+    seenTd.appendChild(pill);
+  }
+  tr.appendChild(seenTd);
+  tr.appendChild(cell('', fmtTime(r.first_seen_at)));              // 与最近发现同款日期格式(§7-3)
+  tr.appendChild(cell('', fmtTime(r.last_seen_at)));
+  const stTd = document.createElement('td');
+  stTd.appendChild(badgeFor(r.status));
+  const res = document.createElement('span');
+  res.className = 'res-line mono';
+  res.textContent = r.resolution ? '处置:' + r.resolution : '';
+  if (r.resolution) res.title = r.resolution;
+  stTd.appendChild(res);
+  tr.appendChild(stTd);
+  const opTd = document.createElement('td');
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm';
+  btn.textContent = '处置';
+  btn.addEventListener('click', () => openPatch(r.id));
+  opTd.appendChild(btn);
+  tr.appendChild(opTd);
+  return tr;
+}
+function badgeFor(status) {
+  const b = document.createElement('span');
+  b.className = 'badge ' + (STATUS_CLS[status] || 'st-open');
+  b.textContent = status;
+  return b;
+}
+function visibleRows() {
+  const q = fEvalId.value.trim().toUpperCase();
+  return q ? loaded.filter(r => (r.eval_id || '').toUpperCase().includes(q)) : loaded;
+}
+function renderRows() {
+  rowsEl.textContent = '';
+  const vs = visibleRows();
+  for (const r of vs) rowsEl.appendChild(makeRow(r));
+  countEl.textContent = '显示 ' + vs.length + ' / 已载 ' + loaded.length + ' 行(服务端排序:last_seen_at 降序)';
+}
+
+/* ===== 处置弹层 ===== */
+const patchOverlay = document.getElementById('patch-overlay');
+const dQuery = document.getElementById('d-query');
+const dAnswer = document.getElementById('d-answer');
+const dReason = document.getElementById('d-reason');
+const dCites = document.getElementById('d-cites');
+const dStatus = document.getElementById('d-status');
+const dRes = document.getElementById('d-resolution');
+const resHint = document.getElementById('res-hint');
+const resStar = document.getElementById('res-star');
+const patchMsg = document.getElementById('patch-msg');
+const dSave = document.getElementById('d-save');
+
+function openPatch(id) {
+  const r = loaded.find(x => x.id === id);
+  if (!r) return;
+  editing = r;
+  document.getElementById('d-title').textContent = '🧾 处置个案 ' + r.eval_id + '(' + r.bucket + ')';
+  dQuery.textContent = r.query;
+  dAnswer.textContent = r.answer;
+  dReason.textContent = r.reason;
+  dCites.textContent = '';
+  const cites = Array.isArray(r.citations) ? r.citations : [];
+  const cited = citedNsInAnswer(r.answer);   // 答案正文实际出现的 [n] 集
+  if (!cites.length) {
+    const div = document.createElement('div');
+    div.textContent = '(该行无 citations 快照——绕开 KB 的生成/拒答带前言,见报告解读)';
+    dCites.appendChild(div);
+  }
+  for (const c of cites) {
+    const div = document.createElement('div');
+    div.className = 'cite-item';
+    const ans = (c.answer || '').slice(0, 60);
+    div.textContent = '[' + c.n + '] ' + (c.section_path || '') + ' — ' + ans +
+      ((c.answer || '').length > 60 ? '…' : '');
+    div.title = c.answer || '';
+    if (cited.size) {                        // 正文有 [n] 才区分;有 citations 而正文零角标的行原样呈现
+      const used = cited.has(Number(c.n));
+      div.classList.add(used ? 'cite-used' : 'cite-offer');
+      const tag = document.createElement('span');
+      tag.className = 'cite-tag';
+      tag.textContent = used ? '实际引用' : '供选证据';
+      tag.title = used ? '答案正文出现了该角标' : '仅供选证据回放,正文未引用';
+      div.appendChild(tag);
+    }
+    dCites.appendChild(div);
+  }
+  dStatus.value = r.status;
+  dRes.value = r.resolution || '';
+  updateResHint();
+  patchMsg.textContent = '';
+  patchMsg.className = 'mono';
+  patchOverlay.classList.add('open');
+}
+function closePatch() { patchOverlay.classList.remove('open'); editing = null; }
+
+function updateResHint() {
+  const n = dRes.value.length;
+  resHint.textContent = n + '/300';
+  resHint.classList.toggle('over', n >= 300);     // 触顶即提示(服务端 VARCHAR(300) 同限)
+  const need = dStatus.value !== '未解决';
+  resStar.style.visibility = need ? 'visible' : 'hidden';   // 必填红星:非「未解决」时
+}
+
+async function savePatch() {
+  if (!editing) return;
+  const body = { status: dStatus.value };
+  if (dRes.value.trim()) body.resolution = dRes.value.trim();
+  dSave.disabled = true;
+  try {
+    const resp = await fetch('/api/faith_cases/' + editing.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    let out = null;
+    try { out = await resp.json(); } catch (e) {}
+    if (!resp.ok) {
+      if (resp.status === 422) {
+        patchMsg.textContent = '✗ 填写处置说明后再保存';    // brief 钉死文案
+      } else {
+        const detail = (out && (typeof out.detail === 'string' ? out.detail : JSON.stringify(out.detail))) || ('HTTP ' + resp.status);
+        patchMsg.textContent = '✗ ' + detail;
+      }
+      patchMsg.className = 'mono err';
+      return;
+    }
+    Object.assign(editing, out);                            // 行内徽章即时更新
+    const tr = rowsEl.querySelector('tr[data-id="' + editing.id + '"]');
+    if (tr) {
+      const fresh = makeRow(editing);
+      rowsEl.replaceChild(fresh, tr);
+    }
+    patchMsg.textContent = '✓ 已保存:status=' + out.status;
+    patchMsg.className = 'mono ok';
+    closePatch();
+  } catch (err) {
+    patchMsg.textContent = '✗ 网络错误:' + err.message;
+    patchMsg.className = 'mono err';
+  } finally {
+    dSave.disabled = false;
+  }
+}
+
+/* ===== 事件接线 ===== */
+fStatus.addEventListener('change', load);
+fBucket.addEventListener('change', load);
+fEvalId.addEventListener('input', renderRows);             // M-4:客户端本地筛,不重发请求
+document.getElementById('reload-btn').addEventListener('click', load);
+document.getElementById('d-close').addEventListener('click', closePatch);
+patchOverlay.addEventListener('click', e => { if (e.target === patchOverlay) closePatch(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && patchOverlay.classList.contains('open')) closePatch(); });
+dStatus.addEventListener('change', updateResHint);
+dRes.addEventListener('input', updateResHint);
+dSave.addEventListener('click', savePatch);
+
+load();
+</script>
+</body>
+</html>

@@ -324,7 +324,7 @@ Run: `uv run pytest -m integration tests/test_models_ch04.py -q` → PASS(顺带
 
 - [ ] **Step 12: 全量回归不破**
 
-Run: `uv run pytest -q` → Expected: **138 passed, 4 failed**(仅 test_corpus_ch03 预期红)
+Run: `uv run pytest -q` → Expected: **135 passed, 4 failed**(本任务逐字新增单测 = 3 config + 2 model;`test_live_schema_matches_ch04_orm` 带 integration 标记被默认 addopts deselect,另在集成步骤跑;4 红=仅 test_corpus_ch03 预期红。2026-09-23 实施 T1 实测修订,原写 138 为误算)
 
 - [ ] **Step 13: dev-notes 追记 + 提交**
 
@@ -458,7 +458,7 @@ def test_ensure_collection_declares_bm25_schema():
     assert _field_kw(c)["embedding"]["dim"] == 1024
     assert _field_kw(c)["category"]["max_length"] == 765
     fn = c.schema.functions[0]
-    assert fn.function_type is FunctionType.BM25 and fn.name == "bm25_fn"
+    assert fn.type is FunctionType.BM25 and fn.name == "bm25_fn"  # 2026-09-23 T2 实测:pymilvus 3.0.2 公开访问器是 .type(.function_type 仅构造参数名,Context7 复核)
     assert list(fn.input_field_names) == ["text"] and list(fn.output_field_names) == ["sparse"]
     assert (c.index_params.indexes[0][0], c.index_params.indexes[0][1]["metric_type"]) == ("embedding", "COSINE")
     assert (c.index_params.indexes[1][0], c.index_params.indexes[1][1]["index_type"]) == ("sparse", "SPARSE_INVERTED_INDEX")
@@ -508,7 +508,8 @@ def test_hybrid_search_builds_two_legs_with_rrf():
     reqs = kw["reqs"]
     assert (reqs[0].anns_field, reqs[0].limit, reqs[0].expr) == ("embedding", 50, 'category == "x"')
     assert (reqs[1].anns_field, reqs[1].limit, reqs[1].data) == ("sparse", 50, ["猫砂盆 清理"])
-    assert isinstance(kw["ranker"], RRFRanker) and kw["ranker"].k == 60
+    assert isinstance(kw["ranker"], RRFRanker)
+    assert kw["ranker"].dict()["params"] == {"k": 60}  # 2026-09-23 T2 实测:RRFRanker 无公开 .k 属性,文档口径=dict() 序列化(Context7 复核)
     assert kw["collection_name"] == "knowledge" and kw["limit"] == 10
 
 
@@ -697,14 +698,21 @@ def test_collection_v2_bm25_hybrid_roundtrip():
         assert zh and zh[0][0] == 1
         dense = milvus_store.search_vectors(client, COLL, [1.0, 0.0, 0.0, 0.0], 3)
         assert dense[0][0] == 1
-        # 标量过滤(需求3):品类 expr 只放行该品类块
-        filt = milvus_store.bm25_search(client, COLL, "猫", 3, expr='category == "退货政策"')
+        # 标量过滤(需求3):品类 expr 只放行该品类块。
+        # 2026-09-23 T2 实测修正:原「猫→只{3}」物理不成立(row3 无「猫」token),改用 1/3 行共有「7 天」,
+        # 无过滤先证 {1,3} 都在、过滤后只放行 3——才真正测到「排除其它品类」语义。
+        assert {cid for cid, _ in milvus_store.bm25_search(client, COLL, "7 天", 3)} == {1, 3}
+        filt = milvus_store.bm25_search(client, COLL, "7 天", 3, expr='category == "退货政策"')
         assert {cid for cid, _ in filt} == {3}
         # hybrid:dense 腿偏 2、BM25 腿偏 3 → 融合含两者且形状 [(int, float)]
         hyb = milvus_store.hybrid_search(client, COLL, [0.0, 1.0, 0.0, 0.0], "7 天无理由退货",
                                          limit=3, recall_k=3, rrf_k=60)
         assert hyb and all(isinstance(cid, int) and isinstance(s, float) for cid, s in hyb)
-        assert {cid for cid, _ in hyb} == {2, 3}
+        # 2026-09-23 T2 实测修正:原「=={2,3}」不成立——recall_k=3 在 3 行小库=全库进融合,
+        # chunk1 双腿中游(dense 第3+BM25 第2)RRF 反超单腿冠军 chunk2;实测序 [3,1,2] 与
+        # RRFRanker(k=60) 公式 1/(k+rank) 逐项吻合(0.0325/0.0320/0.0164),按「融合含两者」本意改 ⊇。
+        assert {2, 3} <= {cid for cid, _ in hyb}
+        assert [cid for cid, _ in hyb] == [3, 1, 2]
         # 同 PK 覆写幂等 + flush 语义沿用
         assert milvus_store.upsert_rows(client, COLL, [dict(ROWS[0])]) == 1
         milvus_store.flush(client, COLL)
@@ -966,7 +974,7 @@ def test_parse_rewrite_strips_code_fence():
 def test_parse_rewrite_cleans_synonyms():
     raw = {"standard_query": "猫粮", "synonyms": ["猫粮", " 主粮 ", "", "主粮", "冻干", "湿粮", "零食", "处方粮"]}
     std, syn = parse_rewrite(raw)
-    assert syn == ["主粮", "冻干", "湿粮", "处方粮"]  # 去重/去空/去等于标准问法/≤4 截断
+    assert syn == ["主粮", "冻干", "湿粮", "零食"]  # 去重/去空/去等于标准问法/≤4 截断(← 实施 T4 实测修订:清洗后剩 [主粮,冻干,湿粮,零食,处方粮] 5 项,截断只可能裁尾丢「处方粮」;原计划期望值与本节实现及其注释自相矛盾)
 
 
 def test_parse_rewrite_rejects_garbage():
@@ -1020,7 +1028,7 @@ REWRITE_PROMPT = ChatPromptTemplate.from_messages([
 - standard_query:保留全部关键信息(型号数字/金额/时限一个字不能丢),去掉语气词与口水话,输出单句;
 - synonyms:只给实词(名词/型号/术语),不给整句、不给虚词;想不出就输出空数组;
 - 同义词只服务关键词召回,不得引入问题里没有的实体或立场;
-- 只输出 JSON,不加解释:{"standard_query": "...", "synonyms": ["..."]}"""),
+- 只输出 JSON,不加解释:{{"standard_query": "...", "synonyms": ["..."]}}"""),  # ← 实施 T4 实测修订:ChatPromptTemplate 按 format 模板解析,示例 JSON 的花括号必须 {{ }} 转义,否则渲染即 KeyError;转义后模型可见文本与未转义原文逐字节一致
     ("human", "{question}"),
 ])
 ```
@@ -1094,9 +1102,12 @@ async def understand_query(query: str, st: Settings, *, model=None) -> Understan
         from app.services.chat_service import get_model  # 延迟 import:rag 层不反向拖 services 依赖
 
         m = model or get_model(st)
-        resp = await asyncio.wait_for(
-            (REWRITE_PROMPT | m).ainvoke({"question": query}), timeout=LLM_TIMEOUT_SECONDS
-        )
+        # ← 实施 T4 实测修订:两段式等价于 REWRITE_PROMPT | m —— installed langchain-core 1.x 的 `|`
+        # 要求右端 RunnableLike,会拒测试用最小替身(纯类,非 Runnable,TypeError 被 except 吞成
+        # degraded=True → test_success_path 假红);format_messages → ainvoke 与 RunnableSequence
+        # 末步一致,评审用 RunnableLambda 对照实验证实模型可见输入完全相同。
+        messages = REWRITE_PROMPT.format_messages(question=query)
+        resp = await asyncio.wait_for(m.ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS)
         parsed = parse_rewrite(getattr(resp, "content", resp))
         if parsed is None:
             raise ValueError(f"rewrite 输出不合 schema: {str(resp)[:200]}")
@@ -1107,7 +1118,7 @@ async def understand_query(query: str, st: Settings, *, model=None) -> Understan
         return UnderstandResult(standard_query=query, degraded=True)
 ```
 
-Run: `uv run pytest tests/test_query_understanding.py -q` → PASS(7 个全过)
+Run: `uv run pytest tests/test_query_understanding.py -q` → PASS(8 个全过;← 实施 T4 实测修订:本节逐字测试文件实含 8 个用例「4 parse + 4 understand」,原「7」为计划笔误)
 
 - [ ] **Step 4: 写 `evals/smoke_query_rewrite.py` 并实跑(替代 TDD 的标注样例验证)**
 
@@ -1222,7 +1233,7 @@ async def test_success_returns_index_scores_sorted_passthrough():
     body = seen["body"]
     assert body["model"] == "BAAI/bge-reranker-v2-m3" and body["query"] == "猫砂盆清理"
     assert body["documents"] == ["a", "b", "c"]  # 核对点③:字段名 documents,不是 texts
-    assert body["top_n"] == 10 and body["return_documents"] is False
+    assert body["top_n"] == 3 and body["return_documents"] is False  # ← 实施 T5 实测修订:3 候选文档下实现按 min(rerank_top_n, len(texts)) 送 3;原期望 10 与本章实现及姊妹用例 test_top_n_capped_to_candidate_count(2→2)自相矛盾,==3 反而把 min 计算值钉死(丢 min 即红)
 
 
 async def test_top_n_capped_to_candidate_count():
@@ -1350,7 +1361,7 @@ async def test_siliconflow_rerank_live():
 
 - [ ] **Step 4: 单测全绿;集成若有 key 实跑并把 `[rerank-live]` 输出行记 dev-notes(核对点③销账+0.3 初值依据);无 key → 红着不行、skip 可接受**
 
-Run: `uv run pytest tests/test_reranker.py -q` → PASS(7 个)
+Run: `uv run pytest tests/test_reranker.py -q` → PASS(8 个;← 实施 T5 实测修订:逐字文件实含 8 用例,原「7」与 T4 节同族笔误)
 Run: `uv run pytest -m integration tests/test_reranker_integration.py -q` → PASS 或 SKIPPED
 
 - [ ] **Step 5: 回归 + 提交**
@@ -1500,10 +1511,15 @@ async def test_category_expr_flows_into_all_legs(legs):
     assert legs["hyb"][2] == 'category == "退货政策"'
 
 
-@pytest.mark.parametrize("bad", ['x" or 1=1', "a;b", "drop table", "括号（）测", ""])
+# ← 实施 T6 实测修订:原 bad 列表含 "drop table" 与本节逐字白名单正则(spec §4.2,
+# ^[\w一-鿿 >()×/,-]+$)互斥——纯字母+空格词组不可能「既放行合法含空格品类(如
+# 商品与购物 FAQ)又拒 drop table」,词组黑名单非白名单语义;真实注入面(引号破壳/
+# 分号/全角括号/空值)4 例照旧必拒,另加反向断言把该词组钉死为无害等值 expr。
+@pytest.mark.parametrize("bad", ['x" or 1=1', "a;b", "括号（）测", ""])
 def test_build_category_expr_whitelist(bad):
     assert r.build_category_expr(None) is None
     assert r.build_category_expr("商品参数") == 'category == "商品参数"'
+    assert r.build_category_expr("drop table") == 'category == "drop table"'  # 反向钉死
     with pytest.raises(ValueError):
         r.build_category_expr(bad)
 
@@ -1718,7 +1734,7 @@ def ensure_knowledge_built():
         return
     from app.jobs import build_knowledge as bk
 
-    asyncio.run(bk.main([]))  # 若 main 签名不带 argv,改为 asyncio.run 两段:ingest_docs+vectorize_pending
+    bk.main([])  # ← 实施 T6 实测修订×3:①main(argv) 本体自带 init_engine+asyncio.run+dispose 且返回 int,外层 asyncio.run 必 TypeError(brief 注释原授权「以现有 CLI 入口为准删另一支」);②计划遗漏 init_engine——各测试文件按 test_indexer_integration 惯例补 autouse engine_in_test_loop 夹具(函数级,loop 建/拆引擎,防 session 级跨 loop 交替红);③「库为空才重建」前提改「空或混(存在 qa_mined)均现场全量重建」——活库确有 ch03 挖点行且其 section_path=None 会炸纯文档锚,锚断言零改动
 
 
 async def test_bm25_arm_hits_model_number():
@@ -1768,7 +1784,8 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 **Files:**
 - Create: `app/rag/hit_format.py`、`app/services/refusals.py`
-- Modify: `app/tools/definitions.py`、`app/tools/executor.py`、`app/schemas/chat.py`、`app/services/tool_chat_service.py`(仅 tool_result payload)、`app/api/routes.py`、`app/db/crud.py`、`app/rag/retriever.py`(删 shim)
+- Modify: `app/tools/definitions.py`、`app/tools/executor.py`、`app/schemas/chat.py`、`app/services/tool_chat_service.py`(仅 tool_result payload)、`app/api/routes.py`、`app/db/crud.py`、`app/rag/retriever.py`(删 shim)、`evals/run_rag_eval.py`(← 实施 T7 实测补漏:计划文件清单漏记——它是 retrieve_hits 第三个消费方,Step7 grep 强制其随迁 `retrieve(query, strategy="hybrid")`,评审对照 eea7480 旧 shim 源码证实行为逐字等价,旧评估数字含义不变,T11 再标 DEPRECATED)
+- 注:`tests/test_executor_citations.py` 计划仅有文件名无逐字正文(计划空缺,评审 R-g1 确认)——T7 按 Step-5 语义自行落 5 用例,评审判为真断言非注水
 - Test: Create `tests/test_hit_format.py`、`tests/test_refusals.py`、`tests/test_crud_ch04.py`、`tests/test_executor_citations.py`、`tests/test_pool_refusal_integration.py`;Modify `tests/test_tools.py`(两 query_faq 用例+schema 断言)、`tests/test_schemas_ch02.py`(帧形状)、`tests/test_routes_ch02.py`(新增 citations 帧用例)
 
 **Interfaces:**
@@ -2582,6 +2599,7 @@ Run: `uv run pytest tests/test_prompts_ch04.py tests/test_prompts_ch02.py -q` �
 
 Run: `uv run python evals/run_tool_routing_eval.py`
 Expected: 全部样本 PASS(ch02 基线行为不因三改回退);若样本因新增 [n]/拒答措辞导致判定漂移,只允许在 dev-notes 记录并如实报告,**不放宽 eval 判定器**。输出贴 dev-notes。
+  ← 实施 T9+评审独立 A/B 实测修订:「全部样本 PASS」为编写期过时期望——#6「你们发货用什么快递」与 #10 在**新旧两版 prompt 下同挂**(实施者新 8/9/8、评审活体复跑新 9/8 旧 8/9,#6 旧基线亦挂、#10 新基线曾过一次),判定漂移发生在 T9 之前(两版共用同一 query_faq docstring,漂移源与 T7 工具描述演化相符但 A/B 无法定因),非三改回退。生效门槛=本段漂移从句(记录+如实+不放宽判定器),已满足:PASS_THRESHOLD=8 未动、样本未动、判定器文件自 ch02 6058309 零改动。#6/#10 根因分析随 T11 失败样例桶/T12 报告处理;任何触及 spec 钉死文案的修复路线=停下问用户。
 
 - [ ] **Step 4: 全量回归 + 提交**
 
@@ -2614,7 +2632,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - [ ] **Step 1: 写失败测试 `tests/test_faith_crud_ch04.py`(FakeSession 纯逻辑:upsert 三态与流转)**
 
 ```python
-"""台账 upsert 复发流转(spec §3.3):created/updated/reactivated 三态;
+"""台账 upsert 复发流转(spec §3.2/附录A(← 引用订正:spec 无 §3.3,台账重判语义在 §3.2,DDL 注释在附录A)):created/updated/reactivated 三态;
 复发自动退回未解决+清 resolution;resolved_at 保留;seen_count 递增;uk_eval_id 一题一行。"""
 
 from datetime import datetime
@@ -2708,7 +2726,7 @@ async def upsert_faith_case(session, *, eval_id: str, bucket: str, query: str, a
                             reason: str, citations, judge_model,
                             strategy: str = "hybrid_rerank") -> str:
     """一题一行(uk_eval_id):created/updated/reactivated。复发即退回未解决、清 resolution,
-    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.3)。"""
+    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.2/附录A)。"""
     row = (await session.execute(select(FaithCase).where(FaithCase.eval_id == eval_id))).scalar_one_or_none()
     now = datetime.now()
     if row is None:
@@ -2980,7 +2998,13 @@ async def test_ledger_roundtrip_live():
                 reason="复发", citations=None, judge_model="judge-x") == "updated"
             row = (await crud.list_faith_cases(session, status="未解决", bucket="D_absent"))
             mine = [r for r in row if r.eval_id == eid][0]
-            assert mine.seen_count == 2 and mine.citations[0]["n"] == 1
+            # ← 实施 T10 修订(计划缺陷:本节自带断言与自带实现自相矛盾——上面第二次 upsert 照原文传
+            #   citations=None,而 crud.upsert_faith_case 按 spec §3.2/附录A(← 引用订正:spec 无 §3.3,台账重判语义在 §3.2,DDL 注释在附录A) 为无条件覆写(含 None),故重判后
+            #   快照必为 None,原断言 citations[0]["n"]==1 永不可能成立。修法=断言跟随代码语义,输入保持
+            #   brief 原文;另在 FakeSession 单测层补钉「None 覆写旧快照」用例(断言只增不减)。
+            #   注:本回写由 controller 于 T10 评审前补做(commit 见 ledger);实施期并无 controller 裁决,
+            #   dev-notes 原「controller 裁决」表述系实施者误读恢复消息,已另行订正)
+            assert mine.seen_count == 2 and mine.citations is None
             await crud.set_faith_case_status(session, mine.id, "已解决", "老师标注出入,语料可答")
             assert await crud.upsert_faith_case(  # 复发 → reactivated
                 session, eval_id=eid, bucket="D_absent", query="纸质发票", answer="能开3",
@@ -3609,6 +3633,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: tool_result 帧可选 `citations: [{n,chunk_id,section_path,question,answer}]`(T7);`GET /api/chunks/{id}`(T10)
 - Produces: 纯前端行为;localStorage key 格式(数据飞轮读侧约定):`mewhelp.feedback.v1:{conversationId}:{assistantSeq}` → `{"v":"up"|"down","ts":"ISO"}`
+  ← 终审注记(2026-09-24):实现键=`mewhelp.feedback.v1:{conversationId}:{assistantSeq}`(brief 锁定格式);spec §7-2 之 `fb:*` 系设计简写,同步注记 Spec 待用户批准(晨间队列②)
 
 **工作方式(用户工作要求①前端例外):** 不写单测;按下面契约与验收清单 Vibe 实现;每改一处**手动刷新页面走一遍清单**,清单结果与偏差逐条记 dev-notes(④翻车段照记)。
 
@@ -3658,7 +3683,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 1. 跑过 Task 12 后打开页面能看到个案、按「未解决+D_absent」过滤正确;
 2. 置「已解决」不填说明 → 前端提示(服务端 422 兜底,手工 curl 复验一次);
 3. 填说明保存 → 徽章变绿、显示处置说明;
-4. 重跑 `run_faith_eval.py` 该题再判编造 → 刷新后行自动回「未解决」、seen_count+1(spec §3.3 复发流转,**核对 T10 已测、此处端到端再验**);
+4. 重跑 `run_faith_eval.py` 该题再判编造 → 刷新后行自动回「未解决」、seen_count+1(spec §3.2/附录A(← 引用订正:spec 无 §3.3,台账重判语义在 §3.2,DDL 注释在附录A) 复发流转,**核对 T10 已测、此处端到端再验**);
 5. 窄屏(浏览器缩到手机宽)表格横向滚动不破版;零新依赖。
 
 - [ ] **Step 4: 提交**

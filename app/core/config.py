@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     qa_dedup_threshold: float = 0.92
     qa_mine_batch_conversations: int = 5
 
+    # --- ch04: 混合检索+重排+评估(全部带默认值,不破坏 ch01-ch03 构造) ---
+    rerank_api_base: str = "https://api.siliconflow.cn/v1"
+    rerank_api_key: str = ""
+    rerank_model: str = "BAAI/bge-reranker-v2-m3"
+    rerank_timeout_seconds: float = 5.0
+    hybrid_recall_k: int = 50      # dense/BM25 双腿各召回 Top-50
+    rrf_k: int = 60                # RRFRanker(k=60)
+    rerank_top_n: int = 10         # 精排后喂给模型的证据数
+    retrieval_low_conf_threshold: float = 0.161  # 闸1 终值=Task 12 回写(策略报告 D 桶校准表:误拒 4.2%/自信 3.3%)
+    self_check_enabled: bool = True            # 闸2 总开关(评估对照/省调用)
+    query_rewrite_enabled: bool = True         # 查询理解开关
+    faith_judge_model: str = ""                # 空=model_name
+
     @property
     def database_url(self) -> str:
         return (

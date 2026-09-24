@@ -1,4 +1,4 @@
-"""ORM 模型：四张表与 spec 附录 A 的 DDL（用户原文）逐列对齐。
+"""ORM 模型：与 spec 附录 A 的 DDL（用户原文）逐列对齐。
 
 建表不走 metadata.create_all——以 db/init/01_schema.sql（用户 DDL 原样）为准，
 容器首启自动执行；本文件仅供查询/写入映射与结构测试。
@@ -7,7 +7,7 @@
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text, func, text
-from sqlalchemy.dialects.mysql import BIGINT
+from sqlalchemy.dialects.mysql import BIGINT, INTEGER
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -149,3 +149,57 @@ class QaExtractionStaging(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
+
+
+class LowConfidenceQuestion(Base):
+    """低置信度问题池;DDL 以 05_ch04_schema.sql(用户原文逐字)为准,本章两写方(§0-12)。"""
+
+    __tablename__ = "low_confidence_questions"
+
+    id: Mapped[int] = _pk()
+    conversation_id: Mapped[int | None] = mapped_column(
+        BIGINT(unsigned=True), ForeignKey("conversations.id"), nullable=True
+    )
+    raw_question: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(
+        Enum("retrieval_low_conf", "self_check", "user_feedback", name="lcq_source"),
+        nullable=False,
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), index=True
+    )
+
+
+class FaithCase(Base):
+    """忠实度编造个案台账;一题一行 uk_eval_id,复发流转见 crud.upsert_faith_case。"""
+
+    __tablename__ = "faith_cases"
+
+    id: Mapped[int] = _pk()
+    eval_id: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    bucket: Mapped[str] = mapped_column(String(24), nullable=False)
+    query: Mapped[str] = mapped_column(String(512), nullable=False)
+    strategy: Mapped[str] = mapped_column(
+        String(24), nullable=False, server_default="hybrid_rerank"
+    )
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    citations: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    judge_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum("未解决", "已解决", "无需解决", name="faith_status"),
+        nullable=False,
+        server_default="未解决",
+    )
+    seen_count: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True), nullable=False, server_default=text("1")
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), index=True
+    )
+    resolution: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

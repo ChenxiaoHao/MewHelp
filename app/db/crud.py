@@ -1,13 +1,22 @@
 """数据访问层：会话/消息/FAQ 检索/工单。运行期落库失败的降级策略在调用方（persister）。"""
 
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import Select, delete, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Conversation, Faq, KnowledgeChunk, Message, QaExtractionStaging, Ticket
+from app.db.models import (
+    Conversation,
+    FaithCase,
+    Faq,
+    KnowledgeChunk,
+    LowConfidenceQuestion,
+    Message,
+    QaExtractionStaging,
+    Ticket,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -283,3 +292,70 @@ async def clear_staging(session) -> int:
     res = await session.execute(delete(QaExtractionStaging))
     await session.commit()
     return res.rowcount
+
+
+async def add_low_confidence_question(session, *, conversation_id: int | None,
+                                      raw_question: str, source: str,
+                                      reason: str | None) -> None:
+    """低置信问题池;conversation_id 可空(评估 runner 无会话)。"""
+    session.add(LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
+                                      source=source, reason=reason))
+    await session.commit()
+
+
+# ---- ch04: 原文回查 + 忠实度台账 ----
+
+async def get_chunk(session, chunk_id: int):
+    return await session.get(KnowledgeChunk, chunk_id)
+
+
+async def upsert_faith_case(session, *, eval_id: str, bucket: str, query: str, answer: str,
+                            reason: str, citations, judge_model,
+                            strategy: str = "hybrid_rerank") -> str:
+    """一题一行(uk_eval_id):created/updated/reactivated。复发即退回未解决、清 resolution,
+    resolved_at 保留;first_seen_at 不覆写、seen_count+1、重判字段刷新(§3.2/附录 A)。"""
+    row = (await session.execute(select(FaithCase).where(FaithCase.eval_id == eval_id))).scalar_one_or_none()
+    now = datetime.now()
+    if row is None:
+        session.add(FaithCase(eval_id=eval_id, bucket=bucket, query=query, strategy=strategy,
+                              answer=answer, reason=reason, citations=citations, judge_model=judge_model,
+                              status="未解决", seen_count=1, first_seen_at=now, last_seen_at=now))
+        await session.commit()
+        return "created"
+    result = "reactivated" if row.status in ("已解决", "无需解决") else "updated"
+    if result == "reactivated":
+        row.resolution = None
+    row.status, row.bucket, row.query, row.strategy = "未解决", bucket, query, strategy
+    row.answer, row.reason, row.citations, row.judge_model = answer, reason, citations, judge_model
+    row.seen_count += 1
+    row.last_seen_at = now
+    await session.commit()
+    return result
+
+
+async def list_faith_cases(session, *, status: str | None = None, bucket: str | None = None,
+                           limit: int = 200):
+    stmt = select(FaithCase).order_by(FaithCase.last_seen_at.desc()).limit(limit)
+    if status:
+        stmt = stmt.where(FaithCase.status == status)
+    if bucket:
+        stmt = stmt.where(FaithCase.bucket == bucket)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_faith_case(session, case_id: int):
+    return await session.get(FaithCase, case_id)
+
+
+async def set_faith_case_status(session, case_id: int, status: str, resolution: str | None):
+    row = await session.get(FaithCase, case_id)
+    if row is None:
+        return None
+    row.status = status
+    if status == "未解决":
+        row.resolution = None  # resolved_at 保留(复发显示)
+    else:
+        row.resolution = (resolution or "").strip() or None
+        row.resolved_at = datetime.now()
+    await session.commit()
+    return row

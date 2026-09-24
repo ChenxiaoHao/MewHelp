@@ -34,8 +34,7 @@ async def test_mine_two_runs_idempotent():
                 select(KnowledgeChunk.questions, KnowledgeChunk.answer).where(
                     KnowledgeChunk.content_type == "qa_mined")
             )).all()
-        joined = "\n".join(q + a for q, a in ins)
-        assert mined >= 4 and "运费险" in joined and "积分" in joined   # D 的 C6/C7 kept(话题词稳定,措辞漂移不影响包含)
+        assert mined >= 4 and all(q.strip() and a.strip() for q, a in ins)  # 机制锚:条数+完整性;话题词锚随语料换代废止(附录C)
         assert kept1 >= 4
         # 第二轮:抽取阶段应零新行(source_ref 记账幂等),dedup 零变化
         assert await mine_qa.extract_phase(batch_size=100) == 0

@@ -33,4 +33,10 @@ def test_event_models_match_spec_frame_shape():
     ).model_dump() == {"id": "call_x", "name": "query_logistics", "args": {"order_id": "1001"}}
     assert ToolResultEvent(
         id="call_x", name="query_logistics", ok=True, summary="运输中"
-    ).model_dump() == {"id": "call_x", "name": "query_logistics", "ok": True, "summary": "运输中"}
+    ).model_dump(exclude_none=True) == {"id": "call_x", "name": "query_logistics", "ok": True, "summary": "运输中"}
+    # ch04: citations 可选键——不带时帧形状逐字符不变(兼容红线),带时追加
+    assert "citations" not in ToolResultEvent(
+        id="c", name="query_faq", ok=True, summary="s").model_dump(exclude_none=True)
+    assert ToolResultEvent(id="c", name="query_faq", ok=True, summary="s",
+                           citations=[{"n": 1, "chunk_id": 7}]
+                           ).model_dump(exclude_none=True)["citations"] == [{"n": 1, "chunk_id": 7}]

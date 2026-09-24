@@ -1,8 +1,10 @@
-"""ch03 两段双写(spec §5)。
+"""ch03 两段双写、ch04 集合 v2(spec §3/§5)。
 
 Stage1 ingest_docs:默认全量重建(清 MySQL 表 + drop Milvus 集合 → 重灌 pending);
   --skip-existing:不清表,sha1 指纹跳过重复,只追加新块。
-Stage2 vectorize_pending:扫 pending → embed_batch → upsert(chunk_id=pk) → 回填 done。
+Stage2 vectorize_pending:扫 pending → embed_batch → upsert_rows(
+  {chunk_id,text,embedding,category,content_type})→ 回填 done。
+  text 与 embed 输入同源三格拼接(§3.1);sparse 列由服务端 BM25 Function 生成,客户端不写。
   任一点崩溃:行仍 pending 或已 done 但向量同 pk 可覆写,重跑即自愈——「按主键幂等」。
 fault_after:N 之后(批粒度)SystemExit(42),验收 2 的注入。
 """
@@ -68,7 +70,12 @@ async def vectorize_pending(fault_after: int | None = None) -> int:
         ids = [r.id for r in batch]
         texts = [f"{r.category}\n{r.questions}\n{r.answer}" for r in batch]
         vectors = await emb.embed_texts(texts)  # OpenAIEmbeddings 内置 max_retries=3 退避
-        milvus_store.upsert_vectors(client, st.milvus_collection, list(zip(ids, vectors)))
+        rows = [
+            {"chunk_id": cid, "text": t, "embedding": vec,
+             "category": r.category, "content_type": r.content_type or ""}
+            for cid, t, vec, r in zip(ids, texts, vectors, batch)
+        ]  # text 与 embed 输入同源三格拼接(§3.1);r 来自 batch(ORM 行)
+        milvus_store.upsert_rows(client, st.milvus_collection, rows)
         async with get_session_factory()() as session:  # 每批独立事务(§5)
             await crud.mark_chunks_vectorized(session, ids)
         done_total += len(ids)

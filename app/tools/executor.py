@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from app.rag.hit_format import build_citations
 from app.tools.registry import get_tool
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class ToolOutcome:
     ok: bool
     result: Any  # dict：成功=工具返回；失败={"error": "..."}
     summary: str  # ≤80 字符：前端徽章文案 / tool 消息落库 content
+    citations: list | None = None  # ch04: query_faq 命中集引用(前端弹窗数据);其余工具恒 None
 
 
 def make_summary(name: str, result: Any) -> str:
@@ -77,7 +79,11 @@ async def execute_tool(
                     result = json.loads(result)
                 except json.JSONDecodeError:
                     result = {"text": result}
-            return ToolOutcome(name, tool_call_id, True, result, make_summary(name, result))
+            citations = None
+            if name == "query_faq" and isinstance(result, dict):
+                citations = build_citations(result.get("hits", [])) or None
+            return ToolOutcome(name, tool_call_id, True, result,
+                               make_summary(name, result), citations=citations)
         except TimeoutError:
             last_err = f"执行超时(>{context.timeout_seconds}s)"
             logger.warning("tool %s timeout (attempt %d/%d)", name, i + 1, attempts)

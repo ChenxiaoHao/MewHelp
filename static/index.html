@@ -91,6 +91,7 @@
     background: var(--win); box-shadow: 2px 2px 0 var(--ink);
   }
   .btn-sm:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+  a.btn { text-decoration: none; }   /* ch04 T14:顶栏「忠实度台账」入口(链接套按钮皮) */
 
   /* ===== 聊天消息区域 ===== */
   #messages {
@@ -230,6 +231,39 @@
     white-space: pre-wrap; word-break: break-word;
   }
 
+  /* ===== ch04: 引用角标 + 👍/👎 反馈行 + 原文弹窗(全部复用既有调色板,零新依赖) ===== */
+  sup.cite {
+    font-size: 10px; line-height: 1; cursor: pointer; user-select: none;
+    margin: 0 1px; padding: 0 3px;
+    background: var(--orange); color: var(--ink);
+    border: 2px solid var(--ink); border-radius: 2px;
+    box-shadow: 1px 1px 0 var(--ink);
+  }
+  sup.cite:hover { filter: brightness(1.08); }
+  .fb-row { display: flex; align-items: center; gap: 6px; align-self: flex-start; margin-top: 2px; }
+  .fb-btn {
+    padding: 1px 7px; font-size: 13px; line-height: 1.3;
+    background: var(--win);
+    border-width: 2px; border-radius: 3px; box-shadow: 2px 2px 0 var(--ink);
+  }
+  .fb-btn.on { background: var(--orange); }   /* 被点钮点亮 */
+  .fb-note { font-size: 10px; letter-spacing: 1px; color: #8a7c60; }
+  #cite-breadcrumb { font-size: 12px; font-weight: 700; line-height: 1.5; word-break: break-word; }
+  #cite-questions {
+    font-size: 12px; color: #6b5f49; line-height: 1.6;
+    padding: 6px 8px; background: var(--aux);
+    border: 2px dashed rgba(41,41,41,.35); border-radius: 3px;
+  }
+  #cite-answer {
+    min-height: 80px; max-height: 320px; overflow: auto;
+    padding: 10px 12px;
+    background: var(--paper); color: var(--ink);
+    border: 3px solid var(--ink); border-radius: 4px;
+    font-size: 13px; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .cite-nav { display: flex; gap: 8px; }
+
   /* ===== 移动端自适应 ===== */
   @media (max-width: 560px) {
     body { padding: 0; display: block; }
@@ -282,6 +316,7 @@
       <div class="status mono"><span class="dot">●</span> ONLINE · 智能客服</div>
     </div>
     <div class="header-btns">
+      <a id="faith-link" class="btn btn-sm" href="/static/faith.html" title="faith_cases 忠实度台账(ch04)">📜 忠实度台账</a>
       <button id="extract-open-btn" class="btn btn-sm" title="售后信息结构化提取">🔧 售后提取</button>
       <button id="new-chat-btn" class="btn btn-sm" title="清空聊天记录，重新开始">＋ 新对话</button>
     </div>
@@ -310,6 +345,27 @@
       <button id="extract-btn" class="btn">提取 JSON</button>
       <label class="mono" for="extract-result">&gt; extract_result.json</label>
       <pre id="extract-result">（提取结果将显示在这里）</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ch04: 引用原文弹窗(仿售后提取 overlay 基调,T13 Step 2) -->
+<div class="overlay" id="cite-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cite-title">
+    <div class="modal-header">
+      <span id="cite-title">📚 KB 原文回查</span>
+      <button id="cite-close" class="btn btn-sm" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="cite-breadcrumb" class="mono"></div>
+      <label>常见问法</label>
+      <div id="cite-questions"></div>
+      <label for="cite-answer">原文正文</label>
+      <pre id="cite-answer">（加载中…）</pre>
+      <div class="cite-nav" style="display:flex;gap:8px;">
+        <button id="cite-prev" class="btn btn-sm">◀ 上一块</button>
+        <button id="cite-next" class="btn btn-sm">下一块 ▶</button>
+      </div>
     </div>
   </div>
 </div>
@@ -383,6 +439,7 @@ async function send() {
   bubble.classList.add('typing');
   const badges = {};  // ch02: tool_call id → 徽章元素
   let answer = '';
+  let roundCitations = null;  // ch04(T13): 本轮 tool_result 帧 citations 暂存(同轮多次 query_faq 后帧覆盖前帧,见 dev-notes)
   try {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
@@ -432,14 +489,19 @@ async function send() {
             badge.textContent = (tr.ok ? '✓ ' : '✗ ') + tr.name;
             badge.title = tr.summary || '';  // 悬停看摘要
           }
+          if (tr.citations && tr.citations.length) roundCitations = tr.citations;  // ch04(T13): 分支内加性暂存,帧处理逻辑零变更
         } else if (event === 'error') {
           throw new Error(JSON.parse(data).detail || '上游错误');
         }
         // event === 'done' → 流结束，跳出读循环
       }
     }
-    if (answer) history.push({ role: 'assistant', content: answer });
-    else row.remove();
+    if (answer) {
+      history.push({ role: 'assistant', content: answer });
+      // ch04(T13): 最终答案渲染后处理——[n]→可点角标(仅本轮带 citations 时),气泡左下 👍/👎
+      renderAnswerCitations(bubble, roundCitations);
+      addFeedbackRow(col, assistantSeqFromHistory());
+    } else row.remove();
   } catch (err) {
     row.remove();
     addMessage('error', '⚠ ' + err.message);  // 复古风错误提示（深底米字）
@@ -459,6 +521,136 @@ inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposi
 document.getElementById('new-chat-btn').addEventListener('click', () => {
   resetChat();
   inputEl.focus();
+});
+
+// ===== ch04(T13) ①引用角标:[n] → <sup class="cite" data-cid> =====
+function assistantSeqFromHistory() {
+  return history.filter(m => m.role === 'assistant').length;  // seq=本会话第几条 assistant 消息
+}
+function citationSegments(text, citations) {
+  const byN = {};
+  (citations || []).forEach(c => {
+    if (c && typeof c.n === 'number' && c.chunk_id != null) byN[c.n] = c.chunk_id;
+  });
+  const segs = [];
+  let last = 0, m;
+  const re = /\[(\d+)\]/g;
+  while ((m = re.exec(text))) {
+    const n = parseInt(m[1], 10);
+    if (!(n in byN)) continue;            // n 不在 citations → 保留原文不渲染角标(防模型错标)
+    if (m.index > last) segs.push({ t: 'text', v: text.slice(last, m.index) });
+    segs.push({ t: 'cite', n, cid: byN[n] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) segs.push({ t: 'text', v: text.slice(last) });
+  return segs;
+}
+function renderAnswerCitations(bubble, citations) {
+  if (!citations || !citations.length) return;      // 无 citations(拒答/旧帧)→ 原样 textContent,零变更
+  const segs = citationSegments(bubble.textContent, citations);
+  if (!segs.some(s => s.t === 'cite')) return;      // 全是错标 [n] → 不动原文、不抛错
+  const frag = document.createDocumentFragment();
+  for (const s of segs) {
+    if (s.t === 'text') { frag.appendChild(document.createTextNode(s.v)); continue; }
+    const sup = document.createElement('sup');
+    sup.className = 'cite';
+    sup.dataset.cid = String(s.cid);
+    sup.textContent = '[' + s.n + ']';
+    sup.title = '点击查看 KB 原文';
+    frag.appendChild(sup);
+  }
+  bubble.textContent = '';
+  bubble.appendChild(frag);
+}
+
+// ===== ch04(T13) ②👍/👎 一次性锁定(localStorage 纯前端,零后端请求;key=数据飞轮读侧约定) =====
+const FEEDBACK_PREFIX = 'mewhelp.feedback.v1';
+function feedbackKey(convId, seq) { return FEEDBACK_PREFIX + ':' + convId + ':' + seq; }
+function readFeedback(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const e = JSON.parse(raw);
+    return (e && (e.v === 'up' || e.v === 'down')) ? e : null;
+  } catch (err) { return null; }
+}
+function addFeedbackRow(col, seq) {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'fb-row';
+  const key = feedbackKey(conversationId, seq);
+  const mk = v => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-sm fb-btn';
+    b.dataset.v = v;
+    b.textContent = v === 'up' ? '👍' : '👎';
+    return b;
+  };
+  const up = mk('up'), down = mk('down');
+  const note = document.createElement('span');
+  note.className = 'fb-note mono';
+  rowEl.appendChild(up); rowEl.appendChild(down); rowEl.appendChild(note);
+  function lock(entry) {                       // 两钮禁用、被点钮点亮、旁边「已反馈」
+    up.disabled = true; down.disabled = true;
+    (entry.v === 'up' ? up : down).classList.add('on');
+    note.textContent = '已反馈';
+    up.title = down.title = '该回答已反馈';
+  }
+  const cached = readFeedback(key);            // 历史渲染时按 key 回显锁定态
+  if (cached) lock(cached);
+  else rowEl.addEventListener('click', e => {
+    const btn = e.target.closest('button.fb-btn');
+    if (!btn || btn.disabled) return;
+    if (readFeedback(key)) return;             // 一次性:已有值再点无效
+    const entry = { v: btn.dataset.v, ts: new Date().toISOString() };
+    try { localStorage.setItem(key, JSON.stringify(entry)); }
+    catch (err) { note.textContent = '本地存储失败'; return; }
+    lock(entry);                               // 不发任何后端请求(纯采集,留数据飞轮入口)
+  });
+  col.appendChild(rowEl);
+  return rowEl;
+}
+
+// ===== ch04(T13) ③原文弹窗:GET /api/chunks/{id}(页面唯一新增请求面) =====
+const citeOverlay = document.getElementById('cite-overlay');
+const chunkCache = new Map();                  // spec §7-1:弹窗按 id 缓存
+async function openCitation(cid) {
+  const crumbs = document.getElementById('cite-breadcrumb');
+  const qs = document.getElementById('cite-questions');
+  const ans = document.getElementById('cite-answer');
+  const prevB = document.getElementById('cite-prev');
+  const nextB = document.getElementById('cite-next');
+  citeOverlay.classList.add('open');
+  crumbs.textContent = '加载中…'; qs.textContent = ''; ans.textContent = '（加载中…）';
+  prevB.disabled = true; nextB.disabled = true;
+  try {
+    const k = String(cid);
+    let c = chunkCache.get(k);
+    if (!c) {
+      const resp = await fetch('/api/chunks/' + encodeURIComponent(k));
+      const body = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error((body && body.detail) || ('HTTP ' + resp.status));
+      c = body; chunkCache.set(k, c);
+    }
+    crumbs.textContent = c.category + ' > ' + c.section_path;   // 面包屑 category > section_path
+    qs.textContent = (c.questions || '').split('\n').filter(Boolean).join(' ｜ ');
+    ans.textContent = c.answer || '';
+    prevB.disabled = !c.prev_chunk_id;
+    nextB.disabled = !c.next_chunk_id;
+    if (c.prev_chunk_id) prevB.onclick = () => openCitation(c.prev_chunk_id);  // 有则换发 cid 重开
+    if (c.next_chunk_id) nextB.onclick = () => openCitation(c.next_chunk_id);
+  } catch (err) {
+    crumbs.textContent = '⚠ 原文获取失败:' + err.message;
+  }
+}
+messagesEl.addEventListener('click', e => {    // 角标点击走事件委托(不逐泡挂监听)
+  const sup = e.target.closest('sup.cite');
+  if (sup) openCitation(sup.dataset.cid);
+});
+document.getElementById('cite-close').addEventListener('click', () => citeOverlay.classList.remove('open'));
+citeOverlay.addEventListener('click', e => { if (e.target === citeOverlay) citeOverlay.classList.remove('open'); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && citeOverlay.classList.contains('open')) citeOverlay.classList.remove('open');
 });
 
 // ===== 售后提取弹窗：开/关 =====
