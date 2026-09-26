@@ -42,8 +42,8 @@
 - Consumes: `app/tools/registry.get_tools()`、`app/tools/executor.execute_tool`、`app/core/config.Settings`
 - Produces: `async def naive_agent_turn(model, messages, *, ctx, max_iters: int = 6) -> NaiveLoopResult`；`NaiveLoopResult(text: str, steps: int, tool_calls: list[ToolOutcome])`
 
-- [ ] **Step 1: 冒烟——真实上游模型 tool_calls/JSON 支持**（spec「开放核对项」销账）。脚本式一次性调用 `model.bind_tools(get_tools())` 发「订单 1001 的物流到哪了」，打印 `tool_calls` 是否出现、JSON 是否合法、响应模式是否支持流式中间帧。**若 tool_calls 恒空 → 停止问用户**（选型矛盾，D6）。结论追记 dev-notes。
-- [ ] **Step 2: 写失败测试**（fake model：脚本化返回「第一轮 AIMessage(tool_calls=[query_order]) → 第二轮 AIMessage(tool_calls=[query_logistics]) → 第三轮纯文本」）：
+- [x] **Step 1: 冒烟——真实上游模型 tool_calls/JSON 支持**（spec「开放核对项」销账）。脚本式一次性调用 `model.bind_tools(get_tools())` 发「订单 1001 的物流到哪了」，打印 `tool_calls` 是否出现、JSON 是否合法、响应模式是否支持流式中间帧。**若 tool_calls 恒空 → 停止问用户**（选型矛盾，D6）。结论追记 dev-notes。
+- [x] **Step 2: 写失败测试**（fake model：脚本化返回「第一轮 AIMessage(tool_calls=[query_order]) → 第二轮 AIMessage(tool_calls=[query_logistics]) → 第三轮纯文本」）：
 
 ```python
 async def test_two_step_loop_feeds_results_back(fake_model, tool_ctx):
@@ -53,8 +53,8 @@ async def test_two_step_loop_feeds_results_back(fake_model, tool_ctx):
     assert "到了" in res.text                   # 第三轮收敛文本
 ```
 
-- [ ] **Step 3: 跑红** `pytest tests/workflows/test_naive_agent_loop.py -v` → ImportError。
-- [ ] **Step 4: 最小实现**——核心循环就是这个程度（看清「Agent 就是带工具的循环」）：
+- [x] **Step 3: 跑红** `pytest tests/workflows/test_naive_agent_loop.py -v` → ImportError。
+- [x] **Step 4: 最小实现**——核心循环就是这个程度（看清「Agent 就是带工具的循环」）：
 
 ```python
 async def naive_agent_turn(model, messages, *, ctx, max_iters=6):
@@ -74,7 +74,7 @@ async def naive_agent_turn(model, messages, *, ctx, max_iters=6):
     return NaiveLoopResult(text="（已达最大轮数）…" + _last_text(messages), steps=steps, tool_calls=tool_calls_out)
 ```
 
-- [ ] **Step 5: 跑绿**，然后 `git add -A && git commit -m "feat(ch05): T1 裸循环教学对照+上游模型tool_calls冒烟(核对项销账)"`（含 dev-notes 追加段与计划勾选）。
+- [x] **Step 5: 跑绿**，然后 `git add -A && git commit -m "feat(ch05): T1 裸循环教学对照+上游模型tool_calls冒烟(核对项销账)"`（含 dev-notes 追加段与计划勾选）。
 
 ## Task 2: 分流纯函数 + 意图识别 Prompt
 
