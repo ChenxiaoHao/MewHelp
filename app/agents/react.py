@@ -17,6 +17,7 @@
 import json
 import logging
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
@@ -59,7 +60,12 @@ async def react_agent_stream(
     if state.get("evidence"):
         ev = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(state["evidence"]))
         messages = [SystemMessage(content=f"知识库证据:\n{ev}"), *messages]
-    bound = model.bind_tools(get_tools())
+    # D2「Agent 自动建单方案作废」+ 需求 8 红线:建单唯一入口=前端按钮→
+    # POST /api/tickets。绑定集剔除 create_ticket(registry 保留件供执行器层复用,
+    # 模型侧不可自触;终审修复批)。
+    bound = model.bind_tools(
+        [t for t in get_tools() if t.name != "create_ticket"]
+    )
     ctx = ToolContext(
         conversation_id=state.get("conversation_id"),
         timeout_seconds=settings.tool_timeout_seconds,
@@ -97,7 +103,17 @@ async def react_agent_stream(
         for tc in tool_calls:                                    # 同轮并行调用逐个执行(R5)
             yield ("tool_call", {"id": tc["id"], "name": tc["name"],
                                  "args": tc.get("args") or {}})
-            outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
+            if tc["name"] == "create_ticket":
+                # 执行闸(D2/需求 8):建单唯一入口=前端按钮→POST /api/tickets;
+                # 模型幻调即便过了 bind_tools 也绝不让触到执行器,回 ok=False。
+                outcome = SimpleNamespace(
+                    tool_call_id=tc["id"], name=tc["name"], ok=False,
+                    summary="建工单仅可由页面「建工单」按钮触发，模型不可自调",
+                    citations=None,
+                    result={"error": "create_ticket is frontend-button-only"},
+                )
+            else:
+                outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
             payload = {"id": outcome.tool_call_id, "name": outcome.name,
                        "ok": outcome.ok, "summary": outcome.summary}
             if outcome.citations:                                # 与 ch04 逐字符同形(仅命中才加键)

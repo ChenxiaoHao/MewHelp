@@ -156,3 +156,29 @@ def test_settings_react_defaults_pinned():
     """P3 拍板默认值钉死:6 轮 / 8000 token。"""
     assert Settings.model_fields["react_max_iterations"].default == 6
     assert Settings.model_fields["react_token_budget"].default == 8000
+
+
+async def test_agent_never_binds_create_ticket():
+    """终审 F 批:D2「Agent 自动建单方案作废」+ 用户钉「点『建工单』才写 tickets」
+    → react 绑定集必须排除 create_ticket(建单唯一入口=前端按钮→POST /api/tickets)。"""
+    model = ScriptStreamModel([_turn("答案")])
+    [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
+    names = {t.name for t in model.bound_with}
+    assert "create_ticket" not in names
+    assert names == {"query_order", "query_product", "query_logistics", "query_faq"}
+
+
+async def test_hallucinated_create_ticket_blocked_before_executor(monkeypatch):
+    """执行闸:模型幻调 create_ticket 也绝不到执行器(即便按名可查),仅回 ok=False。"""
+    fakes = _install_fake_tools(monkeypatch)
+    fakes["create_ticket"] = FakeTool({"ticket_no": "T_SHOULD_NOT_EXIST"})
+    model = ScriptStreamModel([
+        _turn("我建个单。", [("create_ticket",
+                             {"conversation_id": 42, "description": "x", "ticket_type": "投诉"},
+                             "ct1")]),
+        _turn("按钮在下方，请确认后点击。"),
+    ])
+    events = [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
+    assert fakes["create_ticket"].calls == 0, "create_ticket 真执行了(违 D2/需求8)"
+    result = next(d for k, d in events if k == "tool_result")
+    assert result["name"] == "create_ticket" and result["ok"] is False
