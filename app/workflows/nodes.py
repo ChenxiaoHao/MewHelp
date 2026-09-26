@@ -10,11 +10,14 @@ import logging
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.config import get_stream_writer
 
 from app.agents.react import react_agent_stream
+from app.prompts.customer_service import CUSTOMER_SERVICE_PROMPT
 from app.prompts.intent import INTENT_PROMPT
 from app.rag import retriever
 from app.services import refusals          # 经模块属性调用,pool 可被测试替换
+from app.services.chat_service import trim_history
 from app.workflows.routing import (
     chitchat_fast_path,
     parse_intent_json,
@@ -127,16 +130,32 @@ def make_confidence_gate_node(settings):
 
 def make_agent_node(model, settings):
     async def agent_node(state: dict, config: RunnableConfig) -> dict:
-        """Task 5 流式版:消费 react_agent_stream,答案文本自 token 帧聚合。
+        """Task 6 版:经 custom writer 直发 ReAct 事件帧,答案文本自 token 聚合。
 
-        conversation_id 经 config 注入 react(ToolContext 落库/超时上下文)。
-        T6 接线时本节点将改由图流直发事件,此处聚合语义不变。
+        conversation_id/persister 均经 config.configurable 注入(R7 同款通道);
+        进模型的消息列 = ch01 人设 Prompt 渲染 + 预算裁剪(ch04 同参),再由
+        react 前置证据 SystemMessage。非流式上下文(纯 ainvoke 测试)writer
+        不存在时静默降级,聚合语义不变。
         """
-        cid = (config.get("configurable") or {}).get("conversation_id")
+        conf = config.get("configurable") or {}
+        cid = conf.get("conversation_id")
+        try:
+            writer = get_stream_writer()
+        except RuntimeError:
+            writer = lambda ev: None  # noqa: E731 —— 图外直调(理论不达)静默
+        hist = list(state["messages"])
+        msgs = trim_history(
+            CUSTOMER_SERVICE_PROMPT.invoke({"messages": hist}).to_messages(),
+            settings.history_token_budget,
+        )
         parts: list[str] = []
         done: dict = {"steps": 0, "suggestions": []}
-        async for kind, data in react_agent_stream(
-                {**state, "conversation_id": cid}, settings, model):
+        async for ev in react_agent_stream(
+                {**state, "messages": msgs, "conversation_id": cid},
+                settings, model, persister=conf.get("persister")):
+            kind, data = ev
+            if kind in ("token", "tool_call", "tool_result"):
+                writer(ev)
             if kind == "token":
                 parts.append(data)
             elif kind == "done":

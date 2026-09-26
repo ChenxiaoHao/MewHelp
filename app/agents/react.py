@@ -31,10 +31,30 @@ logger = logging.getLogger(__name__)
 EXHAUST_PREFIX = "（已达最大轮数）"
 
 
+def _serialize_tool_calls(tool_calls: list) -> list:
+    """与 ch04 tool_chat_service 同形(落库 messages.tool_calls 列)。"""
+    return [{"id": tc.get("id"), "name": tc.get("name"), "args": tc.get("args") or {}}
+            for tc in tool_calls]
+
+
 async def react_agent_stream(
-    state: dict, settings: Any, model: Any
+    state: dict, settings: Any, model: Any, *, persister: Any = None
 ) -> AsyncIterator[tuple]:
-    """state 需含 messages；可选 evidence(知识路证据)、conversation_id(落库/超时上下文)。"""
+    """state 需含 messages；可选 evidence(知识路证据)、conversation_id(落库/超时上下文)。
+
+    persister=ch04 ChatPersister 协议实现；三挂点调用位置与 stream_chat_with_tools
+    一一对应（落库语义不动，P5），失败只 WARN 不中断流（spec §9）。
+    """
+    cid = state.get("conversation_id")
+
+    async def _p(hook: str, *args: Any) -> None:
+        if persister is None:
+            return
+        try:
+            await getattr(persister, hook)(*args)
+        except Exception:  # noqa: BLE001
+            logger.warning("persister.%s failed; stream continues", hook, exc_info=True)
+
     messages: list = list(state["messages"])
     if state.get("evidence"):
         ev = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(state["evidence"]))
@@ -48,6 +68,7 @@ async def react_agent_stream(
     steps = 0
     tokens_used = 0
     last_text = ""
+    all_text: list[str] = []
     while steps < settings.react_max_iterations:
         full = None
         async for chunk in bound.astream(messages):
@@ -56,6 +77,7 @@ async def react_agent_stream(
             if text:
                 tokens_used += count_tokens_approximately(
                     [AIMessage(content=text)])
+                all_text.append(text)
                 yield ("token", text)
         full = full if full is not None else AIMessage(content="")
         messages.append(full)
@@ -63,28 +85,35 @@ async def react_agent_stream(
             last_text = _text_of(full)
         tool_calls = list(getattr(full, "tool_calls", None) or [])
         if not tool_calls:
+            await _p("on_final_answer", cid, _text_of(full))   # ch04 同位挂点
             yield ("done", {"steps": steps, "suggestions": []})
             return
-        if tokens_used >= settings.react_token_budget:      # 预算熔断:本轮已发文本即收尾
+        if tokens_used >= settings.react_token_budget:          # 预算熔断:收尾即已发文本
+            await _p("on_final_answer", cid, "".join(all_text))
             yield ("done", {"steps": steps, "suggestions": [TRANSFER_HUMAN]})
             return
-        for tc in tool_calls:                               # 同轮并行调用逐个执行(R5)
+        await _p("on_tool_calls", cid, _text_of(full),
+                 _serialize_tool_calls(tool_calls))              # ch04 同位挂点
+        for tc in tool_calls:                                    # 同轮并行调用逐个执行(R5)
             yield ("tool_call", {"id": tc["id"], "name": tc["name"],
                                  "args": tc.get("args") or {}})
             outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
             payload = {"id": outcome.tool_call_id, "name": outcome.name,
                        "ok": outcome.ok, "summary": outcome.summary}
-            if outcome.citations:                           # 与 ch04 逐字符同形(仅命中才加键)
+            if outcome.citations:                                # 与 ch04 逐字符同形(仅命中才加键)
                 payload["citations"] = outcome.citations
             yield ("tool_result", payload)
             messages.append(ToolMessage(
                 content=json.dumps(outcome.result, ensure_ascii=False, default=str),
                 tool_call_id=tc["id"],
             ))
+            await _p("on_tool_result", cid, outcome)             # ch04 同位挂点
         steps += 1
         logger.info("ch05 react step %d/%d tokens≈%d",
                     steps, settings.react_max_iterations, tokens_used)
-    yield ("token", EXHAUST_PREFIX + last_text)
+    wrap = EXHAUST_PREFIX + last_text
+    await _p("on_final_answer", cid, wrap)
+    yield ("token", wrap)
     yield ("done", {"steps": steps, "suggestions": [TRANSFER_HUMAN]})
 
 

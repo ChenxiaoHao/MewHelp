@@ -2,16 +2,37 @@
 
 指代消解→意图识别→按意图分流(knowledge/retrieve→gate/agent|data→agent|
 complaint|chitchat)→日志→END。checkpointer=InMemorySaver,仅进程内跨轮(D3)。
+
+T6 起本模块另负责 `stream_graph_turn` 适配层：图流(custom 模式透传的 ReAct
+事件 + 终态) → routes 直接消费的 ToolEvent 形状帧流。
 """
 
+import logging
+import uuid
+from collections.abc import AsyncIterator
+
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 
+from app.services.chat_service import to_langchain_messages
 from app.workflows import nodes as N
 from app.workflows.state import ChatState
 
+logger = logging.getLogger(__name__)
 
-def build_graph(settings, model):
+# 进程内共享 checkpointer：图按请求现装（模型/settings 可注入测试），
+# 线程态跨轮保留靠这唯一实例；重启即丢是 D3 明示语义。
+_checkpointer = InMemorySaver()
+
+
+def reset_checkpointer() -> None:
+    """清空全部线程态（测试隔离用；生产无调用点）。"""
+    global _checkpointer
+    _checkpointer = InMemorySaver()
+
+
+def build_graph(settings, model, checkpointer=None):
     g = StateGraph(ChatState)
     g.add_node("coref", N.coref_node)
     g.add_node("intent", N.make_intent_node(model))
@@ -36,7 +57,7 @@ def build_graph(settings, model):
     g.add_edge("complaint", "logging")
     g.add_edge("chitchat", "logging")
     g.add_edge("logging", END)
-    return g.compile(checkpointer=InMemorySaver())
+    return g.compile(checkpointer=checkpointer or _checkpointer)
 
 
 def _dispatch(state):
@@ -47,13 +68,49 @@ def _after_gate(state):
     return "pass" if state.get("gate_pass") else "fail"
 
 
-_graph = None
+async def stream_graph_turn(
+    chat_messages, settings, model, *,
+    conversation_id=None, persister=None,
+) -> AsyncIterator[tuple]:
+    """一轮图编排 → ("token"|"tool_call"|"tool_result"|"suggestions", payload) 帧流。
 
-
-def get_graph(settings=None, model=None):
-    """模块级单例入口:Task 6 接线时以真 settings/model 首次构建。"""
-    global _graph
-    if _graph is None:
-        assert settings is not None and model is not None, "首次构建需 settings+model"
-        _graph = build_graph(settings, model)
-    return _graph
+    thread key=conv-{cid};降级(cid=None,引擎未初始化)→ anon-uuid 线程跨轮不可
+    复用,故整包客户端历史入图(与 ch01 无状态语义对齐)。有 cid 时只入本轮新
+    human 消息,历史由 checkpointer 按线程累积(spec「State 贯穿」)。
+    落库挂点:Agent 出口由 react 内部三挂点自落(ch04 同源);其余出口在此
+    补 on_final_answer——user 行始终归 routes bootstrap。
+    """
+    graph = build_graph(settings, model)
+    if conversation_id is not None:
+        thread = f"conv-{conversation_id}"
+        input_msgs = [HumanMessage(content=chat_messages[-1].content)]
+    else:
+        thread = f"anon-{uuid.uuid4()}"
+        input_msgs = to_langchain_messages(chat_messages)
+    cfg = {"configurable": {"thread_id": thread, "conversation_id": conversation_id,
+                            "persister": persister}}
+    streamed = False
+    final: dict = {}
+    async for mode, chunk in graph.astream(
+            {"messages": input_msgs,
+             "user_query": chat_messages[-1].content},
+            config=cfg, stream_mode=["custom", "values"]):
+        if mode == "custom":
+            kind = chunk[0]
+            if kind == "token":
+                streamed = True
+            if kind in ("token", "tool_call", "tool_result"):
+                yield chunk          # done 等内部事件不外发
+        elif mode == "values":
+            final = chunk
+    answer = final.get("answer_text") or ""
+    if answer and not streamed:      # 固定话术出口:无流式 token 时整段补发
+        yield ("token", answer)
+    if answer and "agent" not in (final.get("log") or {}).get("nodes", []):
+        try:
+            if persister is not None:
+                await persister.on_final_answer(conversation_id, answer)
+        except Exception:  # noqa: BLE001 —— 落库失败只降级,不挡关流(spec §9)
+            logger.warning("persist final answer failed (graph turn)", exc_info=True)
+    if final.get("suggestions"):     # RF4:末 token 之后、done 之前
+        yield ("suggestions", {"items": final["suggestions"]})

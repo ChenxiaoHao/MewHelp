@@ -68,6 +68,7 @@ def gate_env(monkeypatch):
             tool_timeout_seconds=5.0, tool_max_retries=0,
             retrieval_low_conf_threshold=0.161,
             react_max_iterations=6, react_token_budget=8000,
+            history_token_budget=4000,
         )
         async def fake_retrieve(query, *, strategy=None, category=None, settings=None, understood=None):
             return RetrieveResult(chunks=_chunks(scores))

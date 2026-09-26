@@ -47,3 +47,16 @@ class ToolResultEvent(BaseModel):
     ok: bool
     summary: str
     citations: list[dict] | None = None  # ch04 可选增列;routes 帧 dump 用 exclude_none,无引用时键不出现
+
+
+class Suggestion(BaseModel):
+    """ch05 操作建议项：转人工/建工单两按钮各自独立（需求 8），前端自选渲染。"""
+
+    action: Literal["transfer_human", "create_ticket"]
+    label: str
+
+
+class SuggestionsEvent(BaseModel):
+    """SSE `suggestions` 帧 data：后端只发建议不代决策（spec「SSE 契约」节）。"""
+
+    items: list[Suggestion]

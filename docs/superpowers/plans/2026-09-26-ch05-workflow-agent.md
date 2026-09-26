@@ -199,9 +199,9 @@ async def test_complex_question_walks_multiple_steps(fake_model_stream):
 - Consumes: Task 5 事件元组、既有 persister 钩子（落库语义不动，`DBChatPersister` 原样）
 - Produces: `POST /api/chat/stream` 新帧 `event: suggestions`，`data={"items":[{"action":"transfer_human|create_ticket","label":"转人工|建工单"}]}`（`model_dump(exclude_none=True)`）；`stream_chat_with_tools` 本体保留（拍板默认：替换接线、函数留作 ch04 回归基线）
 
-- [ ] **Step 1: 写失败测试**（httpx ASGI + fake model，全链）：四出口帧序断言（**Review Focus 4**：`suggestions` 在末个 `token` 后、`[DONE]` 前）；**Review Focus 3**：`conversation_id=None` 无库降级跑完一轮、不发 `conversation` 帧；`token/done/error` 帧字节面回归（ch04 既有断言复用）。
-- [ ] **Step 2: 跑红→实现→跑绿**。适配层要点：thread_id = f"conv-{conversation_id or uuid4()}"（降级路径不落 checkpoint 复用——明示在注释）。
-- [ ] **Step 3: 一任务一 commit** `feat(ch05): T6 Graph接线/api/chat/stream+suggestions帧(降级/帧序钉死)`。
+- [x] **Step 1: 写失败测试**（httpx ASGI + fake model，全链）：四出口帧序断言（**Review Focus 4**：`suggestions` 在末个 `token` 后、`[DONE]` 前）；**Review Focus 3**：`conversation_id=None` 无库降级跑完一轮、不发 `conversation` 帧；`token/done/error` 帧字节面回归（ch04 既有断言复用）。
+- [x] **Step 2: 跑红→实现→跑绿**。适配层要点：thread_id = f"conv-{conversation_id or uuid4()}"（降级路径不落 checkpoint 复用——明示在注释）。
+- [x] **Step 3: 一任务一 commit** `feat(ch05): T6 Graph接线/api/chat/stream+suggestions帧(降级/帧序钉死)`。
 
 ## Task 7: create_ticket 副作用窄移除 + 建工单 REST 端点
 
