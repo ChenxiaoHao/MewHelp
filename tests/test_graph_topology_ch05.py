@@ -1,0 +1,123 @@
+"""ch05 Task 3: StateGraph 骨架四出口拓扑 + InMemorySaver 跨轮。
+
+fake model 脚本化 AIMessage(意图 JSON/收敛答案);retrieve 经 monkeypatch
+app.workflows.retriever_mod 注入——生产代码用模块属性调用点,测试不打进真 Milvus。
+"""
+
+from types import SimpleNamespace
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+
+from app.rag import retriever as retriever_mod
+from app.rag.retriever import RetrieveResult, ScoredRow
+from app.workflows.graph import build_graph
+from app.workflows.nodes import CHITCHAT_FIXED, COMPLAINT_FIXED
+
+
+class ScriptModel:
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = 0
+
+    def bind_tools(self, tools):
+        return self
+
+    async def ainvoke(self, msgs):
+        self.calls += 1
+        return self.script.pop(0)
+
+
+@pytest.fixture
+def fake_settings():
+    return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0)
+
+
+@pytest.fixture
+def fake_row():
+    return SimpleNamespace(category="退款", questions="怎么退款", answer="联系售后退款")
+
+
+@pytest.fixture
+def one_chunk_result(fake_row):
+    return RetrieveResult(chunks=[ScoredRow(chunk_id=1, score=0.87, row=fake_row)])
+
+
+@pytest.fixture
+def fake_env(monkeypatch, fake_settings):
+    def _install(script, chunks):
+        model = ScriptModel(script)
+        async def fake_retrieve(query, *, strategy=None, category=None, settings=None, understood=None):
+            return RetrieveResult(chunks=list(chunks))
+        monkeypatch.setattr(retriever_mod, "retrieve", fake_retrieve)
+        graph = build_graph(fake_settings, model)
+        return SimpleNamespace(graph=graph, model=model)
+    return _install
+
+
+def init_state(q):
+    return {"messages": [HumanMessage(content=q)], "user_query": q}
+
+
+def thread_cfg(n):
+    return {"configurable": {"thread_id": f"t{n}", "conversation_id": n}}
+
+
+async def test_knowledge_route_forces_retrieval_before_answer(fake_env, one_chunk_result):
+    env = fake_env(
+        [AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策是7天无理由")],
+        one_chunk_result.chunks,
+    )
+    out = await env.graph.ainvoke(init_state("退款政策是什么"), config=thread_cfg(1))
+    assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "agent", "logging"]  # 顺序示例化
+    assert out["log"]["retrieve_hits"] == 1   # 验收1 单测面:检索节点被走到
+    assert env.model.calls == 2               # 意图1 + agent收敛1
+
+
+async def test_chitchat_makes_zero_model_calls(fake_env):
+    env = fake_env([], [])
+    out = await env.graph.ainvoke(init_state("你好"), config=thread_cfg(2))
+    assert env.model.calls == 0 and out["answer_text"] == CHITCHAT_FIXED
+
+
+async def test_complaint_emits_two_unbound_suggestions(fake_env):
+    env = fake_env([AIMessage(content='{"intent":"投诉"}')], [])
+    out = await env.graph.ainvoke(init_state("我要投诉"), config=thread_cfg(3))
+    assert [s["action"] for s in out["suggestions"]] == ["transfer_human", "create_ticket"]
+    assert env.model.calls == 1  # 仅意图分类;投诉话术固定
+    assert out["answer_text"] == COMPLAINT_FIXED
+
+
+async def test_business_route_skips_retrieval(fake_env):
+    # 业务数据类旁路:拓扑证据=日志节点链里没有 retrieve/gate(需求 3/7)
+    env = fake_env([AIMessage(content='{"intent":"物流"}'), AIMessage(content="包裹已到")], [])
+    out = await env.graph.ainvoke(init_state("物流到哪了"), config=thread_cfg(4))
+    assert out["log"]["nodes"] == ["coref", "intent", "agent", "logging"]
+    assert "retrieve" not in out["log"]["nodes"] and "gate" not in out["log"]["nodes"]
+
+
+async def test_gate_fail_renders_refusal_and_persists(fake_env, fake_settings, monkeypatch):
+    from app.services import refusals
+    env = fake_env([AIMessage(content='{"intent":"退款退货"}')], [])  # 空 chunks → 闸不过
+    out = await env.graph.ainvoke(init_state("退款政策是什么"), config=thread_cfg(5))
+    assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "logging"]
+    assert out["answer_text"] == refusals.REFUSAL_ANSWER
+
+
+async def test_p2_fallback_to_knowledge_after_retry(fake_env, one_chunk_result):
+    env = fake_env([AIMessage(content="not json"), AIMessage(content="still not"),
+                    AIMessage(content="兜底回答")], one_chunk_result.chunks)
+    out = await env.graph.ainvoke(init_state("随便说点什么"), config=thread_cfg(6))
+    assert out["intent"] == "商品咨询"   # brief 兜底口径:P2 重试一次后归知识类
+    assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "agent", "logging"]
+    assert env.model.calls == 3          # 意图×2(含重试) + agent×1
+
+
+async def test_coref_passthrough_keeps_history(fake_env, one_chunk_result):
+    env = fake_env([AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策A"),
+                    AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策B")],
+                   one_chunk_result.chunks)
+    await env.graph.ainvoke(init_state("第一问"), config=thread_cfg(7))
+    out = await env.graph.ainvoke(init_state("第二问"), config=thread_cfg(7))
+    kinds = [type(m).__name__ for m in out["messages"]]
+    assert kinds.count("HumanMessage") >= 2 and kinds.count("AIMessage") >= 2  # InMemorySaver 跨轮累积

@@ -122,7 +122,7 @@ def test_fast_path_hits_greeting_misses_question():
 - Consumes: Task 2 全部产出；`app/rag/retriever.retrieve`（只读，D7）；langgraph 1.2.11 `StateGraph/add_conditional_edges/compile(checkpointer=InMemorySaver())`（官方文档已核对，dev-notes 晨间记录）
 - Produces: `class ChatState(TypedDict)`：`messages: list`、`user_query: str`、`resolved_query: str`、`intent: str`、`route: str`、`evidence: list[dict]`、`gate_pass: bool`、`suggestions: list[dict]`、`answer_text: str`、`log: dict`；`def build_graph(settings, model) -> CompiledStateGraph`（模块级 `get_graph()` 单例入口）；节点函数 `coref_node / intent_node / knowledge_retrieve_node / confidence_gate_node / agent_node / complaint_node / chitchat_node / logging_node`
 
-- [ ] **Step 1: 写失败测试**（fake model + fake retrieve，monkeypatch 注入；断言四出口各一条）：
+- [x] **Step 1: 写失败测试**（fake model + fake retrieve，monkeypatch 注入；断言四出口各一条）：
 
 ```python
 async def test_knowledge_route_forces_retrieval_before_answer(fake_env):
@@ -140,15 +140,15 @@ async def test_complaint_emits_two_unbound_suggestions(fake_env):
     assert fake_env.model.calls == 1  # 仅意图分类;投诉话术固定
 ```
 
-- [ ] **Step 2: 跑红→实现→跑绿**。要点：
+- [x] **Step 2: 跑红→实现→跑绿**。要点：
   - `coref_node`：`resolved_query = user_query` 原样透传（本章最简，D1/需求 6）。
   - `intent_node`：先 `chitchat_fast_path` 直判闲聊（零模型调用，D5）；否则 INTENT_PROMPT 单次调用 → `parse_intent_json`；None → 兜底 `"商品咨询"`→knowledge。
   - `confidence_gate_node`（本任务直答版）：`gate_pass = bool(res.chunks)`；Task 4 换阈值版。
   - `agent_node`（本任务直答版）：把证据+问题交 Task 1 `naive_agent_turn`；Task 5 换流式 ReAct 版。**接口签名两任务间不变**，图拓扑因此不再动。
   - `logging_node`：汇总 `log` dict 并 `logger.info("ch05 graph turn %s", json.dumps(..., ensure_ascii=False))`（验收 1 的日志面）。
   - `compile(checkpointer=InMemorySaver())`；spec 明示重启即丢（D3）。条件边 `add_conditional_edges("route", lambda s: s["route"], {...四出口...})`。
-- [ ] **Step 3: checkpointer 跨轮测试**：同 thread 两轮 invoke，第二轮 State 可见第一轮消息。
-- [ ] **Step 4: 一任务一 commit** `feat(ch05): T3 StateGraph骨架四出口+InMemorySaver跨轮`。
+- [x] **Step 3: checkpointer 跨轮测试**：同 thread 两轮 invoke，第二轮 State 可见第一轮消息。
+- [x] **Step 4: 一任务一 commit** `feat(ch05): T3 StateGraph骨架四出口+InMemorySaver跨轮`。
 
 ## Task 4: 置信度闸（阈值版）+ 低置信池落池
 
