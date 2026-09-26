@@ -226,8 +226,8 @@ async def test_complex_question_walks_multiple_steps(fake_model_stream):
 - Consumes: `suggestions` 帧（Task 6）、`POST /api/tickets`（Task 7）
 - Produces: 两独立按钮组件——`transfer_human`：点击即消息流插入「已转接人工客服」+「您好，我是客服小猫，请问有什么可以帮您的」（纯前端，**零 fetch**）；`create_ticket`：点击确认后 fetch 端点、回填工单号气泡；按钮一次性（点击后置灰），不点继续发消息 = 正常对话（无任何隐藏动作）
 
-- [ ] **Step 1: 实现 + 手工演练**（前端不可单测面）：浏览器跑验收 3 全路径三遍（都点/只点转人工/都不点）；截图或文字记录进 dev-notes。**若 index.html 有可抽出的纯逻辑（帧→按钮描述）则抽函数配 vitest 级断言——按仓内现状从简，不为此引前端测试框架**。
-- [ ] **Step 2: 一任务一 commit** `feat(ch05-ui): 转人工/建工单两独立按钮+确认交互(验收3演练)`。
+- [x] **Step 1: 实现 + 手工演练**（前端不可单测面）：浏览器跑验收 3 全路径三遍（都点/只点转人工/都不点）；截图或文字记录进 dev-notes。**若 index.html 有可抽出的纯逻辑（帧→按钮描述）则抽函数配 vitest 级断言——按仓内现状从简，不为此引前端测试框架**。（执行注：浏览器点击三路径本环境不可自动化，以真服务器三面演练+JS 语法门禁+代码路径审读替代，R22/R23；人工点验移交 T9/用户）
+- [x] **Step 2: 一任务一 commit** `feat(ch05-ui): 转人工/建工单两独立按钮+确认交互(验收3演练)`。
 
 ## Task 9: 端到端验收 + 完结交付
 
