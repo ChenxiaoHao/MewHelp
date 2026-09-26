@@ -234,9 +234,9 @@ async def test_complex_question_walks_multiple_steps(fake_model_stream):
 **Files:**
 - Modify: `README.md`（ch05 节）、`dev-notes/ch05.md`（完结段）；Create: `tests/e2e/test_ch05_acceptance.py`（真实模型 integration 标记 + 演练脚本）
 
-- [ ] **Step 1: 验收 1–5 逐条跑**（docker compose 起库 + 真模型）：每条 = 一条集成断言或一份演练记录（日志摘录含检索节点/ReAct 多步证据），任何一条过不了回对应任务修，不降口径。
-- [ ] **Step 2: 全量测试** `pytest`（默认 deselect integration 口径与 ch04 一致）贴结果进 dev-notes。
-- [ ] **Step 3: 完结交付**：功能演示命令（`uvicorn app.main:app` + 浏览器 `static/index.html` + 三条演示话术）、测试结果、dev-notes 路径；README ch05 节。
+- [x] **Step 1: 验收 1–5 逐条跑**（docker compose 起库 + 真模型）：每条 = 一条集成断言或一份演练记录（日志摘录含检索节点/ReAct 多步证据），任何一条过不了回对应任务修，不降口径。（执行注：六测连跑两遍 6 passed ×2；A5 拆双腿裁决与跨环根因订正见 dev-notes/台账）
+- [x] **Step 2: 全量测试** `pytest`（默认 deselect integration 口径与 ch04 一致）贴结果进 dev-notes。（278 passed, 24 deselected）
+- [x] **Step 3: 完结交付**：功能演示命令（`uvicorn app.main:app` + 浏览器 `static/index.html` + 三条演示话术）、测试结果、dev-notes 路径；README ch05 节。
 - [ ] **Step 4: 终批评审 M3**（fresh reviewer 全分支）→ 修行为/安全 finding → 一任务一 commit 语义下的收尾 commit `docs(ch05): 验收+README+dev-notes完结交付`。
 
 **▶ 里程碑评审 M2（Task 5–7）** 在 Task 7 后、Task 8 前跑，同 M1 口径。
