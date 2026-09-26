@@ -84,7 +84,8 @@ async def create_ticket(
     description: str,
     ticket_type: str,
 ) -> Ticket:
-    """写工单 + 会话置「已转人工」。并发撞号（IntegrityError）重算重试一次。"""
+    """写工单。ch05 起不再动会话状态(建单≠转人工,两按钮解耦,D4);
+    撞号（IntegrityError）重算重试一次保留。"""
     if conversation_id is None:
         raise ValueError("缺少会话上下文，无法创建工单")
     for attempt in (0, 1):
@@ -103,9 +104,6 @@ async def create_ticket(
             ticket_type=ticket_type,
         )
         session.add(ticket)
-        conv = await session.get(Conversation, conversation_id)
-        if conv is not None:
-            conv.status = "已转人工"
         try:
             await session.commit()
         except IntegrityError:

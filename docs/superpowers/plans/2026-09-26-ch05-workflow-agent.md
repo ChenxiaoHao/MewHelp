@@ -213,9 +213,9 @@ async def test_complex_question_walks_multiple_steps(fake_model_stream):
 - Consumes: 既有 `next_ticket_no`/撞号重试/事务结构（全保留，D4）
 - Produces: `POST /api/tickets {conversation_id, title, content}` → `TicketOut(ticket_no)`；**行为变更：建单后 `Conversation.status` 不变**
 
-- [ ] **Step 1: 写失败测试**：真库 fixture（沿用 ch02 `bk.main`/engine 夹具模式）建单前后 status 快照断言不变；tickets 行/编号格式回归断言不变；端点 201 + 重复会话多单合法。
-- [ ] **Step 2: 跑红→删那行副作用→跑绿**；全量回归 `pytest`（工具内 create_ticket 路径同步受益）。
-- [ ] **Step 3: 一任务一 commit** `feat(ch05): T7 建单不再置已转人工+POST/api/tickets(前端建工单用)`。
+- [x] **Step 1: 写失败测试**：真库 fixture（沿用 ch02 `bk.main`/engine 夹具模式）建单前后 status 快照断言不变；tickets 行/编号格式回归断言不变；端点 201 + 重复会话多单合法。
+- [x] **Step 2: 跑红→删那行副作用→跑绿**；全量回归 `pytest`（工具内 create_ticket 路径同步受益）。
+- [x] **Step 3: 一任务一 commit** `feat(ch05): T7 建单不再置已转人工+POST/api/tickets(前端建工单用)`。
 
 ## Task 8: 前端两按钮（转人工纯前端 / 建工单调端点）
 
