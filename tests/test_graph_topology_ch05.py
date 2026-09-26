@@ -30,7 +30,9 @@ class ScriptModel:
 
 @pytest.fixture
 def fake_settings():
-    return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0)
+    # T4 起闸节点读 retrieval_low_conf_threshold(与生产默认同值)
+    return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0,
+                           retrieval_low_conf_threshold=0.161)
 
 
 @pytest.fixture
@@ -98,6 +100,9 @@ async def test_business_route_skips_retrieval(fake_env):
 
 async def test_gate_fail_renders_refusal_and_persists(fake_env, fake_settings, monkeypatch):
     from app.services import refusals
+    async def no_pool(*a, **k):  # 落池语义归 T4 测管,这里只防真实写库副作用
+        pass
+    monkeypatch.setattr(refusals, "pool_low_confidence", no_pool)
     env = fake_env([AIMessage(content='{"intent":"退款退货"}')], [])  # 空 chunks → 闸不过
     out = await env.graph.ainvoke(init_state("退款政策是什么"), config=thread_cfg(5))
     assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "logging"]

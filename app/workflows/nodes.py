@@ -13,7 +13,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.prompts.intent import INTENT_PROMPT
 from app.rag import retriever
-from app.services.refusals import REFUSAL_ANSWER
+from app.services import refusals          # 经模块属性调用,pool 可被测试替换
 from app.tools.executor import ToolContext
 from app.workflows.naive_agent_loop import naive_agent_turn
 from app.workflows.routing import (
@@ -78,15 +78,36 @@ def make_knowledge_retrieve_node(settings):
     return knowledge_retrieve_node
 
 
+def evidence_gate_verdict(items, threshold: float) -> tuple[bool, float]:
+    """纯判定:evidence(score 取自 dict 或 ScoredRow)最高分是否达阈值。
+
+    阈值复用 ch04 闸1 终值 settings.retrieval_low_conf_threshold(P1,不新造键)。
+    """
+    scores = [i["score"] if isinstance(i, dict) else i.score for i in items]
+    best = max(scores) if scores else 0.0
+    return bool(scores) and best >= threshold, best
+
+
 def make_confidence_gate_node(settings):
-    async def confidence_gate_node(state: dict) -> dict:
-        """Task 3 直答版:非空即过;Task 4 换阈值版(签名/拓扑不变)。"""
-        passed = bool(state.get("evidence"))
+    async def confidence_gate_node(state: dict, config: RunnableConfig) -> dict:
+        """Task 4 阈值版(P1):弱证据 → 兜底话术 + 落低置信池(source=ch05_gate)。
+
+        池写失败由 refusals.pool_low_confidence 内部吞掉,不阻断兜底(Review Focus 5)。
+        """
+        ok, best = evidence_gate_verdict(
+            state.get("evidence") or [], settings.retrieval_low_conf_threshold)
         log = _note(state, "gate")
-        log["gate_pass"] = passed
-        if not passed:
-            return {"gate_pass": False, "answer_text": REFUSAL_ANSWER,
-                    "messages": [AIMessage(content=REFUSAL_ANSWER)], "log": log}
+        log["gate_pass"] = ok
+        log["gate_best_score"] = round(best, 4)
+        if not ok:
+            query = state.get("resolved_query") or state.get("user_query", "")
+            cid = (config.get("configurable") or {}).get("conversation_id")
+            await refusals.pool_low_confidence(
+                cid, query, "ch05_gate",
+                f"best={best:.4f}<{settings.retrieval_low_conf_threshold}")
+            return {"gate_pass": False, "answer_text": refusals.REFUSAL_ANSWER,
+                    "suggestions": [TRANSFER_HUMAN],
+                    "messages": [AIMessage(content=refusals.REFUSAL_ANSWER)], "log": log}
         return {"gate_pass": True, "log": log}
     return confidence_gate_node
 

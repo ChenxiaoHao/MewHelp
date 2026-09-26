@@ -160,9 +160,9 @@ async def test_complaint_emits_two_unbound_suggestions(fake_env):
 - Consumes: `ScoredRow.score`（`app/rag/retriever.py:40`）、`Settings.retrieval_low_conf_threshold`（ch04 既有键，复用不新造）、`crud.add_low_confidence_question`（`app/db/crud.py:297`）、`app/services/refusals.py` 的 `REFUSAL_ANSWER/pool_low_confidence` 模式
 - Produces: `def evidence_gate_verdict(chunks: list[ScoredRow], threshold: float) -> tuple[bool, float]`（纯函数）；闸节点行为：弱证据 → `answer_text=REFUSAL_ANSWER`、`suggestions=[transfer_human]`、跳过 agent
 
-- [ ] **Step 1: 写失败测试**：纯函数三组（高分过/低分拦/空证据拦）+ 节点级两组（业务类旁路不进闸——拓扑已保证、断言 route；**Review Focus 5**：monkeypatch `add_low_confidence_question` 抛异常 → 兜底话术照常返回、仅 logger.warning）。
-- [ ] **Step 2: 跑红→实现→跑绿**。阈值判据取 `max(重排得分)` 与命中数双条件（示例，实测可调）；落池 `reason="ch05_gate"`，**唯一写方**：本路径不经 query_faq 工具，与闸 1 不重叠（spec「置信度闸」节）。
-- [ ] **Step 3: 一任务一 commit** `feat(ch05): T4 置信度闸阈值版+兜底落低置信池(写失败不阻断)`。
+- [x] **Step 1: 写失败测试**：纯函数三组（高分过/低分拦/空证据拦）+ 节点级两组（业务类旁路不进闸——拓扑已保证、断言 route；**Review Focus 5**：monkeypatch `add_low_confidence_question` 抛异常 → 兜底话术照常返回、仅 logger.warning）。
+- [x] **Step 2: 跑红→实现→跑绿**。阈值判据取 `max(重排得分)` 与命中数双条件（示例，实测可调）；落池 `reason="ch05_gate"`，**唯一写方**：本路径不经 query_faq 工具，与闸 1 不重叠（spec「置信度闸」节）。
+- [x] **Step 3: 一任务一 commit** `feat(ch05): T4 置信度闸阈值版+兜底落低置信池(写失败不阻断)`。
 
 **▶ 里程碑评审 M1（Task 1–4）**：起一个 fresh reviewer 子代理审 `git diff master..HEAD` 的 1–4 任务面，口径=行为/正确性/安全；纸面问题不立 finding（CLAUDE.md 规约 5/6）。评审结论追记 dev-notes 一段。
 
