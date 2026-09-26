@@ -87,7 +87,7 @@ async def naive_agent_turn(model, messages, *, ctx, max_iters=6):
 - Consumes: 无（纯函数层）
 - Produces: `INTENTS: tuple[str, ...]`（七类中文名）、`def route_for_intent(intent) -> Literal["knowledge","data","complaint","chitchat"]`、`def chitchat_fast_path(text: str) -> bool`、`def parse_intent_json(raw: str) -> str | None`、`INTENT_PROMPT: ChatPromptTemplate`（system 输出要求 `{"intent": "<七类之一>"}`）
 
-- [ ] **Step 1: 写失败测试**（四出口映射全枚举 + 兜底 + 快路）：
+- [x] **Step 1: 写失败测试**（四出口映射全枚举 + 兜底 + 快路）：
 
 ```python
 @pytest.mark.parametrize("intent,route", [
@@ -107,9 +107,9 @@ def test_fast_path_hits_greeting_misses_question():
     assert chitchat_fast_path("你好") and not chitchat_fast_path("你好，订单1001到哪了")
 ```
 
-- [ ] **Step 2: 跑红→实现→跑绿**。`route_for_intent` 未知 intent 返回 `"knowledge"`（拍板默认：带检索+闸的防幻觉出口）；快路词表放模块常量 `GREETING_PATTERNS`（纯问候/寒暄短句精确匹配，含标点变体）。
-- [ ] **Step 3: 标注样例跑验证**（Prompt 类替代 TDD 步骤）：脚本 `python -m app.tools.dev_scripts intent-eval`（无则临时脚本，不入库）对 CSV 逐条真实调用意图 prompt，命中 ≥12/14 视为过（示例阈值，可实测修正）；结果追记 dev-notes。
-- [ ] **Step 4: 一任务一 commit**（同上格式，`feat(ch05): T2 四出口分流纯函数+意图识别prompt(样例12/14)`）。
+- [x] **Step 2: 跑红→实现→跑绿**。`route_for_intent` 未知 intent 返回 `"knowledge"`（拍板默认：带检索+闸的防幻觉出口）；快路词表放模块常量 `GREETING_PATTERNS`（纯问候/寒暄短句精确匹配，含标点变体）。
+- [x] **Step 3: 标注样例跑验证**（Prompt 类替代 TDD 步骤）：脚本 `python -m app.tools.dev_scripts intent-eval`（无则临时脚本，不入库）对 CSV 逐条真实调用意图 prompt，命中 ≥12/14 视为过（示例阈值，可实测修正）；结果追记 dev-notes。
+- [x] **Step 4: 一任务一 commit**（同上格式，`feat(ch05): T2 四出口分流纯函数+意图识别prompt(样例12/14)`）。
 
 ## Task 3: Graph 骨架（State/节点/边/checkpointer，知识闸与 Agent 先直答版）
 
