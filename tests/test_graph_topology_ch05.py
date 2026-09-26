@@ -25,6 +25,7 @@ class ScriptModel:
 
     async def ainvoke(self, msgs):
         self.calls += 1
+        self.last_msgs = list(msgs)
         return self.script.pop(0)
 
 
@@ -116,6 +117,25 @@ async def test_p2_fallback_to_knowledge_after_retry(fake_env, one_chunk_result):
     assert out["intent"] == "商品咨询"   # brief 兜底口径:P2 重试一次后归知识类
     assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "agent", "logging"]
     assert env.model.calls == 3          # 意图×2(含重试) + agent×1
+
+
+async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_result):
+    """M1-I1:同 thread 三轮(投诉→知识→业务),建议/证据/节点链均按轮隔离;
+    messages 历史照常累积(checkpointer 语义不变)。"""
+    env = fake_env([
+        AIMessage(content='{"intent":"投诉"}'),
+        AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策A"),
+        AIMessage(content='{"intent":"物流"}'), AIMessage(content="包裹已到"),
+    ], one_chunk_result.chunks)
+    out = await env.graph.ainvoke(init_state("我要投诉"), config=thread_cfg(20))
+    assert out["suggestions"]  # 第一轮投诉确有建议
+    await env.graph.ainvoke(init_state("退款政策是什么"), config=thread_cfg(20))
+    out3 = await env.graph.ainvoke(init_state("订单1001物流到哪了"), config=thread_cfg(20))
+    assert out3["evidence"] == []        # 业务轮不残留上一知识轮证据
+    assert out3["suggestions"] == []     # 投诉轮建议不越轮
+    assert out3["log"]["nodes"] == ["coref", "intent", "agent", "logging"]  # 链按轮计
+    assert not any(type(m).__name__ == "SystemMessage" and "知识库证据" in m.content
+                   for m in env.model.last_msgs)  # 陈旧证据未被注入模型调用
 
 
 async def test_coref_passthrough_keeps_history(fake_env, one_chunk_result):

@@ -39,9 +39,14 @@ def _note(state: dict, name: str) -> dict:
 
 
 def coref_node(state: dict) -> dict:
-    """指代消解:本章原样透传(D1/需求 6,正式版留下一章)。"""
-    log = _note(state, "coref")
-    return {"resolved_query": state.get("user_query", ""), "log": log}
+    """指代消解:本章原样透传(D1/需求 6,正式版留下一章)。
+
+    兼作逐轮复位点(M1-I1):checkpointer 通道默认跨轮保留,本节点把轮级字段
+    (证据/建议/答案/闸结果)清零并开新 log——messages 历史照常累积不受影响。
+    """
+    return {"resolved_query": state.get("user_query", ""),
+            "log": {"nodes": ["coref"]},
+            "evidence": [], "suggestions": [], "answer_text": "", "gate_pass": False}
 
 
 def make_intent_node(model):
@@ -88,17 +93,28 @@ def evidence_gate_verdict(items, threshold: float) -> tuple[bool, float]:
     return bool(scores) and best >= threshold, best
 
 
+# M1-I3 降级带:ch04 闸1 保证非降级非空证据 top1≥阈值(0.161),故低于 RRF 双路
+# 理论上限(rrf_k=60 → ≈0.033)留裕度到 0.04 的分只可能来自重排降级路径——
+# 对齐闸1「降级跳过」决定:该带内非空证据旁路过闸进 Agent,不落池。
+RRF_DEGRADED_MAX = 0.04
+
+
 def make_confidence_gate_node(settings):
     async def confidence_gate_node(state: dict, config: RunnableConfig) -> dict:
         """Task 4 阈值版(P1):弱证据 → 兜底话术 + 落低置信池(source=ch05_gate)。
 
         池写失败由 refusals.pool_low_confidence 内部吞掉,不阻断兜底(Review Focus 5)。
         """
-        ok, best = evidence_gate_verdict(
-            state.get("evidence") or [], settings.retrieval_low_conf_threshold)
+        evidence = state.get("evidence") or []
+        ok, best = evidence_gate_verdict(evidence, settings.retrieval_low_conf_threshold)
+        degraded = (not ok) and bool(evidence) and best <= RRF_DEGRADED_MAX
+        if degraded:
+            ok = True
         log = _note(state, "gate")
         log["gate_pass"] = ok
         log["gate_best_score"] = round(best, 4)
+        if degraded:
+            log["gate_scale"] = "rrf_degraded"
         if not ok:
             query = state.get("resolved_query") or state.get("user_query", "")
             cid = (config.get("configurable") or {}).get("conversation_id")

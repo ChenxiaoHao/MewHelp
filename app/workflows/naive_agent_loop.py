@@ -45,9 +45,12 @@ async def naive_agent_turn(
     bound = model.bind_tools(get_tools())
     outcomes: list[ToolOutcome] = []
     steps = 0
+    last_text = ""
     for _ in range(max_iters):
         ai = await bound.ainvoke(messages)
         messages.append(ai)
+        if _text_of(ai).strip():          # M1-I2:收尾用最后一段模型自述,不用工具 JSON
+            last_text = _text_of(ai)
         tool_calls = list(getattr(ai, "tool_calls", None) or [])
         if not tool_calls:
             return NaiveLoopResult(text=_text_of(ai), steps=steps, tool_calls=outcomes)
@@ -62,7 +65,7 @@ async def naive_agent_turn(
             )
         steps += 1
     return NaiveLoopResult(
-        text="（已达最大轮数）" + _text_of(messages[-1]),
+        text="（已达最大轮数）" + last_text,
         steps=steps,
         tool_calls=outcomes,
     )

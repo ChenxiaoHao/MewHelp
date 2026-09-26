@@ -102,6 +102,17 @@ async def test_strong_evidence_enters_agent(gate_env):
     assert pools == []  # 证据够不落池
 
 
+async def test_rrf_degraded_scores_bypass_threshold(gate_env):
+    """M1-I3:ch04 重排降级路径返回 RRF 分(rrf_k=60 双路上限≈0.033,与 0.161
+    阈值不可通约)→ 该带内非空证据旁路过闸进 Agent(对齐闸1「降级跳过」决定)。"""
+    graph, model, pools = gate_env(
+        [0.03], [AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="降级也可答")])
+    out = await graph.ainvoke(init_state("退款政策"), config=cfg(14))
+    assert out["gate_pass"] is True and out["log"]["gate_scale"] == "rrf_degraded"
+    assert out["answer_text"] == "降级也可答"
+    assert pools == []  # 旁路不落池
+
+
 async def test_pool_write_failure_does_not_block_refusal(gate_env, monkeypatch):
     """Review Focus 5 真路径:不 patch 包装函数,让真 pool_low_confidence
     在建 session 时炸(engine 未初始化=无 MySQL 环境),其内部 try/except 吞掉,

@@ -86,6 +86,20 @@ async def test_no_tool_call_converges_immediately(monkeypatch):
     assert model.calls == 1
 
 
+async def test_exhaustion_does_not_leak_tool_json(monkeypatch):
+    """M1-I2:超限收尾文本=最后一段模型自述,不得是内部工具 JSON(用户可见面)。"""
+    forever = [
+        AIMessage(content=f"第{i}步：继续查", tool_calls=[_tc("query_order", {"order_id": "1001"}, f"c{i}")])
+        for i in range(3)
+    ]
+    model = ScriptedModel(forever)
+    _install_fake_tools(monkeypatch)
+    ctx = ToolContext(conversation_id=1, timeout_seconds=5.0, max_retries=0)
+    res = await naive_agent_turn(model, [HumanMessage("查单")], ctx=ctx, max_iters=3)
+    assert "order_id" not in res.text and '"status"' not in res.text
+    assert "最大轮数" in res.text and "第2步" in res.text
+
+
 async def test_hits_max_iters_without_convergence(monkeypatch):
     # Review Focus 2 前置：模型永不收敛 → 循环必须在 max_iters 内返回而非死循环
     forever = [
