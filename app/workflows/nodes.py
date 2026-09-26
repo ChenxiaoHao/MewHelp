@@ -8,28 +8,25 @@ retrieve 经 `retriever.retrieve(...)` 模块属性调用点(非 from-import 绑
 
 import logging
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.agents.react import react_agent_stream
 from app.prompts.intent import INTENT_PROMPT
 from app.rag import retriever
 from app.services import refusals          # 经模块属性调用,pool 可被测试替换
-from app.tools.executor import ToolContext
-from app.workflows.naive_agent_loop import naive_agent_turn
 from app.workflows.routing import (
     chitchat_fast_path,
     parse_intent_json,
     route_for_intent,
 )
+from app.workflows.state import CREATE_TICKET, TRANSFER_HUMAN
 
 logger = logging.getLogger(__name__)
 
 # R1: 闲聊/投诉固定话术常量落在本模块(闸兜底复用 refusals.REFUSAL_ANSWER 不新造)。
 CHITCHAT_FIXED = "您好，我是客服小猫，很高兴为您服务～有什么可以帮您的吗？"
 COMPLAINT_FIXED = "非常抱歉给您带来了不好的体验，我们一定会认真处理。"
-
-TRANSFER_HUMAN = {"action": "transfer_human", "label": "转人工"}
-CREATE_TICKET = {"action": "create_ticket", "label": "建工单"}
 
 
 def _note(state: dict, name: str) -> dict:
@@ -130,20 +127,28 @@ def make_confidence_gate_node(settings):
 
 def make_agent_node(model, settings):
     async def agent_node(state: dict, config: RunnableConfig) -> dict:
-        messages = list(state["messages"])
-        if state.get("evidence"):
-            ev = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(state["evidence"]))
-            messages = [SystemMessage(content=f"知识库证据:\n{ev}"), *messages]
-        ctx = ToolContext(
-            conversation_id=(config.get("configurable") or {}).get("conversation_id"),
-            timeout_seconds=settings.tool_timeout_seconds,
-            max_retries=settings.tool_max_retries,
-        )
-        res = await naive_agent_turn(model, messages, ctx=ctx)   # Task 5 换流式版
+        """Task 5 流式版:消费 react_agent_stream,答案文本自 token 帧聚合。
+
+        conversation_id 经 config 注入 react(ToolContext 落库/超时上下文)。
+        T6 接线时本节点将改由图流直发事件,此处聚合语义不变。
+        """
+        cid = (config.get("configurable") or {}).get("conversation_id")
+        parts: list[str] = []
+        done: dict = {"steps": 0, "suggestions": []}
+        async for kind, data in react_agent_stream(
+                {**state, "conversation_id": cid}, settings, model):
+            if kind == "token":
+                parts.append(data)
+            elif kind == "done":
+                done = data
+        answer = "".join(parts)
         log = _note(state, "agent")
-        log["agent_steps"] = res.steps
-        return {"answer_text": res.text, "log": log,
-                "messages": [AIMessage(content=res.text)]}
+        log["agent_steps"] = done["steps"]
+        upd = {"answer_text": answer, "log": log,
+               "messages": [AIMessage(content=answer)]}
+        if done["suggestions"]:
+            upd["suggestions"] = done["suggestions"]
+        return upd
     return agent_node
 
 

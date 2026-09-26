@@ -10,6 +10,10 @@ from typing import Annotated, TypedDict
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
+# 操作建议常量（T5 起 nodes/agents 双向要用，落本无依赖模块断环）
+TRANSFER_HUMAN = {"action": "transfer_human", "label": "转人工"}
+CREATE_TICKET = {"action": "create_ticket", "label": "建工单"}
+
 
 class ChatState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], add_messages]

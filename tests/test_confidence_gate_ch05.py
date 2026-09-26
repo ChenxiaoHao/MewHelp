@@ -5,10 +5,11 @@
 Review Focus 5:池写失败只 WARN,兜底话术照常。
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
 from app.rag import retriever as retriever_mod
 from app.rag.retriever import RetrieveResult, ScoredRow
@@ -28,6 +29,12 @@ class ScriptModel:
     async def ainvoke(self, msgs):
         self.calls += 1
         return self.script.pop(0)
+
+    async def astream(self, msgs):
+        # T5 起 agent 节点走流式(T4 强证据测的收敛答案经 token 帧聚合)
+        self.calls += 1
+        ai = self.script.pop(0)
+        yield AIMessageChunk(content=ai.content)
 
 
 def _chunks(scores):
@@ -60,6 +67,7 @@ def gate_env(monkeypatch):
         st = SimpleNamespace(
             tool_timeout_seconds=5.0, tool_max_retries=0,
             retrieval_low_conf_threshold=0.161,
+            react_max_iterations=6, react_token_budget=8000,
         )
         async def fake_retrieve(query, *, strategy=None, category=None, settings=None, understood=None):
             return RetrieveResult(chunks=_chunks(scores))

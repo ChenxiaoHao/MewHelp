@@ -4,10 +4,11 @@ fake model 脚本化 AIMessage(意图 JSON/收敛答案);retrieve 经 monkeypatc
 app.workflows.retriever_mod 注入——生产代码用模块属性调用点,测试不打进真 Milvus。
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
 from app.rag import retriever as retriever_mod
 from app.rag.retriever import RetrieveResult, ScoredRow
@@ -28,12 +29,27 @@ class ScriptModel:
         self.last_msgs = list(msgs)
         return self.script.pop(0)
 
+    async def astream(self, msgs):
+        # T5 起 agent 节点走流式:整条脚本消息作单 chunk 透出(聚合语义等价)
+        self.calls += 1
+        self.last_msgs = list(msgs)
+        ai = self.script.pop(0)
+        yield AIMessageChunk(
+            content=ai.content,
+            tool_call_chunks=[
+                {"name": t["name"], "args": json.dumps(t["args"], ensure_ascii=False),
+                 "id": t["id"], "type": "tool_call", "index": i}
+                for i, t in enumerate(ai.tool_calls)
+            ],
+        )
+
 
 @pytest.fixture
 def fake_settings():
-    # T4 起闸节点读 retrieval_low_conf_threshold(与生产默认同值)
+    # T4 起闸节点读 retrieval_low_conf_threshold;T5 起 agent 读 react 双熔断键
     return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0,
-                           retrieval_low_conf_threshold=0.161)
+                           retrieval_low_conf_threshold=0.161,
+                           react_max_iterations=6, react_token_budget=8000)
 
 
 @pytest.fixture

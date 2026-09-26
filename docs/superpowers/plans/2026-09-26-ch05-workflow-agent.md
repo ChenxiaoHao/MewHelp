@@ -176,7 +176,7 @@ async def test_complaint_emits_two_unbound_suggestions(fake_env):
 - Consumes: `get_tools()/execute_tool/ToolContext`；langgraph 流式（节点内 `astream` + 图 `astream(stream_mode=...)`——**动手前官方文档核对本版本流式透出 API**，一次预算，冲突即停问）
 - Produces: `async def react_agent_stream(state, settings, model) -> AsyncIterator[AgentEvent]`，`AgentEvent = ("token", str) | ("tool_call", dict) | ("tool_result", dict) | ("done", {"steps": int, "suggestions": list})`——事件元组形状与 `stream_chat_with_tools` 的 ToolEvent 对齐，routes 层零改动复用（Task 6）
 
-- [ ] **Step 1: 写失败测试**（fake model 脚本化三步，含「缺信息追问」样例：模型输出无 tool_calls 的提问文本 → 事件流只有 token+done、steps==0）：
+- [x] - [ ] **Step 1: 写失败测试**（fake model 脚本化三步，含「缺信息追问」样例：模型输出无 tool_calls 的提问文本 → 事件流只有 token+done、steps==0）：
 
 ```python
 async def test_complex_question_walks_multiple_steps(fake_model_stream):
@@ -185,9 +185,9 @@ async def test_complex_question_walks_multiple_steps(fake_model_stream):
     assert events[-1][0] == "done" and events[-1][1]["steps"] >= 2
 ```
 
-- [ ] **Step 2: 跑红→实现→跑绿**：循环骨架同 Task 1 裸循环，加三件事——每轮 token 累计对 `react_token_budget` 熔断、超限走「已有信息收尾+建议可选项 [transfer_human]」路径、每步 logger.info（步数日志=验收 5 后端面）。**Review Focus 2**：fake model 恒返回带 tool_calls 直到超限 → 断言在 max_iterations 内收流不抛。
-- [ ] **Step 3: 评估跑一遍**（真实模型标注样例 ≥5 条：验收 2/5 各题型）替代纯单测之外的那条腿，结果进 dev-notes。
-- [ ] **Step 4: 一任务一 commit** `feat(ch05): T5 ReAct流式节点+迭代/token双熔断`。
+- [x] - [ ] **Step 2: 跑红→实现→跑绿**：循环骨架同 Task 1 裸循环，加三件事——每轮 token 累计对 `react_token_budget` 熔断、超限走「已有信息收尾+建议可选项 [transfer_human]」路径、每步 logger.info（步数日志=验收 5 后端面）。**Review Focus 2**：fake model 恒返回带 tool_calls 直到超限 → 断言在 max_iterations 内收流不抛。
+- [x] - [ ] **Step 3: 评估跑一遍**（真实模型标注样例 ≥5 条：验收 2/5 各题型）替代纯单测之外的那条腿，结果进 dev-notes。
+- [x] - [ ] **Step 4: 一任务一 commit** `feat(ch05): T5 ReAct流式节点+迭代/token双熔断`。
 
 ## Task 6: SSE 接线（Graph 编排替换 + suggestions 帧 + 降级面）
 
