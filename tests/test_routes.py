@@ -1,6 +1,3 @@
-import json
-
-
 def _override_model(app, model):
     from app.api.routes import dep_chat_model
 
@@ -19,30 +16,23 @@ async def test_health(client):
     }
 
 
-async def test_chat_stream_sse_frames(client):
-    from app.main import app
+def _msgs(text):
+    from app.schemas.chat import ChatMessage
+
+    return [ChatMessage(role="user", content=text)]
+
+
+async def test_chat_stream_sse_frames(fake_settings):
+    """P5 基线:ch04 编排服务层 token 流。端点接线 ch05 起换 Graph,
+    帧面/降级/error 回归归 tests/test_chat_stream_ch05.py。"""
+    from app.services.tool_chat_service import stream_chat_with_tools
     from tests.conftest import FakeChatModel
 
-    _override_model(app, FakeChatModel())
-    r = await client.post(
-        "/api/chat/stream",
-        json={"messages": [{"role": "user", "content": "你好"}]},
-    )
-    assert r.status_code == 200
-    assert r.headers["content-type"].startswith("text/event-stream")
-    body = r.text
-    assert "event: token" in body
-    # data 为 JSON 字符串化的增量文本
-    token_lines = [
-        line.removeprefix("data:").strip()
-        for line in body.splitlines()
-        if line.startswith("data:")
-        and line.removeprefix("data:").strip() not in ("[DONE]",)
+    events = [
+        ev async for ev in stream_chat_with_tools(_msgs("你好"), fake_settings, FakeChatModel())
     ]
-    joined = "".join(json.loads(t) for t in token_lines if t.startswith('"'))
-    assert joined == "你好呀喵"
-    assert "[DONE]" in body
-    app.dependency_overrides.clear()
+    assert {k for k, _ in events} == {"token"}
+    assert "".join(d for k, d in events if k == "token") == "你好呀喵"
 
 
 async def test_chat_stream_validation_last_not_user(client):
@@ -53,18 +43,16 @@ async def test_chat_stream_validation_last_not_user(client):
     assert r.status_code == 422
 
 
-async def test_chat_stream_error_event_on_upstream_failure(client):
-    from app.main import app
+async def test_chat_stream_error_event_on_upstream_failure(fake_settings):
+    """P5 基线:服务层原样抛出(捕获转 error 帧是路由层职责,ch05 测已覆盖)。"""
+    import pytest
+
+    from app.services.tool_chat_service import stream_chat_with_tools
     from tests.conftest import BrokenChatModel
 
-    _override_model(app, BrokenChatModel())
-    r = await client.post(
-        "/api/chat/stream",
-        json={"messages": [{"role": "user", "content": "你好"}]},
-    )
-    assert r.status_code == 200  # SSE 惯例：错误走事件流
-    assert "event: error" in r.text
-    app.dependency_overrides.clear()
+    with pytest.raises(RuntimeError, match="upstream down"):
+        async for _ in stream_chat_with_tools(_msgs("你好"), fake_settings, BrokenChatModel()):
+            pass
 
 
 async def test_extract_returns_json(client):

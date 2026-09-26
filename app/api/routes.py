@@ -11,15 +11,17 @@ from app.schemas.chat import (
     ChatRequest,
     ConversationEvent,
     HealthResponse,
+    SuggestionsEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
 from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
+from app.schemas.ticket import TicketCreateRequest, TicketOut
 from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
-from app.services.tool_chat_service import stream_chat_with_tools
+from app.workflows.graph import stream_graph_turn
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,9 +78,10 @@ async def chat_stream(
             logger.warning("conversation bootstrap failed; continue without persistence", exc_info=True)
             persister = None
 
-    # ---- 单轮工具编排；token/done/error 帧写法与 ch01 逐字符一致（spec §13 红线）----
+    # ---- ch05 Graph 编排；token/done/error 帧写法与 ch01 逐字符一致（spec 红线）。
+    # ch04 的 stream_chat_with_tools 不再接线但保留（拍板 P5=ch04 回归基线）。----
     try:
-        async for kind, payload in stream_chat_with_tools(
+        async for kind, payload in stream_graph_turn(
             req.messages,
             settings,
             model,
@@ -95,10 +98,31 @@ async def chat_stream(
                 yield ServerSentEvent(
                     data=ToolResultEvent(**payload).model_dump(exclude_none=True), event="tool_result"
                 )
+            elif kind == "suggestions":  # ch05 新帧(P4):末 token 后、done 前(适配层保证)
+                yield ServerSentEvent(
+                    data=SuggestionsEvent(**payload).model_dump(), event="suggestions"
+                )
         yield ServerSentEvent(raw_data="[DONE]", event="done")
     except Exception as exc:  # noqa: BLE001 —— SSE 惯例：错误进事件流后正常关流
         logger.exception("chat stream failed")
         yield ServerSentEvent(data={"detail": str(exc)}, event="error")
+
+
+@router.post("/api/tickets", response_model=TicketOut, status_code=201)
+async def create_ticket(
+    req: TicketCreateRequest, session=Depends(dep_db_session)
+) -> TicketOut:
+    """ch05 需求 8：前端「建工单」按钮点下才写 tickets 表；与「转人工」互不绑定
+    （crud 层 status 副作用已移除，D4）。ticket_type 固定「咨询」——请求面不带类型。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.create_ticket(
+        session,
+        conversation_id=req.conversation_id,
+        description=f"【{req.title}】{req.content}",
+        ticket_type="咨询",
+    )
+    return TicketOut(ticket_no=row.ticket_no)
 
 
 @router.post("/api/extract", response_model=AfterSaleExtraction)

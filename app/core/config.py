@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     tool_timeout_seconds: float = 5.0
     tool_max_retries: int = 1
 
+    # --- ch05: ReAct 主力 Agent 双熔断(拍板 P3 默认值) ---
+    react_max_iterations: int = 6
+    react_token_budget: int = 8000
+
     # --- ch03: RAG 知识库(全部带默认值,不破坏 ch01/ch02 构造) ---
     milvus_uri: str = "http://127.0.0.1:19530"
     milvus_collection: str = "knowledge"

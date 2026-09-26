@@ -150,6 +150,16 @@
   .tool-badge.pending { background: #F6D89C; }
   .tool-badge.fail { background: #E8DCC5; }
 
+  /* ===== ch05(T8): suggestions 帧操作建议行(转人工/建工单两独立按钮) ===== */
+  .sug-row { display: flex; align-items: center; gap: 8px; align-self: flex-start; margin-top: 2px; flex-wrap: wrap; }
+  .sug-note { font-size: 10px; letter-spacing: 1px; color: #8a7c60; }
+  .sug-btn {
+    padding: 3px 10px; font-size: 12px; line-height: 1.4;
+    background: var(--win);
+    border-width: 2px; border-radius: 3px; box-shadow: 2px 2px 0 var(--ink);
+  }
+  .sug-btn.picked { background: var(--orange); }
+
   /* ===== 输入区域 ===== */
   #input-bar {
     flex: 0 0 auto; display: flex; gap: 10px;
@@ -440,6 +450,7 @@ async function send() {
   const badges = {};  // ch02: tool_call id → 徽章元素
   let answer = '';
   let roundCitations = null;  // ch04(T13): 本轮 tool_result 帧 citations 暂存(同轮多次 query_faq 后帧覆盖前帧,见 dev-notes)
+  let roundSuggestions = null;  // ch05(T8): suggestions 帧暂存(末 token 后、done 前到达=RF4)
   try {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
@@ -490,6 +501,8 @@ async function send() {
             badge.title = tr.summary || '';  // 悬停看摘要
           }
           if (tr.citations && tr.citations.length) roundCitations = tr.citations;  // ch04(T13): 分支内加性暂存,帧处理逻辑零变更
+        } else if (event === 'suggestions') {
+          roundSuggestions = JSON.parse(data).items || [];  // ch05(T8): 只暂存,渲染在流收尾后
         } else if (event === 'error') {
           throw new Error(JSON.parse(data).detail || '上游错误');
         }
@@ -501,6 +514,8 @@ async function send() {
       // ch04(T13): 最终答案渲染后处理——[n]→可点角标(仅本轮带 citations 时),气泡左下 👍/👎
       renderAnswerCitations(bubble, roundCitations);
       addFeedbackRow(col, assistantSeqFromHistory());
+      if (roundSuggestions && roundSuggestions.length)
+        addSuggestionRow(col, roundSuggestions, text, answer);  // ch05(T8): 操作建议行
     } else row.remove();
   } catch (err) {
     row.remove();
@@ -608,6 +623,61 @@ function addFeedbackRow(col, seq) {
     lock(entry);                               // 不发任何后端请求(纯采集,留数据飞轮入口)
   });
   col.appendChild(rowEl);
+  return rowEl;
+}
+
+// ===== ch05(T8): suggestions 帧 → 两个互不绑定的独立按钮(需求 8) =====
+// 后端只发建议不代决策；转人工=纯前端模拟零 fetch；建工单=点下才 POST /api/tickets。
+const TRANSFER_LINES = ['已转接人工客服', '您好，我是客服小猫，请问有什么可以帮您的'];
+function addSuggestionRow(col, items, userText, answerText) {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'sug-row';
+  const note = document.createElement('span');
+  note.className = 'sug-note mono';
+  note.textContent = '可以试试：';
+  rowEl.appendChild(note);
+  for (const it of items) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-sm sug-btn';
+    b.textContent = (it.action === 'transfer_human' ? '🧑‍💼 ' : '🎫 ') + (it.label || '操作');
+    b.addEventListener('click', async () => {
+      if (b.disabled) return;
+      if (it.action === 'transfer_human') {
+        b.disabled = true; b.classList.add('picked');       // 一次性；不碰另一个钮
+        for (const line of TRANSFER_LINES)                  // 仅展示，不入 history=无隐藏动作
+          addMessage('assistant', line);
+      } else if (it.action === 'create_ticket') {
+        if (conversationId == null) {
+          addMessage('error', '⚠ 当前无服务端会话（数据库未启用），无法建工单');
+          return;                                           // 失败不置灰,可重试
+        }
+        if (!confirm('确认创建工单？')) return;              // 确认后(计划钉死的交互)才发请求
+        b.disabled = true;
+        try {
+          const resp = await fetch('/api/tickets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversation_id: conversationId,
+              title: userText.slice(0, 100),
+              content: '用户：' + userText + '\n客服：' + answerText,
+            }),
+          });
+          const body = await resp.json().catch(() => null);
+          if (!resp.ok) throw new Error((body && body.detail) || ('HTTP ' + resp.status));
+          b.classList.add('picked');
+          addMessage('assistant', '🎫 工单 ' + body.ticket_no + ' 已创建（会话 ' + conversationId + '）');
+        } catch (err) {
+          b.disabled = false;                               // 建单失败恢复可点
+          addMessage('error', '⚠ 建工单失败：' + err.message);
+        }
+      }
+    });
+    rowEl.appendChild(b);
+  }
+  col.appendChild(rowEl);
+  scrollBottom();
   return rowEl;
 }
 
