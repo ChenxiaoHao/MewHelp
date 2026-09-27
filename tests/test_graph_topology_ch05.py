@@ -138,10 +138,13 @@ async def test_p2_fallback_to_knowledge_after_retry(fake_env, one_chunk_result):
 
 async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_result):
     """M1-I1:同 thread 三轮(投诉→知识→业务),建议/证据/节点链均按轮隔离;
-    messages 历史照常累积(checkpointer 语义不变)。"""
+    messages 历史照常累积(checkpointer 语义不变)。
+    ch06 T1 重定向:第 2/3 轮有历史→coref 各多耗一条脚本消息(输出=补全后问法)。"""
     env = fake_env([
         AIMessage(content='{"intent":"投诉"}'),
+        AIMessage(content="退款政策是什么"),
         AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策A"),
+        AIMessage(content="订单1001物流到哪了"),
         AIMessage(content='{"intent":"物流"}'), AIMessage(content="包裹已到"),
     ], one_chunk_result.chunks)
     out = await env.graph.ainvoke(init_state("我要投诉"), config=thread_cfg(20))
@@ -155,8 +158,11 @@ async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_res
                    for m in env.model.last_msgs)  # 陈旧证据未被注入模型调用
 
 
-async def test_coref_passthrough_keeps_history(fake_env, one_chunk_result):
+async def test_coref_completion_keeps_history(fake_env, one_chunk_result):
+    """ch06 T1 重定向(原 test_coref_passthrough_keeps_history):首轮零调用,
+    次轮 coref 走 LLM(脚本插补全输出),InMemorySaver 跨轮累积语义不变。"""
     env = fake_env([AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策A"),
+                    AIMessage(content="第二问是什么退款政策"),
                     AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策B")],
                    one_chunk_result.chunks)
     await env.graph.ainvoke(init_state("第一问"), config=thread_cfg(7))

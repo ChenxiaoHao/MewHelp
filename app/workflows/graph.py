@@ -34,7 +34,7 @@ def reset_checkpointer() -> None:
 
 def build_graph(settings, model, checkpointer=None):
     g = StateGraph(ChatState)
-    g.add_node("coref", N.coref_node)
+    g.add_node("coref", N.make_coref_node(model))
     g.add_node("intent", N.make_intent_node(model))
     g.add_node("retrieve", N.make_knowledge_retrieve_node(settings))
     g.add_node("gate", N.make_confidence_gate_node(settings))

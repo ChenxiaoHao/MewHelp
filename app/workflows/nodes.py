@@ -8,11 +8,12 @@ retrieve 经 `retriever.retrieve(...)` 模块属性调用点(非 from-import 绑
 
 import logging
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_stream_writer
 
 from app.agents.react import react_agent_stream
+from app.prompts.coref import COREF_PROMPT
 from app.prompts.customer_service import CUSTOMER_SERVICE_PROMPT
 from app.prompts.intent import INTENT_PROMPT
 from app.rag import retriever
@@ -38,15 +39,45 @@ def _note(state: dict, name: str) -> dict:
     return prev
 
 
-def coref_node(state: dict) -> dict:
-    """指代消解:本章原样透传(D1/需求 6,正式版留下一章)。
+def make_coref_node(model):
+    """ch06 正式版:LLM+历史把指代补全成自包含标准问法;已完整原样透传;首轮零调用。
 
-    兼作逐轮复位点(M1-I1):checkpointer 通道默认跨轮保留,本节点把轮级字段
-    (证据/建议/答案/闸结果)清零并开新 log——messages 历史照常累积不受影响。
+    兼作逐轮复位点(M1-I1 语义保留):轮级字段清零开新 log;ch06 新键一并复位,
+    唯一例外 pending_flow 先读后清(Task 4 续跑识别在本函数顶端接管)。
+    失败/空输出 → 透传原话,理解层绝不拖垮主流程(spec「失败与降级」)。
     """
-    return {"resolved_query": state.get("user_query", ""),
-            "log": {"nodes": ["coref"]},
-            "evidence": [], "suggestions": [], "answer_text": "", "gate_pass": False}
+    async def coref_node(state: dict) -> dict:
+        q = state.get("user_query", "")
+        reset = {"log": {"nodes": ["coref"]}, "evidence": [], "suggestions": [],
+                 "answer_text": "", "gate_pass": False, "pending_flow": "",
+                 "slot_order_id": "", "order_data": {}, "expanded_queries": [],
+                 "orders_payload": [], "intent_confidence": 0.0}
+        hist = list(state.get("messages") or [])[:-1]      # 本轮 human 已在图入参
+        if not any(isinstance(m, HumanMessage) for m in hist):
+            reset["log"]["coref"] = "passthrough"
+            return {**reset, "resolved_query": q}
+        try:
+            msgs = COREF_PROMPT.format_messages(
+                history=_render_history(hist[-6:]), question=q)
+            text = _text_of(await model.ainvoke(msgs)).strip()
+            resolved = next((ln.strip() for ln in reversed(text.splitlines())
+                             if ln.strip()), "") or q
+        except Exception:  # noqa: BLE001
+            reset["log"]["coref"] = "degraded"
+            return {**reset, "resolved_query": q}
+        reset["log"]["coref"] = "done"
+        return {**reset, "resolved_query": resolved}
+    return coref_node
+
+
+def _render_history(msgs) -> str:
+    lines = []
+    for m in msgs:
+        who = "用户" if isinstance(m, HumanMessage) else "客服"
+        t = _text_of(m).strip()
+        if t:
+            lines.append(f"{who}:{t}")
+    return "\n".join(lines) or "(无)"
 
 
 def make_intent_node(model):

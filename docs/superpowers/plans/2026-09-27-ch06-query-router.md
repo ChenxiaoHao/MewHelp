@@ -58,7 +58,7 @@
 - Consumes: `ChatState`(现有键);ScriptModel 模式(`tests/test_graph_topology_ch05.py:19`,测试内自带)
 - Produces: `make_coref_node(model)`;`app/prompts/coref.py::COREF_PROMPT`(human 模板变量 `history`、`question`);log 新键 `coref: "done"|"passthrough"|"degraded"`;每轮复位集合含新键 `pending_flow/slot_order_id/order_data/expanded_queries/orders_payload/intent_confidence`(pending_flow 先读后清,Task 4 消费)
 
-- [ ] **Step 1: RED——新建 `tests/test_coref_ch06.py`**
+- [x] **Step 1: RED——新建 `tests/test_coref_ch06.py`**
 
 ```python
 """ch06 T1: coref 节点——首轮零调用透传/有历史走 LLM/失败降级透传/复位集合扩键。"""
@@ -119,8 +119,8 @@ async def test_reset_clears_ch06_keys_but_consumes_pending():
     assert upd["orders_payload"] == [] and upd["intent_confidence"] == 0.0
 ```
 
-- [ ] **Step 2: 跑 RED** → `PYTHONPATH=. uv run pytest tests/test_coref_ch06.py -q`;Expected: ImportError(make_coref_node/COREF_PROMPT 不存在)
-- [ ] **Step 3: 实现** `app/prompts/coref.py`:
+- [x] **Step 2: 跑 RED** → `PYTHONPATH=. uv run pytest tests/test_coref_ch06.py -q`;Expected: ImportError(make_coref_node/COREF_PROMPT 不存在)
+- [x] **Step 3: 实现** `app/prompts/coref.py`:
 
 ```python
 COREF_PROMPT = ChatPromptTemplate.from_messages([
@@ -175,14 +175,14 @@ def _render_history(msgs) -> str:
 `graph.py` 入口节点行改 `g.add_node("coref", N.make_coref_node(model))`。
 `state.py`:新增 6 键(`pending_flow/slot_order_id/order_data/expanded_queries/orders_payload/intent_confidence`,类型注释按 spec State 表)。
 
-- [ ] **Step 4: 跑 GREEN** → 新文件 4 测过;全量 `PYTHONPATH=. uv run pytest -q`,Expected: 仅 `test_graph_topology_ch05.py::test_per_turn_state_does_not_leak_across_turns` 与 `test_coref_passthrough_keeps_history` 红(多轮脚本被 coref 消耗)
+- [x] **Step 4: 跑 GREEN** → 新文件 4 测过;全量 `PYTHONPATH=. uv run pytest -q`,Expected: 仅 `test_graph_topology_ch05.py::test_per_turn_state_does_not_leak_across_turns` 与 `test_coref_passthrough_keeps_history` 红(多轮脚本被 coref 消耗)
 
-- [ ] **Step 5: 重定向两旧用例**(行为变化=有历史轮多一次 coref 调用,脚本按序插 coref 输出):
+- [x] **Step 5: 重定向两旧用例**(行为变化=有历史轮多一次 coref 调用,脚本按序插 coref 输出):
   - `test_per_turn_state…`:脚本改 `[投诉, "退款政策是什么", {商品咨询}, 政策A, "订单1001物流到哪了", {物流}, 包裹已到]`(JSON 消息补 `",\"confidence\":0.9"`,T2 前 parse 忽略该键不报错?——**否**:T1 时 parse 未升级,保持原 `{"intent":...}` 形状即可,coref 输出为人话字符串);断言 calls/链名不新增。
   - `test_coref_passthrough_keeps_history` 改名 `test_coref_completion_keeps_history`,第二轮脚本前插 coref 输出 AIMessage(内容为补全后问法)。
   这两处的 JSON→tuple 兼容在 T2 还会再过一遍(T2 给 fake 脚本统一补 confidence)。
-- [ ] **Step 6: 全量绿** → `PYTHONPATH=. uv run pytest -q`
-- [ ] **Step 7: Commit + dev-notes 追加 T1 行**
+- [x] **Step 6: 全量绿** → `PYTHONPATH=. uv run pytest -q`
+- [x] **Step 7: Commit + dev-notes 追加 T1 行**
 
 ```bash
 git add -A app tests && git commit -m "feat(ch06-t1): coref 正式版——LLM 指代消解+改写合一,首轮零调用/失败降级,ch06 复位键入 state"
