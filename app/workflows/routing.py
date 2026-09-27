@@ -80,6 +80,44 @@ def parse_intent_json(raw: str) -> tuple[str, float] | None:
     return None
 
 
+# --- ch06 Query 扩写解析 + 证据合并(需求 3;拍板 P3:≤4 含原问法,去重取最高分) ---
+_EXPAND_MAX_QUERIES = 4
+
+
+def parse_queries_json(raw: str) -> list[str] | None:
+    """容错解析扩写输出 {"queries": [...]}:取首个合契约候选——queries 为非空
+    字符串数组(拒混合类型/空白成员),去重保序截 4。全不合 = None 交调用方降级。"""
+    if not raw:
+        return None
+    for cand in [raw, *_JSON_OBJ_RE.findall(raw)]:
+        try:
+            data = json.loads(cand.strip())
+        except (json.JSONDecodeError, ValueError):
+            continue
+        qs = data.get("queries") if isinstance(data, dict) else None
+        if not (isinstance(qs, list) and qs) or not all(
+                isinstance(t, str) and t.strip() for t in qs):
+            continue
+        out: list[str] = []
+        for t in qs:
+            t = t.strip()
+            if t not in out:
+                out.append(t)
+        return out[:_EXPAND_MAX_QUERIES]
+    return None
+
+
+def merge_evidence(groups: list[list[dict]], cap: int) -> list[dict]:
+    """多查询证据合并:chunk_id 去重取最高分,降序截断 cap(P3)。"""
+    best: dict = {}
+    for g in groups:
+        for c in g:
+            prev = best.get(c["chunk_id"])
+            if prev is None or c["score"] > prev["score"]:
+                best[c["chunk_id"]] = c
+    return sorted(best.values(), key=lambda c: c["score"], reverse=True)[:cap]
+
+
 # --- ch06 槽位正则(需求 6:模型不许猜单号,确定性提取) -------------------------
 _SELECTION_RE = re.compile(r"^我选择订单\s*(\d{3,})$")
 _ORDER_IN_TEXT_RE = re.compile(r"订单\s*[#＃:：]?\s*(\d{3,})")

@@ -284,7 +284,7 @@ def extract_order_id(*texts):
 - Consumes: 无新面
 - Produces: `parse_queries_json(raw)->list[str]|None`(≤4、去重、保序)、`merge_evidence(groups:list[list[dict]], cap:int)->list[dict]`(chunk_id 去重取最高分降序截断)、`definitions._make_order(order_id)->dict`、`definitions.list_user_orders(user_id)->list[dict]`(卡片:`{order_id,status,amount,created_at,items:["名 ×qty"]}`)、`EXPAND_PROMPT`(human 变量 `question`)
 
-- [ ] **Step 1: RED**
+- [x] **Step 1: RED**
 
 ```python
 def test_parse_queries():
@@ -309,8 +309,8 @@ async def test_orders_single_source_consistency():
         assert (c["status"], c["amount"]) == (full["status"], full["amount"])  # P4 逐字一致
 ```
 
-- [ ] **Step 2: 跑 RED** → **Step 3: 实现**(definitions 抽壳:`query_order` 薄壳 `return _make_order(order_id)`,生成体逐字段搬移零语义改动——`tests/test_tools.py` 既有用例是它的回归闸);`EXPAND_PROMPT` system 钉:同一退款诉求拆 ≤3 条**侧重不同**的检索问法(资格时限/流程运费/凭证要求),字段就 `{{"queries": [...]}}` 一个数组、不输出原问法之外的解释。
-- [ ] **Step 4: 全量绿**(query_order 行为不变,280 基线自然守住)+ Commit `"feat(ch06-t3): 扩写/合并纯函数+EXPAND_PROMPT+订单同播种数据面(_make_order/list_user_orders)"`
+- [x] **Step 2: 跑 RED** → **Step 3: 实现**(definitions 抽壳:`query_order` 薄壳 `return _make_order(order_id)`,生成体逐字段搬移零语义改动——`tests/test_tools.py` 既有用例是它的回归闸);`EXPAND_PROMPT` system 钉:同一退款诉求拆 ≤3 条**侧重不同**的检索问法(资格时限/流程运费/凭证要求),字段就 `{{"queries": [...]}}` 一个数组、不输出原问法之外的解释。
+- [x] **Step 4: 全量绿**(query_order 行为不变,280 基线自然守住)+ Commit `"feat(ch06-t3): 扩写/合并纯函数+EXPAND_PROMPT+订单同播种数据面(_make_order/list_user_orders)"`
 
 ---
 

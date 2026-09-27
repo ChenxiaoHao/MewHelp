@@ -25,9 +25,9 @@ _PRODUCT_NAMES = ["喵帮定制猫爬架", "冻干鸡肉猫粮 2kg", "宠物自�
 _CATEGORIES = ["猫粮", "用品", "零食", "清洁"]
 
 
-@tool
-async def query_order(order_id: str) -> dict:
-    """按订单号查询订单状态、金额与商品明细。用户问「我的订单」「订单到哪一步了」「订单状态」时使用。order_id: 订单号，如 1001。"""
+def _make_order(order_id: str) -> dict:
+    """订单 mock 生成体(同播种结果稳定)。唯一真源:query_order 与订单选择器
+    (ch06 P4)共用本函数,卡片与详情逐字一致。"""
     rnd = random.Random(f"order-{order_id}")  # 同订单号结果稳定，演示可复现
     n_items = rnd.randint(1, 3)
     return {
@@ -40,6 +40,29 @@ async def query_order(order_id: str) -> dict:
             for _ in range(n_items)
         ],
     }
+
+
+# ch06 订单选择器固定演示单号(非模型工具:graph 子流程直调,不进 bind_tools 清单)
+_DEMO_ORDER_IDS = ["1001", "1002", "1003"]
+
+
+def list_user_orders(user_id: str) -> list[dict]:
+    """退款选择器卡片数据:与 _make_order 同播种,轻量视图(items 拼显示串)。"""
+    cards = []
+    for oid in _DEMO_ORDER_IDS:
+        o = _make_order(oid)
+        cards.append({
+            "order_id": o["order_id"], "status": o["status"], "amount": o["amount"],
+            "created_at": o["created_at"],
+            "items": [f"{it['name']} ×{it['qty']}" for it in o["items"]],
+        })
+    return cards
+
+
+@tool
+async def query_order(order_id: str) -> dict:
+    """按订单号查询订单状态、金额与商品明细。用户问「我的订单」「订单到哪一步了」「订单状态」时使用。order_id: 订单号，如 1001。"""
+    return _make_order(order_id)
 
 
 @tool
