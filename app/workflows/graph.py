@@ -35,7 +35,7 @@ def reset_checkpointer() -> None:
 def build_graph(settings, model, checkpointer=None):
     g = StateGraph(ChatState)
     g.add_node("coref", N.make_coref_node(model))
-    g.add_node("intent", N.make_intent_node(model))
+    g.add_node("intent", N.make_intent_node(model, settings))
     g.add_node("retrieve", N.make_knowledge_retrieve_node(settings))
     g.add_node("gate", N.make_confidence_gate_node(settings))
     g.add_node("agent", N.make_agent_node(model, settings))
@@ -61,7 +61,10 @@ def build_graph(settings, model, checkpointer=None):
 
 
 def _dispatch(state):
-    return state.get("route", "knowledge")
+    # T2→T4 过渡守卫:refund 出口节点未接线前暂归 knowledge(带闸安全出口);
+    # Task 4 接通子流程后本行白名单扩入 refund(ledger 记账)。
+    route = state.get("route", "knowledge")
+    return route if route in ("knowledge", "data", "complaint", "chitchat") else "knowledge"
 
 
 def _after_gate(state):

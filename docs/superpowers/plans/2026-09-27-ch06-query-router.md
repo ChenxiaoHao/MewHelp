@@ -200,7 +200,7 @@ git add -A app tests && git commit -m "feat(ch06-t1): coref 正式版——LLM �
 - Consumes: coref 的 `resolved_query`
 - Produces: `INTENTS`(8 含「其他」)、`Route` 含 `"refund"`、`INTENT_ROUTES`(退款退货/售后→refund,其他→knowledge)、`parse_intent_json(raw)->tuple[str,float]|None`、`match_order_selection(text)->str|None`、`extract_order_id(*texts)->str|None`、`make_intent_node(model, settings)`、state 键 `intent_confidence`;`get_model(settings, *, model_name=None)`;settings 键 `intent_small_model=""`、`intent_confidence_threshold=0.75`;日志行含 `resolved`/`confidence`(nodes 仍是首键)
 
-- [ ] **Step 1: RED——`tests/test_intent_v2_ch06.py`(routing 纯函数面)**
+- [x] **Step 1: RED——`tests/test_intent_v2_ch06.py`(routing 纯函数面)**
 
 ```python
 """ch06 T2: 八类表/退款出口/置信度解析/槽位正则——纯函数,Review Focus 3。"""
@@ -233,7 +233,7 @@ def test_slot_regexes():
     assert extract_order_id("我想退款") is None
 ```
 
-- [ ] **Step 2: 跑 RED**(ImportError/断言失败);**Step 3: 实现 routing.py**(`INTENTS` 追加、`INTENT_ROUTES` v2、parse 返回 tuple:`float(data.get("confidence"))` try/except + `0.0<=c<=1.0` 校验,非法=continue 找下一个候选;两正则与两纯函数:
+- [x] **Step 2: 跑 RED**(ImportError/断言失败);**Step 3: 实现 routing.py**(`INTENTS` 追加、`INTENT_ROUTES` v2、parse 返回 tuple:`float(data.get("confidence"))` try/except + `0.0<=c<=1.0` 校验,非法=continue 找下一个候选;两正则与两纯函数:
 
 ```python
 _SELECTION_RE = re.compile(r"^我选择订单\s*(\d{3,})$")
@@ -250,7 +250,7 @@ def extract_order_id(*texts):
 ```
 )
 
-- [ ] **Step 4: RED(节点面)**——同文件追加意图节点用例(ScriptModel+SimpleNamespace settings 含两新键;工厂调用 `make_intent_node(model, settings)`):
+- [x] **Step 4: RED(节点面)**——同文件追加意图节点用例(ScriptModel+SimpleNamespace settings 含两新键;工厂调用 `make_intent_node(model, settings)`):
 
 ```python
 # 覆盖:①few-shot 契约在 prompt 里(渲染含「其他」「confidence」「退货政策是什么」边界例);
@@ -263,14 +263,14 @@ def extract_order_id(*texts):
 
 (实现步骤按此七断言逐条写测试体——断言形状抄 T1 文件模式,不另造基建。)
 
-- [ ] **Step 5: 实现**
+- [x] **Step 5: 实现**
   - `app/prompts/intent.py` 原地 V2:system = 八类枚举(含「其他:拿不准归它,别硬塞业务意图」)+判类口径+边界 few-shot ≥4 对(**第一对钉**「退货政策是什么=商品咨询;这单我要退=退款退货」)+输出契约恰好 `{{"intent": "...", "confidence": 0.0到1.0}}`(双花括号转义,ch04 T4 坑位注记保留)。
   - `nodes.make_intent_node(model, settings)`:`_judge(m, q)->tuple|None`(format→ainvoke→parse,异常 None);流程=快路(user_query 原话)→ `_judge` 大模型×2 或降级路(小模型先判,`conf>=settings.intent_confidence_threshold` 采纳,否则升大模型一次;小模型 None 直接升)→ 全失败 `("其他", 0.0)`;返回含 `"intent_confidence": conf`、`route=route_for_intent(intent)`。
   - `get_model(settings, *, model_name=None)`:`model=model_name or settings.model_name`,默认路径逐字符不变。
   - config 两键;`logging_node` 输出键列表加 `"resolved", "confidence"`(截断 80 字符)——**dict 推导里 `nodes` 保持首位**(ch05 A1/A5b 字面断言的序)。
   - `graph.py`:`make_intent_node(model, settings)`。
-- [ ] **Step 6: 重定向旧钉**——`test_routing_ch05.py`:参数表退款退货→refund/售后→refund、`INTENTS` 八元组、parse 用例改 tuple 契约+Review Focus 3 脏值行、prompt 测试加「confidence」「其他」断言;`test_graph_topology_ch05.py`:JSON 脚本统一补 `,"confidence":0.9`、`test_p2_fallback` 断言 `out["intent"] == "其他"`(route 仍 knowledge)、原「退款退货走 knowledge」两例改「商品咨询」。
-- [ ] **Step 7: 全量绿 + Commit** `"feat(ch06-t2): 意图四件套V2+其他兜底+route表v2(refund出口)+小→大降级路(默认关)"`
+- [x] **Step 6: 重定向旧钉**——`test_routing_ch05.py`:参数表退款退货→refund/售后→refund、`INTENTS` 八元组、parse 用例改 tuple 契约+Review Focus 3 脏值行、prompt 测试加「confidence」「其他」断言;`test_graph_topology_ch05.py`:JSON 脚本统一补 `,"confidence":0.9`、`test_p2_fallback` 断言 `out["intent"] == "其他"`(route 仍 knowledge)、原「退款退货走 knowledge」两例改「商品咨询」。
+- [x] **Step 7: 全量绿 + Commit** `"feat(ch06-t2): 意图四件套V2+其他兜底+route表v2(refund出口)+小→大降级路(默认关)"`
 
 ---
 

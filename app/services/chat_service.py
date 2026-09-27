@@ -43,12 +43,13 @@ def trim_history(history: list[BaseMessage], budget: int) -> list[BaseMessage]:
     return trimmed
 
 
-def get_model(settings: Settings) -> ChatOpenAI:
-    """OpenAI 协议直连上游；换 GPT/Claude/DeepSeek/Ollama 只改 .env。"""
+def get_model(settings: Settings, *, model_name: str | None = None) -> ChatOpenAI:
+    """OpenAI 协议直连上游；换 GPT/Claude/DeepSeek/Ollama 只改 .env。
+    ch06 降级路加可选 model_name 覆盖（None=现行为逐字符不变）。"""
     return ChatOpenAI(
         base_url=settings.openai_base_url,
         api_key=settings.openai_api_key,
-        model=settings.model_name,
+        model=model_name or settings.model_name,
         temperature=settings.temperature,
     )
 

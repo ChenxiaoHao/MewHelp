@@ -18,7 +18,7 @@ from app.prompts.customer_service import CUSTOMER_SERVICE_PROMPT
 from app.prompts.intent import INTENT_PROMPT
 from app.rag import retriever
 from app.services import refusals          # 经模块属性调用,pool 可被测试替换
-from app.services.chat_service import trim_history
+from app.services.chat_service import get_model, trim_history
 from app.workflows.routing import (
     chitchat_fast_path,
     parse_intent_json,
@@ -80,24 +80,45 @@ def _render_history(msgs) -> str:
     return "\n".join(lines) or "(无)"
 
 
-def make_intent_node(model):
+async def _judge(m, query: str) -> tuple[str, float] | None:
+    """一次判类:prompt→ainvoke→parse;调用异常与不合 schema 同归 None(不抛穿)。"""
+    try:
+        ai = await m.ainvoke(INTENT_PROMPT.format_messages(question=query))
+        return parse_intent_json(_text_of(ai))
+    except Exception:  # noqa: BLE001 —— 降级路上小模型挂了=等价未配置
+        logger.warning("intent judge failed; escalate/fallback", exc_info=True)
+        return None
+
+
+async def _judge_retry(m, query: str) -> tuple[str, float] | None:
+    for _ in range(2):                                      # ch05 P2 重试语义保留
+        verdict = await _judge(m, query)
+        if verdict:
+            return verdict
+    return None
+
+
+def make_intent_node(model, settings):
+    """ch06 四件套节点:快路(原话匹配)→ 降级路小模型先判/低置信升大模型 →
+    解析失败×2 归「其他」(route=knowledge,替掉 ch05 归商品咨询的兜底,P1)。"""
     async def intent_node(state: dict) -> dict:
         log = _note(state, "intent")
         query = state.get("resolved_query") or state.get("user_query", "")
-        if chitchat_fast_path(query):                       # D5:寒暄零模型调用
-            return {"intent": "闲聊", "route": "chitchat",
-                    "log": {**log, "fast_path": True}}
-        intent = None
-        for _ in range(2):                                  # P2:解析失败重试一次
-            msgs = INTENT_PROMPT.format_messages(question=query)
-            ai = await model.ainvoke(msgs)
-            intent = parse_intent_json(_text_of(ai))
-            if intent:
-                break
-        if intent is None:
-            intent = "商品咨询"                             # 兜底归 knowledge(P2)
+        if chitchat_fast_path(state.get("user_query", "")):  # D5 + ch06:快路看原话
+            return {"intent": "闲聊", "route": "chitchat", "intent_confidence": 1.0,
+                    "log": {**log, "fast_path": True, "intent": "闲聊"}}
+        verdict = None
+        if getattr(settings, "intent_small_model", ""):      # P2:默认空=只走大模型
+            verdict = await _judge(
+                get_model(settings, model_name=settings.intent_small_model), query)
+            if verdict and verdict[1] < settings.intent_confidence_threshold:
+                verdict = None                               # 低置信 → 大模型复判
+        if verdict is None:
+            verdict = await _judge_retry(model, query)
+        intent, conf = verdict or ("其他", 0.0)
         return {"intent": intent, "route": route_for_intent(intent),
-                "log": {**log, "intent": intent}}
+                "intent_confidence": conf,
+                "log": {**log, "intent": intent, "confidence": conf}}
     return intent_node
 
 
@@ -217,8 +238,11 @@ def chitchat_node(state: dict) -> dict:
 
 def logging_node(state: dict) -> dict:
     log = _note(state, "logging")
-    logger.info("ch05 graph turn %s", {k: log.get(k) for k in
-                ("nodes", "intent", "gate_pass", "retrieve_hits", "agent_steps")})
+    # 前缀 "ch05 graph turn" 字面保留:双章 e2e 的锚点(改名无行为收益,记账 R 批)。
+    line = {k: log.get(k) for k in ("nodes", "intent", "confidence", "gate_pass",
+                                    "retrieve_hits", "agent_steps")}
+    line["resolved"] = (state.get("resolved_query") or "")[:80]   # B1 验收断言面
+    logger.info("ch05 graph turn %s", line)
     return {"log": log}
 
 

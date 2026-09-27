@@ -93,7 +93,7 @@ def init_state(q):
 
 
 async def test_weak_evidence_refuses_without_agent_and_pools(gate_env):
-    graph, model, pools = gate_env([0.05], [AIMessage(content='{"intent":"退款退货"}')])
+    graph, model, pools = gate_env([0.05], [AIMessage(content='{"intent":"商品咨询","confidence":0.9}')])
     out = await graph.ainvoke(init_state("退款政策"), config=cfg())
     assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "logging"]
     assert out["answer_text"] == refusals.REFUSAL_ANSWER
@@ -105,7 +105,7 @@ async def test_weak_evidence_refuses_without_agent_and_pools(gate_env):
 
 async def test_strong_evidence_enters_agent(gate_env):
     graph, model, pools = gate_env(
-        [0.9], [AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="7天无理由")])
+        [0.9], [AIMessage(content='{"intent":"商品咨询","confidence":0.9}'), AIMessage(content="7天无理由")])
     out = await graph.ainvoke(init_state("退款政策"), config=cfg(12))
     assert out["gate_pass"] is True and out["answer_text"] == "7天无理由"
     assert pools == []  # 证据够不落池
@@ -115,7 +115,7 @@ async def test_rrf_degraded_scores_bypass_threshold(gate_env):
     """M1-I3:ch04 重排降级路径返回 RRF 分(rrf_k=60 双路上限≈0.033,与 0.161
     阈值不可通约)→ 该带内非空证据旁路过闸进 Agent(对齐闸1「降级跳过」决定)。"""
     graph, model, pools = gate_env(
-        [0.03], [AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="降级也可答")])
+        [0.03], [AIMessage(content='{"intent":"商品咨询","confidence":0.9}'), AIMessage(content="降级也可答")])
     out = await graph.ainvoke(init_state("退款政策"), config=cfg(14))
     assert out["gate_pass"] is True and out["log"]["gate_scale"] == "rrf_degraded"
     assert out["answer_text"] == "降级也可答"
@@ -129,6 +129,6 @@ async def test_pool_write_failure_does_not_block_refusal(gate_env, monkeypatch):
     def boom():
         raise RuntimeError("engine not configured")
     monkeypatch.setattr(refusals, "get_session_factory", boom)
-    graph, _, _ = gate_env([0.05], [AIMessage(content='{"intent":"退款退货"}')], real_pool=True)
+    graph, _, _ = gate_env([0.05], [AIMessage(content='{"intent":"商品咨询","confidence":0.9}')], real_pool=True)
     out = await graph.ainvoke(init_state("退款政策"), config=cfg(13))
     assert out["answer_text"] == refusals.REFUSAL_ANSWER

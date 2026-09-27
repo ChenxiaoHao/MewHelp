@@ -46,7 +46,7 @@ class GraphFakeModel:
 
     async def ainvoke(self, msgs, **kwargs):
         self.intent_calls += 1
-        return AIMessage(content=json.dumps({"intent": self.intent},
+        return AIMessage(content=json.dumps({"intent": self.intent, "confidence": 0.9},
                                             ensure_ascii=False))
 
     async def astream(self, msgs, **kwargs):
@@ -171,7 +171,7 @@ async def test_gate_refusal_turn_streams_refusal_and_pools(client, db_env, monke
         pools.append({"cid": cid, "q": q, "src": src})
     monkeypatch.setattr(refusals, "pool_low_confidence", rec_pool)
 
-    model = GraphFakeModel(intent="退款退货")
+    model = GraphFakeModel(intent="商品咨询")  # ch06 T2:退款退货已改道 refund,知识探针换商品咨询
     _post_model(client, model)
     r = await client.post("/api/chat/stream",
                           json={"messages": [{"role": "user", "content": "退款政策是什么"}]})
@@ -248,10 +248,13 @@ async def test_error_frame_on_upstream_failure(client, db_env):
     from app.main import app
 
     class Boom(GraphFakeModel):
-        async def ainvoke(self, msgs, **kwargs):
+        # ch06 T2 重定向:意图节点异常已被 _judge 降级层吞掉(归「其他」不再抛穿),
+        # error 帧注入点移到 Agent 流式出口(data 路线,不触真检索)。
+        async def astream(self, msgs, **kwargs):
             raise RuntimeError("upstream down")
+            yield  # pragma: no cover —— 保持 asyncgen 签名
 
-    _post_model(client, Boom())
+    _post_model(client, Boom(intent="物流"))
     r = await client.post("/api/chat/stream",
                           json={"messages": [{"role": "user", "content": "查个单"}]})
     err = _sse(r.text, "error")
