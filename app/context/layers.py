@@ -94,28 +94,46 @@ def pick_degrade_cut(layer1_rows, budget, est) -> int | None:
 # ---------- ch07 T4:五段装配 + 降级动作 + 每轮留痕(需求 3/6) ----------
 
 def rows_to_messages(rows) -> list[BaseMessage]:
-    """层1 行集→LangChain 消息:按现 react 输入语义还原合法工具链;
-    链外孤儿 tool 行折成 marker(M1 评审:防 DeepSeek/兼容端 400)。"""
+    """层1 行集→LangChain 消息:**回执齐**的完整链才照形还原;未闭合半链/悬空链
+    整链折标识,孤儿 tool 行折标识(M2-C1:open_ids 悬停使裸 AIMessage.tool_calls
+    进严格兼容端 = 400,on_tool_result 落库失败被吞是现实触发面)。"""
     msgs: list[BaseMessage] = []
-    open_ids: set = set()
-    for r in rows:
+    i, n = 0, len(rows)
+    while i < n:
+        r = rows[i]
         if r.role == "user":
             msgs.append(HumanMessage(r.content or ""))
-        elif r.role == "assistant":
-            if r.tool_calls:
-                tcs = [{"id": t.get("id"), "name": t.get("name"), "args": t.get("args") or {}}
-                       for t in r.tool_calls if isinstance(t, dict)]
-                open_ids = {t["id"] for t in tcs}
+            i += 1
+        elif r.role == "assistant" and r.tool_calls:
+            tcs = [{"id": t.get("id"), "name": t.get("name"), "args": t.get("args") or {}}
+                   for t in r.tool_calls if isinstance(t, dict)]
+            tool_rows: list = []
+            j = i + 1
+            while j < n and rows[j].role == "tool":
+                tool_rows.append(rows[j])
+                j += 1
+            answered = {tr.tool_call_id for tr in tool_rows}
+            if tcs and all(t["id"] in answered for t in tcs):
                 msgs.append(AIMessage(content=r.content or "", tool_calls=tcs))
+                for tr in tool_rows:
+                    msgs.append(ToolMessage(content=tr.content or "",
+                                            tool_call_id=tr.tool_call_id))
             else:
-                open_ids = set()
-                msgs.append(AIMessage(r.content or ""))
-        else:  # tool
-            if r.tool_call_id in open_ids:
-                msgs.append(ToolMessage(content=r.content or "", tool_call_id=r.tool_call_id))
-                open_ids.discard(r.tool_call_id)
-            else:
-                msgs.append(AIMessage(_fold_marker(r, "?")))
+                text = r.content or ""
+                if tcs:
+                    names = "+".join(dict.fromkeys(t.get("name") or "?" for t in tcs))
+                    marker = f"[工具调用·{names}·已折叠]"
+                    text = f"{text}\n{marker}" if text else marker
+                msgs.append(AIMessage(text or "[工具调用·?·已折叠]"))
+                for tr in tool_rows:  # 半链回执同折:不留无链首的 ToolMessage
+                    msgs.append(AIMessage(_fold_marker(tr, "?")))
+            i = j
+        elif r.role == "assistant":
+            msgs.append(AIMessage(r.content or ""))
+            i += 1
+        else:  # 孤儿 tool 行(写路径理论不产生):折标识,绝不还原 ToolMessage
+            msgs.append(AIMessage(_fold_marker(r, "?")))
+            i += 1
     return msgs
 
 
@@ -166,6 +184,11 @@ async def build_model_context(store, *, evidence, order_data, current_human,
     rows = await store.fetch_all_rows()
     layer2_rows = [r for r in rows if upto < r.id <= layer1_from]
     layer1_rows = [r for r in rows if r.id > layer1_from]
+    # routes bootstrap 先落当前 user 行(现状 ch04/06 语义),层1 尾部即它——
+    # 剔除后段3 与段4 才不重复(集成面实测暴露;Ruling 见 ledger)。
+    if (layer1_rows and layer1_rows[-1].role == "user"
+            and (layer1_rows[-1].content or "") == current_human.content):
+        layer1_rows = layer1_rows[:-1]
     msgs: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
     msgs += render_layer2(layer2_rows, settings)
     msgs += rows_to_messages(layer1_rows)
@@ -240,6 +263,11 @@ class ContextStore:
         self._sf = session_factory
         self.cid = conversation_id
         self.settings = settings
+
+    @property
+    def session_factory(self):
+        """ctx 节点排后台摘要任务用(任务必须自开 session,Review Focus 2)。"""
+        return self._sf
 
     async def load_ctx(self) -> tuple[str | None, int, int]:
         async with self._sf() as session:

@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.context.budget import estimate_items, estimate_text
-from app.context.layers import pick_degrade_cut, render_layer2
+from app.context.layers import pick_degrade_cut, render_layer2, rows_to_messages
 
 SETTINGS = SimpleNamespace(assistant_head_chars=60)
 
@@ -106,6 +106,40 @@ def test_orphan_tool_row_folds_not_dropped():
     out = render_layer2([_row(9, "tool", "孤儿结果", None)], SETTINGS)
     assert len(out) == 1 and isinstance(out[0], AIMessage)
     assert not any(isinstance(m, ToolMessage) for m in out)
+
+
+# ---------- rows_to_messages(层1 原文还原;M2-C1 补钉) ----------
+
+def test_rows_to_messages_restores_complete_chain():
+    rows = [_row(1, "user", "查下物流"),
+            _row(2, "assistant", "帮您查询", [{"id": "c1", "name": "query_order", "args": {}}]),
+            _row(3, "tool", "订单1001已发货", None)]
+    rows[2].tool_call_id = "c1"
+    out = rows_to_messages(rows)
+    assert [type(m) for m in out] == [HumanMessage, AIMessage, ToolMessage]
+    assert out[1].tool_calls and out[1].content == "帮您查询"
+    assert out[2].tool_call_id == "c1"
+
+
+def test_rows_to_messages_dangling_chain_never_emits_tool_calls():
+    """M2-C1:tool 行落库失败被吞 → 未闭合链裸奔严格兼容端 = 400。层1 面与层2 同律:
+    整链折 `[工具调用·{name}·已折叠]`,原文保留;下一个 user/assistant 到来同样闭合失效。"""
+    rows = [_row(1, "assistant", "我查一下", [{"id": "c1", "name": "query_order", "args": {}}]),
+            _row(2, "user", "那物流呢")]
+    out = rows_to_messages(rows)
+    assert not any(getattr(m, "tool_calls", None) for m in out)
+    assert out[0].content == "我查一下\n[工具调用·query_order·已折叠]"
+    assert isinstance(out[1], HumanMessage)
+
+
+def test_rows_to_messages_partial_chain_folds_whole():
+    rows = [_row(1, "assistant", None, [{"id": "c1", "name": "query_faq", "args": {}},
+                                         {"id": "c2", "name": "query_order", "args": {}}]),
+            _row(2, "tool", "faq结果", None)]
+    rows[1].tool_call_id = "c1"                     # c2 回执缺失(落库被吞)
+    out = rows_to_messages(rows)
+    assert not any(isinstance(m, ToolMessage) for m in out)   # 半链不留,整链折
+    assert "[工具调用·query_faq+query_order·已折叠]" in out[0].content
 
 
 def _rows_turn(count_turns=3):

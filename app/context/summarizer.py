@@ -33,6 +33,18 @@ def schedule_summary(session_factory, cid: int, settings, model) -> bool:
     return True
 
 
+async def _latest_segment(session, cid):
+    """seq 最大段行(本批查重用:M2-I1);读侧直查,与 _load_segments 同源。"""
+    return (
+        await session.execute(
+            select(ConversationSummary)
+            .where(ConversationSummary.conversation_id == cid)
+            .order_by(ConversationSummary.seq.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
 async def _load_segments(session, cid) -> list[str]:
     """段表全段按 seq 升序 content(投影重拼料);T6 面读侧查询,不经 crud。"""
     rows = (
@@ -66,9 +78,25 @@ async def run_summary(session_factory, cid: int, settings, model) -> None:
             summary, upto, layer1_from = await crud.get_conv_ctx(session, cid)
             if layer1_from <= upto:
                 return  # 层2 无新批(每轮空转防线)
-            rows = await crud.list_messages_after(session, cid, upto)
+            rows = await crud.list_messages_after(session, cid, upto, limit=10000)
             batch = [r for r in rows if r.id <= layer1_from]
             if not batch:
+                return
+            if batch[-1].id < layer1_from:
+                # limit 截断只到中途:照压照 append 会把截掉的消息永久失联——
+                # 本轮不压不动边界,WARN 留痕,下轮自然重触发(M2-I2)。
+                logger.warning("summary batch truncated cid=%s tail=%d need=%d",
+                               cid, batch[-1].id, layer1_from)
+                return
+            last = await _latest_segment(session, cid)
+            if last is not None and last.upto_msg_id == layer1_from:
+                # 本批已落段(append 成功但投影写挂的裂口):不重压不双段,
+                # 全段重拼把投影补到段表真相(M2-I1)。
+                proj = "\n".join(await _load_segments(session, cid))
+                await crud.set_summary_projection(
+                    session, cid, summary=proj, upto_msg_id=layer1_from)
+                logger.info("summary projection repaired cid=%s upto=%d",
+                            cid, layer1_from)
                 return
             rendered = await model.ainvoke(SUMMARIZE_PROMPT.format_messages(
                 background=summary or "(无)", batch=_render_batch_text(batch, settings)))

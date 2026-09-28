@@ -15,6 +15,15 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_stream_writer
 
 from app.agents.react import react_agent_stream
+from app.context.budget import compute_budgets, estimate_items
+from app.context.layers import (
+    build_history_view,
+    build_model_context,
+    degrade_if_needed,
+    log_model_ctx,
+    render_layer2,
+)
+from app.context.summarizer import schedule_summary
 from app.prompts.coref import COREF_PROMPT
 from app.prompts.customer_service import CUSTOMER_SERVICE_PROMPT
 from app.prompts.intent import INTENT_PROMPT
@@ -52,15 +61,65 @@ def _note(state: dict, name: str) -> dict:
     return prev
 
 
-def make_coref_node(model):
+def _store_of(config):
+    return ((config or {}).get("configurable") or {}).get("ctx_store")
+
+
+def make_ctx_node(settings, model):
+    """ch07 需求 2:每轮 coref 之前的三层边界决策点(spec「后台异步摘要」)。
+
+    有 store:读锚 → 层1 降级(本轮同步落库)→ 层2 渲染形态按 token 折判超预算
+    → schedule_summary(后台异步,防重入交 T6)。无 store(cid=None/引擎降级面)
+    零副作用;store 炸了只 WARN 不拖垮本轮——ctx 是加速器不是闸。
+    """
+    async def ctx_node(state: dict, config: RunnableConfig = None) -> dict:
+        store = _store_of(config)
+        if store is None:
+            return {}
+        try:
+            await degrade_if_needed(store, settings)
+            summary, upto, layer1_from = await store.load_ctx()
+            rows = await store.fetch_all_rows()
+            layer2 = [r for r in rows if upto < r.id <= layer1_from]
+            if layer2 and estimate_items(render_layer2(layer2, settings)) \
+                    > compute_budgets(settings).layer2:
+                schedule_summary(store.session_factory, store.cid, settings, model)
+        except Exception:  # noqa: BLE001
+            logger.warning("ctx node degraded cid=%s", store.cid, exc_info=True)
+        return {}
+    return ctx_node
+
+
+def _strip_current_turn(view: str, q: str) -> str:
+    """剔掉 DB view 末行当前用户句(bootstrap 已先落 user 行)——自己不许当自己的历史。"""
+    lines = view.splitlines()
+    if lines and lines[-1].strip() == f"用户:{q}":
+        lines = lines[:-1]
+    return "\n".join(lines).strip() or "(无)"
+
+
+def make_coref_node(model, settings=None):
     """ch06 正式版:LLM+历史把指代补全成自包含标准问法;已完整原样透传;首轮零调用。
+
+    ch07 T7 换供:有 ctx_store 时 {history}=build_history_view(DB 权威,含梗概行,
+    重启/空线程免疫),首轮判定仍看线程态(回填保证重启后线程非空→不误判首轮);
+    history_ctx 每轮必打(含闲聊轮,本节点先于 intent/chitchat 执行即为「graph 级」)。
 
     兼作逐轮复位点(M1-I1 语义保留):轮级字段清零开新 log;ch06 新键一并复位,
     唯一例外 pending_flow 先读后清(Task 4 续跑识别在本函数顶端接管)。
     失败/空输出 → 透传原话,理解层绝不拖垮主流程(spec「失败与降级」)。
     """
-    async def coref_node(state: dict) -> dict:
+    async def coref_node(state: dict, config: RunnableConfig = None) -> dict:
         q = state.get("user_query", "")
+        store = _store_of(config)
+        view = None
+        if store is not None:
+            # 每轮先构 DB 视图(顺带落 history_ctx,需求 6「每轮必打」含 resume/闲聊轮);
+            # bootstrap 刚落的当前句从尾部剔掉——自己不许当自己的历史。
+            try:
+                view = _strip_current_turn(await build_history_view(store, settings), q)
+            except Exception:  # noqa: BLE001 —— 理解层绝不拖垮主流程(spec「失败与降级」)
+                logger.warning("coref history view failed cid=%s", store.cid, exc_info=True)
         # 续跑识别(T4,pending_flow 先读后清):选择器点卡片协议句 → 模板补全,零模型调用
         resume_oid = (match_order_selection(q)
                       if state.get("pending_flow") == "refund" else None)
@@ -76,9 +135,10 @@ def make_coref_node(model):
         if not any(isinstance(m, HumanMessage) for m in hist):
             reset["log"]["coref"] = "passthrough"
             return {**reset, "resolved_query": q}
+        history_text = view if view not in (None, "(无)") else _render_history(hist[-6:])
         try:
             msgs = COREF_PROMPT.format_messages(
-                history=_render_history(hist[-6:]), question=q)
+                history=history_text, question=q)
             text = _text_of(await model.ainvoke(msgs)).strip()
             resolved = next((ln.strip() for ln in reversed(text.splitlines())
                              if ln.strip()), "")
@@ -225,15 +285,38 @@ def make_agent_node(model, settings):
         except RuntimeError:
             writer = lambda ev: None  # noqa: E731 —— 图外直调(理论不达)静默
         hist = list(state["messages"])
-        msgs = trim_history(
-            CUSTOMER_SERVICE_PROMPT.invoke({"messages": hist}).to_messages(),
-            settings.history_token_budget,
-        )
+        store = _store_of(config)
+        msgs = None
+        if store is not None:
+            # ch07 五段装配(DB 权威,含层2半压/层1原文/合并注入);装配面炸了
+            # 退回 ch01 旧路径——聊天不断线优先(spec「预算退化」)。
+            cur = next((m for m in reversed(hist) if isinstance(m, HumanMessage)),
+                       HumanMessage(state.get("user_query", "")))
+            try:
+                msgs = await build_model_context(
+                    store, evidence=state.get("evidence") or [],
+                    order_data=state.get("order_data") or {},
+                    current_human=cur, settings=settings)
+                log_model_ctx(store.cid, msgs, estimate_items(msgs))
+            except Exception:  # noqa: BLE001
+                logger.warning("model_ctx build failed cid=%s; legacy assembly",
+                               store.cid, exc_info=True)
+                msgs = None
+        five_seg = msgs is not None
+        if msgs is None:
+            msgs = trim_history(
+                CUSTOMER_SERVICE_PROMPT.invoke({"messages": hist}).to_messages(),
+                settings.history_token_budget,
+            )
         parts: list[str] = []
         done: dict = {"steps": 0, "suggestions": []}
+        react_input = {**state, "messages": msgs, "conversation_id": cid}
+        if five_seg:
+            # 段5 已把证据/订单合注入一条 Human;react 的 System 前置旧路
+            # (react.py:60-67)T8 正式废除前,先在此清空入参防双份注入。
+            react_input.update(evidence=[], order_data={})
         async for ev in react_agent_stream(
-                {**state, "messages": msgs, "conversation_id": cid},
-                settings, model, persister=conf.get("persister")):
+                react_input, settings, model, persister=conf.get("persister")):
             kind, data = ev
             if kind in ("token", "tool_call", "tool_result"):
                 writer(ev)

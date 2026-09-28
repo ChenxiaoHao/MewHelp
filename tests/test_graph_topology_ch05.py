@@ -161,6 +161,16 @@ async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_res
                    for m in env.model.last_msgs)  # 陈旧证据未被注入模型调用
 
 
+def test_ctx_entry_point_edge_ch07(fake_settings):
+    """ch07 T7 随迁(规4):入口从 coref 挪到 ctx——断 __start__→ctx→coref,
+    且 coref 不再是入口(旧边必须不存在,否则图面还是双入口)。"""
+    from langgraph.graph import START
+    g = build_graph(fake_settings, ScriptModel([]))
+    edges = {(e.source, e.target) for e in g.get_graph().edges}
+    assert (START, "ctx") in edges and ("ctx", "coref") in edges
+    assert (START, "coref") not in edges
+
+
 async def test_coref_completion_keeps_history(fake_env, one_chunk_result):
     """ch06 T1 重定向(原 test_coref_passthrough_keeps_history):首轮零调用,
     次轮 coref 走 LLM(脚本插补全输出),InMemorySaver 跨轮累积语义不变。"""

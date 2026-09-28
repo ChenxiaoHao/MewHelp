@@ -218,8 +218,8 @@ class ConversationSummary(Base):
 - Produces:节点 `ctx`(passthrough:无 cid/无 store;有 store:`degrade_if_needed`→层2估算超预算→`schedule_summary`);回填 `_refill_input(graph, cfg, store, settings)`:thread 空(`aget_state` 无 messages)且 DB 有 user/assistant 行 → 取层1原文近 `history_view_messages*2` 条前置入图 input(只 Human/AI 两类,无 tool 链;Review Focus 3)
 - Consumes:T3/T4/T6 全部公开名
 
-- [ ] Step 1 失败测试:ctx 在无 store 轮零副作用;有 store 轮降级+触发被调(mock store);coref 的 history 来自 view(含摘要行)且 `history_ctx` 每轮出(含 chitchat 轮——graph 级);agent 收到五段形 msgs(mock react 断注入点);回填后 coref 不误判首轮。
-- [ ] Step 2 实现;拓扑测试更新;**双章 e2e 面回归**(A1–A5b/B1–B3 真跑,任何行为变化=本任务 bug);全量绿;提交 `feat(ch07-t7): ctx入口节点+空线程回填+coref/agent切换供+ch05拓扑随迁`。
+- [x] Step 1 失败测试:ctx 在无 store 轮零副作用;有 store 轮降级+触发被调(mock store);coref 的 history 来自 view(含摘要行)且 `history_ctx` 每轮出(含 chitchat 轮——graph 级);agent 收到五段形 msgs(mock react 断注入点);回填后 coref 不误判首轮。
+- [x] Step 2 实现;拓扑测试更新;**双章 e2e 面回归**(A1–A5b/B1–B3 真跑,任何行为变化=本任务 bug);全量绿;提交 `feat(ch07-t7): ctx入口节点+空线程回填+coref/agent切换供+ch05拓扑随迁`。
 
 ---
 

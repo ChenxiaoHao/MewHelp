@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from app.core.config import get_settings
+from app.context.layers import ContextStore
 from app.db import crud
 from app.db.engine import get_session_factory
 from app.schemas.chat import (
@@ -81,7 +82,17 @@ async def chat_stream(
             persister = None
 
     # ---- ch05 Graph 编排；token/done/error 帧写法与 ch01 逐字符一致（spec 红线）。
-    # ch04 的 stream_chat_with_tools 不再接线但保留（拍板 P5=ch04 回归基线）。----
+    # ch04 的 stream_chat_with_tools 不再接线但保留（拍板 P5=ch04 回归基线）。
+    # ch07:引擎在线且有会话 → ContextStore 入 configurable(ctx/coref/agent 三消费面;
+    # 引擎降级面 store=None=全 passthrough,与 ch01 行为逐字对齐)。----
+    ctx_store = None
+    if session is not None and conversation_id is not None:
+        try:
+            ctx_store = ContextStore(get_session_factory(), conversation_id, settings)
+        except RuntimeError:
+            # 假 session 覆盖面(ch05/06 流测)引擎未初始化:取厂即炸 → store 降级,
+            # 本轮走 ch01 旧路径——引擎降级面与 store=None 语义一致(Ruling)。
+            logger.warning("ctx store unavailable; context layers degraded", exc_info=True)
     try:
         async for kind, payload in stream_graph_turn(
             req.messages,
@@ -89,6 +100,7 @@ async def chat_stream(
             model,
             conversation_id=conversation_id,
             persister=persister,
+            ctx_store=ctx_store,
         ):
             if kind == "token":
                 yield ServerSentEvent(data=payload, event="token")
