@@ -101,11 +101,15 @@ async def test_ctx_no_store_zero_side_effects(_quiet_ctx):
     assert upd == {} and _quiet_ctx == []
 
 
-async def test_ctx_degrade_then_triggers_when_layer2_over_budget(_quiet_ctx):
+async def test_ctx_degrade_then_triggers_when_layer2_over_budget(_quiet_ctx, caplog):
     big = [_row(i, "user", "汉" * 500) for i in range(1, 9)]  # 层2=(0,8] ≈4032>1695
     store = FakeStore(big, (None, 0, 8))
-    upd = await make_ctx_node(_settings(), ScriptModel([]))({}, _cfg(store))
+    with caplog.at_level(logging.INFO):
+        upd = await make_ctx_node(_settings(), ScriptModel([]))({}, _cfg(store))
     assert upd == {} and _quiet_ctx == ["degrade", "schedule"]
+    # spec grep 锚「summary trigger 层2 约N token > 预算M」(T11 C1 取证行,补钉)
+    assert any(r.getMessage().startswith("summary trigger cid=42")
+               for r in caplog.records)
 
 
 async def test_ctx_no_trigger_when_layer2_fits(_quiet_ctx):
@@ -170,6 +174,30 @@ async def test_history_ctx_logged_on_chitchat_round(monkeypatch, caplog):
 
 async def _none():
     return None
+
+
+async def test_legacy_assembly_still_grounds_evidence(monkeypatch):
+    """M3-I2 修复钉:legacy 面(无 store/装配退位)grounding 不丢。
+
+    spec 范围红线 L11「cid=None 降级路径行为与现状一致」——ch06 现状=证据文本
+    必入模型输入(System 旧形已按段5 作废,形可变、有无不可变)。"""
+    captured = {}
+
+    async def fake_react(state, settings, model, persister=None):
+        captured["msgs"] = list(state["messages"])
+        yield ("token", "好")
+        yield ("done", {"steps": 1, "suggestions": []})
+    monkeypatch.setattr(N, "react_agent_stream", fake_react)
+    upd = await make_agent_node(ScriptModel([]), _settings())(
+        {"messages": [HumanMessage("退货运费谁承担")], "user_query": "退货运费谁承担",
+         "route": "knowledge", "evidence": [{"text": "七天无理由退,运费由商家承担"}],
+         "order_data": {"order_id": "1001"}, "log": {}},
+        {"configurable": {"conversation_id": None, "ctx_store": None, "persister": None}})
+    msgs = captured["msgs"]
+    inj = msgs[-1]
+    assert isinstance(inj, HumanMessage) and "七天无理由" in inj.content and "1001" in inj.content
+    assert sum(isinstance(m, SystemMessage) for m in msgs) == 1   # 人设唯一,证据不 System 前置
+    assert upd["answer_text"] == "好"
 
 
 async def test_agent_receives_five_segment_with_injection(monkeypatch, caplog):

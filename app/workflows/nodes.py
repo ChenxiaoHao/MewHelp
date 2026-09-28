@@ -17,6 +17,7 @@ from langgraph.config import get_stream_writer
 from app.agents.react import react_agent_stream
 from app.context.budget import compute_budgets, estimate_items
 from app.context.layers import (
+    _build_injection,
     build_history_view,
     build_model_context,
     degrade_if_needed,
@@ -81,9 +82,13 @@ def make_ctx_node(settings, model):
             summary, upto, layer1_from = await store.load_ctx()
             rows = await store.fetch_all_rows()
             layer2 = [r for r in rows if upto < r.id <= layer1_from]
-            if layer2 and estimate_items(render_layer2(layer2, settings)) \
-                    > compute_budgets(settings).layer2:
-                schedule_summary(store.session_factory, store.cid, settings, model)
+            if layer2:
+                est = estimate_items(render_layer2(layer2, settings))
+                budget = compute_budgets(settings).layer2
+                if est > budget:
+                    logger.info("summary trigger cid=%s 层2 约%d token > 预算%d",
+                                store.cid, est, budget)
+                    schedule_summary(store.session_factory, store.cid, settings, model)
         except Exception:  # noqa: BLE001
             logger.warning("ctx node degraded cid=%s", store.cid, exc_info=True)
         return {}
@@ -274,9 +279,9 @@ def make_agent_node(model, settings):
         """Task 6 版:经 custom writer 直发 ReAct 事件帧,答案文本自 token 聚合。
 
         conversation_id/persister 均经 config.configurable 注入(R7 同款通道);
-        进模型的消息列 = ch01 人设 Prompt 渲染 + 预算裁剪(ch04 同参),再由
-        react 前置证据 SystemMessage。非流式上下文(纯 ainvoke 测试)writer
-        不存在时静默降级,聚合语义不变。
+        进模型的消息列:有 store=五段装配(段5 已含证据/订单注入);退位=ch01
+        人设渲染+预算裁剪,证据/订单由本节点尾挂段5 同形 Human(M3-I2)。
+        非流式上下文(纯 ainvoke 测试)writer 不存在时静默降级,聚合语义不变。
         """
         conf = config.get("configurable") or {}
         cid = conf.get("conversation_id")
@@ -308,12 +313,19 @@ def make_agent_node(model, settings):
                 CUSTOMER_SERVICE_PROMPT.invoke({"messages": hist}).to_messages(),
                 settings.history_token_budget,
             )
+            # M3-I2:legacy 面 grounding 与 ch06 现状对齐(spec 范围红线「cid=None
+            # 降级路径行为与现状一致」)——证据/订单并入段5 同一条 Human 尾挂;
+            # System 旧形按 spec 段5 作废,形态可变、有无不可丢。
+            inj = _build_injection(None, state.get("evidence") or [],
+                                   state.get("order_data") or {}, settings)
+            if inj is not None:
+                msgs = [*msgs, inj]
         parts: list[str] = []
         done: dict = {"steps": 0, "suggestions": []}
         react_input = {**state, "messages": msgs, "conversation_id": cid}
         if five_seg:
-            # 段5 已把证据/订单合注入一条 Human;react 的 System 前置旧路
-            # (react.py:60-67)T8 正式废除前,先在此清空入参防双份注入。
+            # 段5 已把证据/订单合注入一条 Human(react System 旧路 T8 已废),
+            # 清空入参防下游再读——防双份注入的保险丝。
             react_input.update(evidence=[], order_data={})
         async for ev in react_agent_stream(
                 react_input, settings, model, persister=conf.get("persister")):
