@@ -252,7 +252,7 @@ class ConversationSummary(Base):
 
 **行为口径**(spec 前端节):列表新在前+预览+「已摘要」+高亮当前;点选→GET messages→user/assistant 气泡、tool 行与带 tool_calls 的 assistant 行渲染一行浅色「🔧」标识→conversationId 与本地数组整体换轨续聊;「新对话」置 null 清屏,旧会话留栏;回载失败顶栏提示不挡聊天。
 
-- [ ] Step 1 写实现;Step 2 冒烟=提取 <script> 显式 UTF-8 落盘后 `node --check`(Windows 假 OK 红线);Step 3 手测清单并入 T11 浏览器验收;提交 `feat(ch07-t10-ui): 会话侧栏(列表/切换回载/新对话/静默降级)`。
+- [x] Step 1 写实现;Step 2 冒烟=提取 <script> 显式 UTF-8 落盘后 `node --check`(Windows 假 OK 红线);Step 3 手测清单并入 T11 浏览器验收;提交 `feat(ch07-t10-ui): 会话侧栏(列表/切换回载/新对话/静默降级)`。
 
 ---
 

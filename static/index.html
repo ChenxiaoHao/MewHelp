@@ -35,7 +35,7 @@
 
   /* ===== 中央客服窗口 ===== */
   .window {
-    width: 500px; max-width: 100%;
+    width: 760px; max-width: 100%;
     height: 740px; max-height: calc(100dvh - 48px);
     background: var(--win);
     border: 3px solid var(--ink);
@@ -93,6 +93,32 @@
   .btn-sm:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
   a.btn { text-decoration: none; }   /* ch04 T14:顶栏「忠实度台账」入口(链接套按钮皮) */
 
+  /* ===== ch07(T10): 多会话侧栏 ===== */
+  .chat-layout { flex: 1 1 auto; display: flex; min-height: 0; }
+  .chat-main { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+  #sidebar {
+    flex: 0 0 190px; display: flex; flex-direction: column; min-height: 0;
+    background: var(--aux); border-right: 3px solid var(--ink);
+  }
+  .sb-head {
+    flex: 0 0 auto; padding: 6px 8px; font-size: 11px; letter-spacing: 1px;
+    background: var(--win); border-bottom: 2px solid var(--ink);
+  }
+  #conv-list { flex: 1 1 auto; overflow-y: auto; }
+  .conv-item {
+    padding: 7px 8px; font-size: 11px; line-height: 1.45; cursor: pointer;
+    border-bottom: 2px solid rgba(41,41,41,.25); word-break: break-all;
+  }
+  .conv-item:hover { background: rgba(255,155,80,.25); }
+  .conv-item.active { background: var(--orange); }
+  .conv-item .ci-id { opacity: .65; }
+  .conv-item .ci-sum { font-size: 10px; opacity: .8; }
+  .sb-note {
+    flex: 0 0 auto; display: none; padding: 6px 8px; font-size: 10px;
+    background: var(--win); border-top: 2px solid var(--ink);
+  }
+  .sb-note.show { display: block; }
+
   /* ===== 聊天消息区域 ===== */
   #messages {
     flex: 1 1 auto; overflow-y: auto;
@@ -107,6 +133,12 @@
   .msg { display: flex; gap: 8px; align-items: flex-end; }
   .msg.user { justify-content: flex-end; }
   .msg.error { justify-content: center; }
+  /* ch07(T10) 回载:tool 行/纯 tool_calls 中间行=一行浅色 🔧 标识,不占气泡 */
+  .msg.toolline { justify-content: flex-start; }
+  .msg.toolline .bubble {
+    font-size: 11px; color: #8a806c; background: var(--aux);
+    border-width: 2px; box-shadow: none; padding: 3px 8px;
+  }
   .avatar {
     width: 28px; height: 28px; flex: 0 0 auto;
     background: var(--win);
@@ -359,14 +391,23 @@
     </div>
   </header>
 
-  <div id="messages"></div>
+  <div class="chat-layout">
+    <aside id="sidebar" class="mono" aria-label="会话列表">
+      <div class="sb-head">▤ 会话列表</div>
+      <div id="conv-list"></div>
+      <div id="sb-note" class="sb-note"></div>
+    </aside>
+    <div class="chat-main">
+      <div id="messages"></div>
 
-  <div id="input-bar">
-    <input id="input" placeholder="请输入您的问题，Enter 发送…" autocomplete="off">
-    <button id="send-btn" class="btn" aria-label="发送" title="发送">▶ 发送</button>
+      <div id="input-bar">
+        <input id="input" placeholder="请输入您的问题，Enter 发送…" autocomplete="off">
+        <button id="send-btn" class="btn" aria-label="发送" title="发送">▶ 发送</button>
+      </div>
+
+      <footer class="hint mono">ENTER 发送 · 服务端三层上下文(ch07) · SSE STREAMING</footer>
+    </div>
   </div>
-
-  <footer class="hint mono">ENTER 发送 · 上下文仅存于本页面 · SSE STREAMING</footer>
 </div>
 
 <!-- 售后提取 · 复古弹窗 -->
@@ -557,6 +598,7 @@ async function send() {
     bubble.classList.remove('typing');
     sendBtn.disabled = false;
     inputEl.focus();
+    loadConversations();   // ch07(T10): 首轮建会话/摘要标记变化→轮末刷列表(失败自静默)
   }
 }
 
@@ -567,7 +609,103 @@ inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposi
 // ＋ 新对话
 document.getElementById('new-chat-btn').addEventListener('click', () => {
   resetChat();
+  refreshConvActive();   // ch07(T10): 新对话后无高亮行(conversationId=null)
   inputEl.focus();
+});
+
+// ===== ch07(T10): 多会话侧栏(列表/切换回载/新对话/静默降级) =====
+const convListEl = document.getElementById('conv-list');
+const sbNoteEl = document.getElementById('sb-note');
+
+function sbNote(text) {                 // 一行提示=唯一降级面,永不挡聊天(spec 前端节)
+  sbNoteEl.textContent = text || '';
+  sbNoteEl.classList.toggle('show', !!text);
+}
+
+function refreshConvActive() {          // 高亮当前=conversationId 匹配,其余复位
+  for (const el of convListEl.querySelectorAll('.conv-item')) {
+    el.classList.toggle('active', parseInt(el.dataset.cid, 10) === conversationId);
+  }
+}
+
+async function loadConversations() {
+  try {
+    const resp = await fetch('/api/conversations');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const items = (await resp.json()).items || [];
+    sbNote('');
+    convListEl.innerHTML = '';
+    for (const it of items) {           // crud 面已 id 降序=新在前,前端不重排
+      const d = document.createElement('div');
+      d.className = 'conv-item';
+      d.dataset.cid = String(it.id);
+      const idEl = document.createElement('span');
+      idEl.className = 'ci-id';
+      idEl.textContent = '#' + it.id + ' ';
+      d.appendChild(idEl);
+      d.appendChild(document.createTextNode(it.preview || '（空会话）'));
+      if (it.summarized) {
+        const tag = document.createElement('span');
+        tag.className = 'ci-sum';
+        tag.textContent = ' · 已摘要';
+        d.appendChild(tag);
+      }
+      if (it.id === conversationId) d.classList.add('active');
+      convListEl.appendChild(d);
+    }
+  } catch (err) {
+    convListEl.innerHTML = '';          // DB 未起(503)/断网=侧栏空+一行,主聊天照常
+    sbNote('会话列表暂不可用');
+  }
+}
+
+function renderReloaded(rows) {         // 回载渲染:user/assistant 气泡;tool 行与
+  messagesEl.innerHTML = '';            // 无正文纯 tool_calls 中间行=一行浅色 🔧 标识
+  for (const m of rows) {
+    if (m.role === 'user') {
+      addMessage('user', m.content || '');
+    } else if (m.role === 'assistant') {
+      if (m.content) {
+        const { col } = addMessage('assistant', m.content);
+        for (const tc of (m.tool_calls || [])) {
+          const b = document.createElement('div');
+          b.className = 'tool-badge';
+          b.textContent = '🔧 ' + (tc.name || 'tool');
+          b.title = JSON.stringify(tc.args || {});
+          col.insertBefore(b, col.firstChild);
+        }
+      } else if (m.tool_calls && m.tool_calls.length) {
+        addMessage('toolline', '🔧 ' + m.tool_calls.map(t => t.name || 'tool').join(' + '));
+      }
+    } else if (m.role === 'tool') {
+      addMessage('toolline', '🔧 工具回执 ' + String(m.content || '').slice(0, 40));
+    }
+  }
+  scrollBottom();
+}
+
+async function switchConversation(cid) {
+  if (cid === conversationId || sendBtn.disabled) return;   // 流未结束禁切换(订单卡同款闸)
+  try {
+    const resp = await fetch('/api/conversations/' + cid + '/messages');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const rows = await resp.json();
+    conversationId = cid;               // 整体换轨:新 id + 新本地数组,续聊走既有 send 面
+    history.length = 0;
+    history.push(...rows
+      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content)
+      .map(m => ({ role: m.role, content: m.content })));
+    renderReloaded(rows);
+    refreshConvActive();
+    sbNote('');
+  } catch (err) {
+    sbNote('⚠ 回载失败,可继续当前对话');  // 不挡聊天、不换轨
+  }
+}
+
+convListEl.addEventListener('click', e => {   // 事件委托(角标同款,不逐行挂监听)
+  const item = e.target.closest('.conv-item');
+  if (item) switchConversation(parseInt(item.dataset.cid, 10));
 });
 
 // ===== ch04(T13) ①引用角标:[n] → <sup class="cite" data-cid> =====
@@ -913,9 +1051,10 @@ document.getElementById('extract-btn').addEventListener('click', async () => {
   }
 });
 
-// 初始欢迎语 + 自动聚焦
+// 初始欢迎语 + 自动聚焦;ch07(T10): 侧栏首帧拉列表(引擎未起=一行提示不挡聊天)
 resetChat();
 inputEl.focus();
+loadConversations();
 </script>
 </body>
 </html>
