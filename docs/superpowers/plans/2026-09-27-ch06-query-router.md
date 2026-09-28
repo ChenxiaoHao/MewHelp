@@ -395,12 +395,12 @@ async def test_orders_single_source_consistency():
 **Files:**
 - Create: `tests/e2e/test_ch06_acceptance.py`(共环+共引擎 fixture 逐字沿用 `tests/e2e/test_ch05_acceptance.py` 头部模式)
 
-- [ ] **Step 1: 写用例(integration)**
+- [x] **Step 1: 写用例(integration)**
   - **B1** 同 conversation 三轮:「订单1001的物流到哪了」→「这个订单我想退掉」→「它的物流呢」;逐轮 caplog 行断言 `'intent': '物流'` / `'intent': '退款退货'`(nodes 含 refund 链)/ 第三轮 `'resolved': '订单 1001 的物流到哪了'`(容语义包含「1001」+「物流」)且 intent 物流——验收 1 原句逐钉。
   - **B2** 怪问题「asdfgh 我不知道我想问啥 你们软件好奇怪」→ 日志 `'intent': '其他'` + 全程无异常 + 帧流正常收口(验收 2);
   - **B3** 「我买了订单1001的冻干猫粮」→「这个能退吗」→ resolved 含 1001、nodes 含 `refund_fetch/refund_expand/refund_policy/agent`、`retrieve_hits >0`、回答非空(验收 3 后端面;B4 浏览器面归 T6 手测+终审演示)。
-- [ ] **Step 2: 跑** `PYTHONPATH=. uv run pytest -m integration -q -p no:cacheprovider`(含 ch05 六条——双章同绿是回归红线;ch05 A1 若被「退货政策」重判劫持=回 T2 修 few-shot,不降口径)
-- [ ] **Step 3: 全量绿 + Commit** `"test(ch06-t8): e2e 验收 B1–B3(真模型+双章全回归)"`
+- [x] **Step 2: 跑** `PYTHONPATH=. uv run pytest -m integration -q -p no:cacheprovider`(含 ch05 六条——双章同绿是回归红线;ch05 A1 若被「退货政策」重判劫持=回 T2 修 few-shot,不降口径)
+- [x] **Step 3: 全量绿 + Commit** `"test(ch06-t8): e2e 验收 B1–B3(真模型+双章全回归)"`
 
 ---
 

@@ -162,7 +162,8 @@ class LowConfidenceQuestion(Base):
     )
     raw_question: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(
-        Enum("retrieval_low_conf", "self_check", "user_feedback", name="lcq_source"),
+        Enum("retrieval_low_conf", "self_check", "user_feedback",
+             "ch05_gate", "ch06_refund_gate", name="lcq_source"),
         nullable=False,
     )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
