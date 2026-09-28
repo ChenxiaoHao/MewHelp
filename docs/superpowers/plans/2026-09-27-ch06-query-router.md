@@ -406,9 +406,9 @@ async def test_orders_single_source_consistency():
 
 ### Task 9: 交付收尾(README + dev-notes + 演示)
 
-- [ ] **Step 1:** README 追加 ch06 节(功能 bullet、演示命令、验收话术 4 条、integration 跑法)
-- [ ] **Step 2:** dev-notes「finish」段:演示命令/测试结果/spec/plan/dev-notes 四路径 + 遗留 minor 汇总
-- [ ] **Step 3:** `PYTHONPATH=. uv run pytest -q` 终绿;Commit `"docs(ch06-t9): README+dev-notes 完结交付"`
+- [x] **Step 1:** README 追加 ch06 节(功能 bullet、演示命令、验收话术 4 条、integration 跑法)
+- [x] **Step 2:** dev-notes「finish」段:演示命令/测试结果/spec/plan/dev-notes 四路径 + 遗留 minor 汇总
+- [x] **Step 3:** `PYTHONPATH=. uv run pytest -q` 终绿;Commit `"docs(ch06-t9): README+dev-notes 完结交付"`
 - [ ] 之后:终审 whole-branch fresh reviewer(opus)→ 修批 → `finishing-a-development-branch` 菜单(默认选项 1 本地合并,照 ch05 惯例再问)。
 
 ---

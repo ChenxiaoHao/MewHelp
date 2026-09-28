@@ -182,7 +182,7 @@ ch05 前向兼容由既有 9 个测试文件守住），`query_order` 改为薄�
   入参 `{conversation_id, order_id, reason}`，reason ∈
   「七天无理由 / 商品质量问题 / 拍错多拍 / 其他」四类（固定下拉的服务端镜像，非法值 422）；
   写 tickets 表：`ticket_type="售后"`，description 服务端拼
-  「【退款申请】订单 {order_id}｜原因：{reason}｜会话 {cid}」；返回复用 `TicketOut`；
+  「【退款申请】订单 {order_id}｜原因：{reason}」(会话 id 已存 tickets 列,不重复进描述——2026-09-28 经 M3 评审按规6 向实现对齐);返回复用 `TicketOut`；
   无会话 503——与 `/api/tickets` 同款降级面。**不建新表**（拍板 P6）。
 
 ## 前端配套（需求 7；Vibe Coding 例外直做）

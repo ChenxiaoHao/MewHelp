@@ -214,3 +214,24 @@ uv run uvicorn app.main:app --port 8000        # 起服务(docker mysql/milvus �
 uv run pytest -q                                              # 全量单测(默认 deselect integration)
 uv run pytest tests/e2e/test_ch05_acceptance.py -m integration  # 端到端验收1-5(真模型+真库,活环境)
 ```
+
+## ch06 Workflow 最关键的一个节点:正式版分流器
+
+- **指代消解+Query 改写合一**:`coref` 节点带历史(近 6 条)把「它/这个/换货吧」补全成自包含标准问法;已完整的问题原样通过不强行改写;短确认/选项作答必须带上历史里的主体事由。
+- **意图识别 Prompt 四件套**:八类枚举(含「其他」)/强制 JSON 恰好 `{intent, confidence}`/边界 few-shot(「退货政策是什么」→商品咨询 vs「这单猫粮要退掉」→退款退货)/拿不准归其他不硬塞——纯 Prompt 方案,不训分类模型;解析失败重试 1 次仍败归「其他」。
+- **Query 扩写(仅退款退货/售后)**:一次提问拆≤4 条检索问法(原问法居首),强制 `{"queries": [...]}`;政策条款多路并行检索→chunk_id 去重取最高分→截 rerank_top_n;知识库存法零改动(只查询侧拆,不入库侧拆存)。
+- **退款确定性子流程**:intent=退款退货/售后 → 槽位检(正则提取单号,模型不许瞎猜)→ 缺号弹 `orders` 帧卡片(P5 点卡片发「我选择订单 {id}」协议句续跑,选择句+槽位直通零模型消耗)→ 取单数据 → 扩写+政策强制检索 → 置信闸 → 只有「这一单能不能退」进主 Agent;gate 通过固定挂 `refund_apply` 建议。
+- **退款申请表单(P6)**:`refund_apply` 建议 → 前端轻表单,原因只收固定四类(七天无理由/商品质量问题/拍错多拍/其他),提交 `POST /api/refunds` 落 tickets 表 `ticket_type=「售后」`,描述服务端拼装、自由文案进不来。
+- **降本降级路(默认关)**:`intent_small_model` 配小模型先判,置信 < `intent_confidence_threshold`(0.75)再升主模型;关时行为=ch05 直判。
+- **SSE 帧序红线**:token…→(persist)→`orders`→`suggestions`→done;token/done/error 逐字符不动(ch05 契约)。
+
+```bash
+uv run uvicorn app.main:app --port 8000        # 起服务(docker mysql/milvus 需在线)
+# 浏览器开 http://127.0.0.1:8000/ 演示话术:
+#   验收1 订单1001的物流到哪了 → 这个订单我想退掉 → 它的物流呢(三轮意图+消解逐轮对)
+#   验收2 asdfgh 我不知道我想问啥 你们软件好奇怪 → 归「其他」走知识路,全程无异常
+#   验收3 我买了订单1001的冻干猫粮 → 这个能退吗 → refund 链+政策检索命中+Agent 结论
+#   验收4 我要退款(不说单号) → 弹订单卡片 → 点一张 → 结论 → 末条挂「发起退款申请」→ 表单拿票号
+uv run pytest -m integration -q -p no:cacheprovider tests/e2e/   # 双章 e2e(A1–A5,B1–B3)
+uv run python evals/smoke_ch06.py                                # prompt 质量真模型冒烟(不进 CI)
+```
