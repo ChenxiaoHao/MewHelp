@@ -189,7 +189,7 @@ class ConversationSummary(Base):
 
 **验收**:smoke 全行通过才算过;miss → 只动 few-shot/铁律措辞,不动代码(ch06 纪律);结论记 dev-notes。
 
-- [ ] Step 1 契约测试 RED→GREEN;Step 2 样例 CSV(自造 6 段多轮批次,含「最开始那个订单 1001 退不了要转人工」伏笔——T11 C1 要考);Step 3 真模型 smoke,记录准确率与修 prompt 轮次;Step 4 提交 `feat(ch07-t5): 摘要四铁律prompt+标注样例smoke评估`。
+- [x] Step 1 契约测试 RED→GREEN;Step 2 样例 CSV(自造 6 段多轮批次,含「最开始那个订单 1001 退不了要转人工」伏笔——T11 C1 要考);Step 3 真模型 smoke,记录准确率与修 prompt 轮次;Step 4 提交 `feat(ch07-t5): 摘要四铁律prompt+标注样例smoke评估`。
 
 ---
 
