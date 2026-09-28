@@ -134,9 +134,9 @@ intent 节点流程：快路命中→闲聊（零调用，ch05 不动）→ 续�
 route=refund 后的节点序（全部确定性代码，模型只在末端出现一次）：
 
 1. **refund_slot**：`extract_order_id(text)` 纯函数正则（`订单\s*[#＃:：]?\s*(\d{3,})`
-   与续跑格式 `我选择订单\s*(\d{3,})`），输入=resolved_query+本轮原话；**模型绝不猜单号**。
+   与续跑格式 `我选择订单\s*([0-9]{3,})`,ASCII-only——终审 M2/M3 拍板口径,全角单号在槽位/API 两面都 422/None)，输入=resolved_query+本轮原话；**模型绝不猜单号**。
    - 提不到 → **selector 出口**：`refund_selector` 节点填 `orders_payload`（见下节）、
-     固定话术 ANSWER「好的，先确认您要处理哪一笔订单，请点选下方卡片：」入 `answer_text`+
+     固定话术 ANSWER=实现常量 `SELECT_ORDER_ASK`「好的，请从下方卡片选择要办理退款的订单：」(2026-09-28 终审规6 对齐,无层按字面匹配)入 `answer_text`+
      messages、置 `pending_flow="refund"` → logging → END。原因不问（表单固定类别承载）。
    - 提到 → 继续。
 2. **refund_fetch**：直调 `_make_order(order_id)`（见「订单数据源」）填 `order_data`。
@@ -170,8 +170,8 @@ ch05 前向兼容由既有 9 个测试文件守住），`query_order` 改为薄�
   落位经 `values` 终态而非 custom writer（可在非流式单测断言，无需活流）。
 - 前端点卡片 → 自动发送用户消息 `我选择订单 {order_id}`（可见、入 history；
   与 ch05「建工单按钮=显式动作」同族模式）→ 下一轮 coref 续跑识别直通 refund 路径。
-- pending 丢失（重启/匿名线程换 thread）：该消息当普通轮走意图——正则句式大概率仍判
-  退款退货，selector 再弹一次，语义安全不炸雷。
+- pending 丢失（重启/匿名线程换 thread）：该消息当普通轮走意图——正则句式大概率仍判退款退货；且 `订单 X` 子串会被内嵌提取正则命中,
+  refund_slot 直接拿到单号继续办事(不重弹)——实现优于原记载,2026-09-28 终审订正。
 
 ## SSE 契约与端点
 
