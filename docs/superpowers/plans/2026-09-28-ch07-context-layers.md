@@ -155,9 +155,9 @@ class ConversationSummary(Base):
   - `ContextStore(session_factory, conversation_id, settings)`:`async load_ctx()->(summary, upto, layer1_from)`、`async fetch_all_rows()`、`async fetch_layer1()`、`async set_layer1_from(v)`
 - Consumes:crud(Task 2 同名)、estimate_items(Task 1)
 
-- [ ] **Step 1: 失败测试**——三规则逐条;工具链折叠形态断言 `not any(isinstance(m, ToolMessage) ...)` 且无 tool_calls;cut 对齐 human 边界(批次不跨轮、保留段首必 human);全绿前不写实现。
-- [ ] **Step 2: 实现 + 绿**。渲染函数纯,ContextStore 薄包 crud。
-- [ ] **Step 3: 全量绿;提交** `feat(ch07-t3): 层2半压三规则(工具链整体折叠合法形态)+降级批次对齐human轮界+ContextStore读侧`。
+- [x] **Step 1: 失败测试**——三规则逐条;工具链折叠形态断言 `not any(isinstance(m, ToolMessage) ...)` 且无 tool_calls;cut 对齐 human 边界(批次不跨轮、保留段首必 human);全绿前不写实现。
+- [x] **Step 2: 实现 + 绿**。渲染函数纯,ContextStore 薄包 crud。
+- [x] **Step 3: 全量绿;提交** `feat(ch07-t3): 层2半压三规则(工具链整体折叠合法形态)+降级批次对齐human轮界+ContextStore读侧`。
 
 ---
 
