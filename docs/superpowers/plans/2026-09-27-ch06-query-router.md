@@ -357,9 +357,9 @@ async def test_orders_single_source_consistency():
 - Consumes: T4 `orders_payload`/`pending_flow`/REFUND_APPLY
 - Produces: SSE `orders` 帧(`OrdersEvent{items:list[OrderCard]}`)、`Suggestion.action` 三枚举、`POST /api/refunds`(201→`TicketOut`;reason 非法 422;无会话 503;tickets 落行 ticket_type="售后")、适配层帧序:token…→(persist)→orders→suggestions→done
 
-- [ ] **Step 1: RED**——适配层用例:同 T4 场景跑 `stream_graph_turn`,断言 kinds 中 `"orders"` 位于最后一个 `"token"` 之后、`"done"` 之前,payload 三项含 items 字符串「名 ×qty」;端点用例:合法四类 reason→201+落表描述含「订单 1001」「原因」;reason="想退就退"→422;session None→503。
-- [ ] **Step 2 跑 RED → Step 3 实现**:`schemas/refund.py`(`RefundReason = Literal["七天无理由","商品质量问题","拍错多拍","其他"]`,request 三字段);routes elif + 新端点(描述拼装 `f"【退款申请】订单 {req.order_id}｜原因：{req.reason}"`,crud.create_ticket(ticket_type="售后"));graph 适配层 `if final.get("orders_payload"): yield ("orders", {"items": final["orders_payload"]})`(落位 suggestions 之前,仅非空才发——Review Focus 4 防御)。
-- [ ] **Step 4: 全量绿 + Commit** `"feat(ch06-t5): orders 帧契约+refund_apply 枚举+POST /api/refunds 落 tickets(售后)"`
+- [x] **Step 1: RED**——适配层用例:同 T4 场景跑 `stream_graph_turn`,断言 kinds 中 `"orders"` 位于最后一个 `"token"` 之后、`"done"` 之前,payload 三项含 items 字符串「名 ×qty」;端点用例:合法四类 reason→201+落表描述含「订单 1001」「原因」;reason="想退就退"→422;session None→503。
+- [x] **Step 2 跑 RED → Step 3 实现**:`schemas/refund.py`(`RefundReason = Literal["七天无理由","商品质量问题","拍错多拍","其他"]`,request 三字段);routes elif + 新端点(描述拼装 `f"【退款申请】订单 {req.order_id}｜原因：{req.reason}"`,crud.create_ticket(ticket_type="售后"));graph 适配层 `if final.get("orders_payload"): yield ("orders", {"items": final["orders_payload"]})`(落位 suggestions 之前,仅非空才发——Review Focus 4 防御)。
+- [x] **Step 4: 全量绿 + Commit** `"feat(ch06-t5): orders 帧契约+refund_apply 枚举+POST /api/refunds 落 tickets(售后)"`
 
 ---
 

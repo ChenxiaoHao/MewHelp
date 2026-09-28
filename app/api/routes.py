@@ -11,11 +11,13 @@ from app.schemas.chat import (
     ChatRequest,
     ConversationEvent,
     HealthResponse,
+    OrdersEvent,
     SuggestionsEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
 from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
+from app.schemas.refund import RefundRequest
 from app.schemas.ticket import TicketCreateRequest, TicketOut
 from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
 from app.services.chat_service import get_model
@@ -98,6 +100,10 @@ async def chat_stream(
                 yield ServerSentEvent(
                     data=ToolResultEvent(**payload).model_dump(exclude_none=True), event="tool_result"
                 )
+            elif kind == "orders":  # ch06 新帧(P7):末 token 后、suggestions 前(适配层保证)
+                yield ServerSentEvent(
+                    data=OrdersEvent(**payload).model_dump(), event="orders"
+                )
             elif kind == "suggestions":  # ch05 新帧(P4):末 token 后、done 前(适配层保证)
                 yield ServerSentEvent(
                     data=SuggestionsEvent(**payload).model_dump(), event="suggestions"
@@ -121,6 +127,21 @@ async def create_ticket(
         conversation_id=req.conversation_id,
         description=f"【{req.title}】{req.content}",
         ticket_type="咨询",
+    )
+    return TicketOut(ticket_no=row.ticket_no)
+
+
+@router.post("/api/refunds", response_model=TicketOut, status_code=201)
+async def create_refund(req: RefundRequest, session=Depends(dep_db_session)) -> TicketOut:
+    """ch06 需求 6/拍板 P6：退款表单提交 → tickets 表，ticket_type=「售后」。
+    描述服务端拼装；reason 只收固定四类（前端下拉），自由文案进不来。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.create_ticket(
+        session,
+        conversation_id=req.conversation_id,
+        description=f"【退款申请】订单 {req.order_id}｜原因：{req.reason}",
+        ticket_type="售后",
     )
     return TicketOut(ticket_no=row.ticket_no)
 

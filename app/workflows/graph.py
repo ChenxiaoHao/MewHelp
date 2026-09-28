@@ -135,5 +135,7 @@ async def stream_graph_turn(
                 await persister.on_final_answer(conversation_id, answer)
         except Exception:  # noqa: BLE001 —— 落库失败只降级,不挡关流(spec §9)
             logger.warning("persist final answer failed (graph turn)", exc_info=True)
+    if final.get("orders_payload"):  # ch06 P7:选择器卡片帧,仅非空才发(防御空帧)
+        yield ("orders", {"items": final["orders_payload"]})
     if final.get("suggestions"):     # RF4:末 token 之后、done 之前
         yield ("suggestions", {"items": final["suggestions"]})
