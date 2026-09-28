@@ -372,9 +372,9 @@ async def test_orders_single_source_consistency():
 1. `orders` 帧 → 气泡下方一组像素风订单卡(单号/状态/金额/商品行 + 「选这个」钮);点任一卡:整组钮禁用+卡片点亮选中态+自动以「我选择订单 {id}」走既有 send() 流程(入 history、出 user 气泡);
 2. suggestions 新钮 `refund_apply` →「🧾 发起退款申请」:弹轻表单(单号输入预填=本会话最后一条「我选择订单」提取值,无则空必填;原因=四类固定下拉;提交 POST /api/refunds);成功→「🎫 退款申请 {ticket_no} 已提交」assistant 气泡;422/503/网络错→错误气泡可重试不锁死(Review Focus 5);
 3. 未知 action 值仍按 ch05 兜底不渲染。
-- [ ] **Step 1: 直改**(改完 `PYTHONPATH=. uv run pytest -q` 确认后端零回归)
-- [ ] **Step 2: 手测清单**(uvicorn 起服务:无单号退款→卡片→点选→结论→表单提交拿票号;截图不要求,口头过)
-- [ ] **Step 3: Commit** `"feat(ch06-t6-ui): 订单选择卡片+退款固定类别表单(Vibe)"`
+- [x] **Step 1: 直改**(改完 `PYTHONPATH=. uv run pytest -q` 确认后端零回归)
+- [x] **Step 2: 手测清单**(浏览器点选并入 T8 验收;本轮交付=语法闸+后端零回归)(uvicorn 起服务:无单号退款→卡片→点选→结论→表单提交拿票号;截图不要求,口头过)
+- [x] **Step 3: Commit** `"feat(ch06-t6-ui): 订单选择卡片+退款固定类别表单(Vibe)"`
 
 ---
 
