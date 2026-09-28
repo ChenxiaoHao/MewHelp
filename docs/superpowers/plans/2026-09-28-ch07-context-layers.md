@@ -45,7 +45,7 @@
 - Produces: `estimate_text(text)->int`、`estimate_msg(msg)->int`、`estimate_items(seq)->int`(str|BaseMessage 混收,每条 +4 开销);`Budgets(sliding, layer1, layer2, parts:dict)`;`compute_budgets(settings)->Budgets`;`selfcheck_budget(settings)->str|None`(None=正常,否则告警文案)
 - Consumes: `settings.*`(本任务新增键)、`CUSTOMER_SERVICE_PROMPT`
 
-- [ ] **Step 1: 失败测试——三数锚点与默认口径**
+- [x] **Step 1: 失败测试——三数锚点与默认口径**
 
 ```python
 # tests/test_budget_ch07.py
@@ -79,7 +79,7 @@ def test_selfcheck_warns_when_tiny():
 
 `compute_budgets` 内 S 现测:`estimate_text(渲染人设 System 文本)`(实测 543;常数 707/1000 即以此为锚凑 4750,prompt 若被改此测试红=校准门,docstring 写明)。
 
-- [ ] **Step 2: 跑红 → 实现 budget.py + config 新键 → 跑绿**
+- [x] **Step 2: 跑红 → 实现 budget.py + config 新键 → 跑绿**
 
 config 新增(全带默认):`model_context_window: int = 32000`、`max_output_tokens: int = 2000`、`max_user_input_tokens: int = 2000`、`max_agent_steps: int = 6`、`tool_result_max_tokens: int = 1200`、`rerank_top_k: int = 5`(仅预算面,P3)、`turns_to_keep: int = 20`、`steady_tokens_per_turn: int = 500`、`assistant_head_chars: int = 60`、`summary_inject_tokens: int = 707`、`safety_margin_tokens: int = 1000`、`history_view_messages: int = 6`。
 
@@ -98,11 +98,11 @@ def compute_budgets(settings) -> Budgets:
     return Budgets(sliding, layer1, layer2, parts={...})
 ```
 
-- [ ] **Step 3: ChatRequest 当前句超 `max_user_input_tokens` → 422(P5)**
+- [x] **Step 3: ChatRequest 当前句超 `max_user_input_tokens` → 422(P5)**
 
 `tests/test_input_limit_ch07.py`:TestClient 对 `/api/chat/stream`(引擎未初始化面亦先过 schema)POST 2001+ 汉字当前句 → 422;正常句 → 非 422。validator 放 `ChatRequest`(model_validator,读 `get_settings()`,估 last message content)。main.py lifespan:`msg = selfcheck_budget(settings)` → `logger.error("上下文预算不足: %s", msg)`(不阻断)。
 
-- [ ] **Step 4: 全量绿 + 提交**
+- [x] **Step 4: 全量绿 + 提交**
 
 `uv run pytest -q` 全绿;spec 估算器段对齐;dev-notes 阶段1 追加(Ruling 记此);commit `feat(ch07-t1): 预算倒推估算器与三数锚点+自检+输入422`。
 

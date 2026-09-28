@@ -39,7 +39,7 @@
 
 ## 预算模型(app/context/budget.py)
 
-- **唯一估算器 `estimate_tokens()`**:委托 `count_tokens_approximately`(与 trim_messages、react 累计计数同源——「口径和预算一起校准」的落点)。CJK 折算因子不写死进 spec:T1 单测用固定锚点句实测其行为并断言,预算公式全部经该函数表达。
+- **唯一估算器 `estimate_text/estimate_msg/estimate_items`**(章内自实现,**不委托** `count_tokens_approximately`:实测其把 491 汉字仅计 175,≈3.45 字/token,违反需求「中文按字数折」):汉字 1 字≈1 token、ASCII 4 字≈1 token、每消息 +4 开销。**budget、装配 trim、ReAct 计数三处同源**(T8 换 ReAct 计数源)——「口径和预算一起校准」的落点。
 - `compute_budgets(settings)` 倒推:
 
   ```

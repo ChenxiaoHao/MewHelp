@@ -37,6 +37,13 @@ async def lifespan(app: FastAPI):
     logger.info(
         "MySQL 已连接 %s:%s/%s", settings.mysql_host, settings.mysql_port, settings.mysql_db
     )
+    # ch07 需求4:预算启动自检——连一轮稳态都装不下即报警(不阻断启动,降级面仍可聊)
+    from app.context.budget import selfcheck_budget
+
+    if (budget_warn := selfcheck_budget(settings)) is not None:
+        logger.error("上下文预算不足: %s", budget_warn)
+    else:
+        logger.info("上下文预算自检通过")
 
     from app.rag import milvus_store  # 模块级 import 亦可;pymilvus 已是硬依赖
 

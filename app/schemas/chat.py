@@ -2,6 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.context.budget import estimate_text
+from app.core.config import get_settings
+
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
@@ -16,6 +19,11 @@ class ChatRequest(BaseModel):
     def last_message_must_be_user(self) -> "ChatRequest":
         if self.messages[-1].role != "user":
             raise ValueError("messages 最后一条的 role 必须是 user")
+        # ch07 需求4-P5:当前句超 max_user_input_tokens → 校验失败(路由 422,不截不 500)
+        limit = get_settings().max_user_input_tokens
+        used = estimate_text(self.messages[-1].content)
+        if used > limit:
+            raise ValueError(f"当前输入过长(≈{used} token > 上限 {limit})")
         return self
 
 
