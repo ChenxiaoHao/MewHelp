@@ -68,6 +68,11 @@ def test_slot_regexes():
     assert extract_order_id("订单#1003：发货了吗") == "1003"
     assert extract_order_id("订单：1002", "") == "1002"
     assert extract_order_id("我想退款", "这个能退吗") is None
+    # M2 评审回归:全角数字(中文 IME 直敲)不许穿透 \d —— 否则 seed 变、
+    # Agent 答单与所选卡片静默矛盾。单号面只认 ASCII [0-9]。
+    assert match_order_selection("我选择订单 １００２") is None
+    assert extract_order_id("订单 １００２ 的物流") is None
+    assert extract_order_id("订单 １００２ 的物流", "订单 1002 的物流") == "1002"
 
 
 # ---- 节点面(make_intent_node(model, settings)):快路/兜底其他/降级路 ----
@@ -78,7 +83,6 @@ from app import workflows  # noqa: E402,F401  (确保包路径已加载,monkeypa
 from app.workflows import nodes as N  # noqa: E402
 from app.workflows.nodes import make_intent_node  # noqa: E402
 
-pytestmark = pytest.mark.asyncio(loop_scope="function")
 
 
 class ScriptModel:

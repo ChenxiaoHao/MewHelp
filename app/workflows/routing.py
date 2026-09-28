@@ -119,8 +119,8 @@ def merge_evidence(groups: list[list[dict]], cap: int) -> list[dict]:
 
 
 # --- ch06 槽位正则(需求 6:模型不许猜单号,确定性提取) -------------------------
-_SELECTION_RE = re.compile(r"^我选择订单\s*(\d{3,})$")
-_ORDER_IN_TEXT_RE = re.compile(r"订单\s*[#＃:：]?\s*(\d{3,})")
+_SELECTION_RE = re.compile(r"^我选择订单\s*([0-9]{3,})$")
+_ORDER_IN_TEXT_RE = re.compile(r"订单\s*[#＃:：]?\s*([0-9]{3,})")
 
 
 def match_order_selection(text: str) -> str | None:
