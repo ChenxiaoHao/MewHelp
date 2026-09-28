@@ -199,7 +199,7 @@ uv run pytest -m integration -q             # 集成(需 docker mysql/milvus + k
 
 - **Graph 编排**:`StateGraph` 指代消解→意图识别→四路分流(knowledge→retrieve→gate/agent、data→agent、complaint、chitchat)→日志→END;`InMemorySaver` 仅进程内跨轮(D3),线程键 `conv-{cid}`;降级(cid=None)走 anon 线程+整包客户端历史(与 ch01 无状态语义对齐)。
 - **两层防幻觉**:意图 JSON 解析失败重试 1 次仍败归 knowledge(P2);知识置信闸(纯阈值,P1)证据弱直接兜底拒答、不进 Agent,拒答同时落 `low_confidence_questions` 池。
-- **ReAct 流式 Agent**:思考→工具→结果喂回→再思考直到收敛;`react_max_iterations=6` / `react_token_budget=8000` 双熔断(P3),超限用已有信息收尾并建议转人工;每步 `logger.info` 步数可见。
+- **ReAct 流式 Agent**:思考→工具→结果喂回→再思考直到收敛;`max_agent_steps=6`(ch07 T8 接管,原 `react_max_iterations` 键删除) / `react_token_budget=8000` 双熔断(P3),超限用已有信息收尾并建议转人工;每步 `logger.info` 步数可见;ch07 T8 起证据/订单注入并入段5 装配,react 层不再做 System 前置。
 - **suggestions 帧 + 两独立按钮**:投诉出口末 token 后、done 前发 `suggestions` 帧(P4);前端「转人工」纯前端话术零 fetch,「建工单」确认后才 `POST /api/tickets` 写 tickets——两按钮互不绑定,建单不再置会话「已转人工」(crud 副作用已移除,D4);不点=无任何动作。
 - **接线与基线**:`/api/chat/stream` 换 Graph 编排;ch04 `stream_chat_with_tools` 函数保留作回归基线(P5)。token/done/error 帧逐字符红线不动。
 

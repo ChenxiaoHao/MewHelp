@@ -229,8 +229,8 @@ class ConversationSummary(Base):
 - Modify: `app/agents/react.py`(删 evidence/order_data System 前置两块=装配段5 已代;`while steps < settings.max_agent_steps`;`tokens_used += estimate_msg`;日志行键名),`app/core/config.py`(删 `react_max_iterations`——P3 接管,不留别名)
 - Test: `tests/test_react_node_ch05.py` 断言翻转改形 + 构造参数字典名替换;`tests/test_confidence_gate_ch05.py`、`tests/test_graph_topology_ch05.py`、`tests/test_orders_sse_ch06.py`、`tests/test_refund_flow_ch06.py` 的 Settings(...) 键改名(规4 随本任务 commit)
 
-- [ ] Step 1 失败测试:传入含段5 的 msgs → react 不再产任何 evidence System;`max_agent_steps=1` 超限收流行为与旧 5 轮版同构;估算器换源后 token 熔断阈值断言重校。
-- [ ] Step 2 实现+全量绿(338+新增,键改名波及逐处核对);提交 `feat(ch07-t8): ReAct去System前置(段5装配代)+max_agent_steps接管轮数上限+计数同源估算器`。
+- [x] Step 1 失败测试:传入含段5 的 msgs → react 不再产任何 evidence System;`max_agent_steps=1` 超限收流行为与旧 5 轮版同构(落地为 RF2 测换名 st(max_agent_steps=5) 同构形——轮数参数化后 1/5 行为同一,见 ledger Ruling);估算器换源后 token 熔断阈值断言重校。
+- [x] Step 2 实现+全量绿(338+新增,键改名波及逐处核对);提交 `feat(ch07-t8): ReAct去System前置(段5装配代)+max_agent_steps接管轮数上限+计数同源估算器`。
 
 ---
 

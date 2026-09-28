@@ -23,8 +23,7 @@ class Settings(BaseSettings):
     tool_timeout_seconds: float = 5.0
     tool_max_retries: int = 1
 
-    # --- ch05: ReAct 主力 Agent 双熔断(拍板 P3 默认值) ---
-    react_max_iterations: int = 6
+    # --- ch05: ReAct token 预算熔断(拍板 P3;轮数上限 ch07 起并入 max_agent_steps) ---
     react_token_budget: int = 8000
 
     # --- ch06: 意图降级路(拍板 P2:默认空=只用大模型,配置后小判大复) ---

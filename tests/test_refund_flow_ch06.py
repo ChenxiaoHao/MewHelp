@@ -1,8 +1,8 @@
 """ch06 Task 4: 退款确定性子流程五节点 + 续跑识别 + gate source + refund_apply + 订单注入。
 
 图级用例复用 ScriptModel(ch05 fake_env 同款)+ monkeypatch retriever_mod.retrieve;
-react 注入用例直调 react_agent_stream,证明 order_data 前置 SystemMessage 的有无
-(不含时零影响=ch05 回归面)。
+react 注入用例直调 react_agent_stream——ch07 T8 起注入上移段5 装配,react 层反向守
+「任何 System 前置都不再出现」(正向面归 test_ctx_node_ch07 五段装配测)。
 """
 
 import json
@@ -46,7 +46,7 @@ class ScriptModel:
 def fake_settings():
     return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0,
                            retrieval_low_conf_threshold=0.161,
-                           react_max_iterations=6, react_token_budget=8000,
+                           max_agent_steps=6, react_token_budget=8000,
                            history_token_budget=4000, demo_user_id="demo_user",
                            rerank_top_n=10, intent_small_model="",
                            intent_confidence_threshold=0.75)
@@ -184,7 +184,11 @@ async def test_pending_not_hijack_normal_turn(fake_env):
     assert "refund_selector" not in out["log"]["nodes"]
 
 
-async def test_order_data_injected_into_react(fake_settings, fake_row):
+async def test_react_no_longer_prepends_system_injection(fake_settings, fake_row):
+    """ch07 T8 断言翻转(规4 随本任务):order_data/evidence 的注入上移到段5 装配
+    (build_model_context,当前句后一条 Human),react 层不再产任何 System 前置——
+    正向注入面由 tests/test_ctx_node_ch07.py::test_agent_receives_five_segment 钉。
+    本测守反向红线:react 收到带 order_data/evidence 的 state 也必须零 System。"""
     class OneShot:
         def bind_tools(self, tools):
             self.last_msgs = None
@@ -199,13 +203,12 @@ async def test_order_data_injected_into_react(fake_settings, fake_row):
           "order_data": {"order_id": "1001", "status": "运输中", "amount": 99.0}}
     async for _ in react_agent_stream(st, fake_settings, m):
         pass
-    joined = [x for x in m.last_msgs if isinstance(x, SystemMessage)]
-    assert any("订单数据:" in x.content for x in joined)
+    assert not any(isinstance(x, SystemMessage) for x in m.last_msgs)
+    assert isinstance(m.last_msgs[0], HumanMessage)      # 入参原样透传
 
     m2 = OneShot()
     st2 = {"messages": [HumanMessage(content="退货政策是什么")],
            "evidence": [{"chunk_id": 1, "score": 0.9, "text": "7 天"}]}
     async for _ in react_agent_stream(st2, fake_settings, m2):
         pass
-    assert not any("订单数据:" in x.content for x in m2.last_msgs
-                   if isinstance(x, SystemMessage))   # ch05 零影响回归
+    assert not any(isinstance(x, SystemMessage) for x in m2.last_msgs)

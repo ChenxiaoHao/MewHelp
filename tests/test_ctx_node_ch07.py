@@ -21,7 +21,7 @@ DEMO = dict(model_context_window=18000, max_output_tokens=2000, max_user_input_t
             turns_to_keep=20, steady_tokens_per_turn=500, assistant_head_chars=60,
             summary_inject_tokens=707, safety_margin_tokens=1000, history_view_messages=6,
             chunk_size=500, retrieval_low_conf_threshold=0.161,
-            react_max_iterations=6, react_token_budget=8000,
+            react_token_budget=8000,
             tool_timeout_seconds=5.0, tool_max_retries=0, history_token_budget=4000,
             intent_confidence_threshold=0.6, demo_user_id="u_demo")
 
