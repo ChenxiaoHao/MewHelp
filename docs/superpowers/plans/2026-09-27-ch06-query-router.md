@@ -324,7 +324,7 @@ async def test_orders_single_source_consistency():
 - Consumes: T1 复位键、T2 `match_order_selection/extract_order_id`/route refund、T3 `_make_order/list_user_orders/parse_queries_json/merge_evidence/EXPAND_PROMPT`
 - Produces: 节点名(入 log nodes):`refund_slot/refund_selector/refund_fetch/refund_expand/refund_policy/refund_gate`;`make_confidence_gate_node(settings, source="ch05_gate")`(默认参不动旧行为);agent 节点 route==refund 且 done.suggestions 空 → `[REFUND_APPLY]`;coref 顶端续跑识别(slot_order_id=oid、resolved 模板 `f"订单 {oid} 能不能申请退款？"`、log `resume:True`、intent 见 slot 直通零调用)
 
-- [ ] **Step 1: RED——`tests/test_refund_flow_ch06.py`** 用例清单(逐条写实体,断言 nodes 链+键):
+- [x] **Step 1: RED——`tests/test_refund_flow_ch06.py`** 用例清单(逐条写实体,断言 nodes 链+键):
   1. 无单号「我要退款」→ 链 `[coref,intent,refund_slot,refund_selector,logging]`,`orders_payload` 3 卡、`pending_flow=="refund"`、answer==SELECT_ORDER_ASK、零工具/检索调用;
   2. 同 thread 续跑「我选择订单 1001」→ coref resume(不耗模型调用)+intent 零调用直通,链含 `[refund_fetch,refund_expand,refund_policy,refund_gate,agent]`,`order_data["order_id"]=="1001"`、`pending_flow==""`;expand 脚本 `{"queries":["多久内可退","退款运费谁承担"]}`,monkeypatch retrieve 回固定两 chunk → `expanded_queries==["订单 1001 能不能申请退款？","多久内可退","退款运费谁承担"]`(原问法在首位)、evidence 为 merge 后;
   3. expand 输出烂 JSON → 单路 `[resolved]` 照常检索(降级不阻断);
@@ -333,7 +333,7 @@ async def test_orders_single_source_consistency():
   6. pending 高挂 + 用户改口「你好」→ 快路闲聊,pending 读后即清不劫持(Review Focus 2);
   7. react.py:state 含 `order_data` 时 `model.last_msgs` 有「订单数据:」SystemMessage,不含时没有(回归 ch05 零影响);
   8. 单号内联「订单1001我要退」→ 首轮直连 fetch(selector 不弹)。
-- [ ] **Step 2: 跑 RED** → **Step 3: 实现**
+- [x] **Step 2: 跑 RED** → **Step 3: 实现**
   - `refund_slot_node(state)` 纯同步:oid=`slot_order_id` or `extract_order_id(resolved,user)`;返回值不放分支——分支交给条件边 `_after_slot`→"fetch"/"selector";
   - `refund_selector_node(settings)`:orders_payload=list_user_orders(settings.demo_user_id)、answer/messages 固定话术、pending_flow="refund";
   - `refund_fetch_node`:order_data=_make_order(oid);
@@ -342,7 +342,7 @@ async def test_orders_single_source_consistency():
   - graph:`_dispatch` 增 `"refund": "refund_slot"`;链 `refund_slot→(cond)→selector|fetch→expand→policy→refund_gate→(cond pass→agent/fail→logging)`;`make_confidence_gate_node(settings, source="ch05_gate")` 落池 source 参数化,refund_gate 实例传 `"ch06_refund_gate"`;
   - agent 节点尾:route=="refund" 且 gate_pass 且 `not done["suggestions"]` → `REFUND_APPLY`(state.py 常量,label 发起退款申请);
   - coref 顶端(T4 预告过的 3 行):`oid = match_order_selection(q) if state.get("pending_flow")=="refund" else None` → 命中走模板+resume 日志,不进 LLM 分支。
-- [ ] **Step 4: 全量绿**(ch05 拓扑用例不受 refund 边影响)+ Commit `"feat(ch06-t4): 退款确定性子流程五节点+续跑识别+gate source 参数化+refund_apply 建议+agent 订单数据注入"`
+- [x] **Step 4: 全量绿**(ch05 拓扑用例不受 refund 边影响)+ Commit `"feat(ch06-t4): 退款确定性子流程五节点+续跑识别+gate source 参数化+refund_apply 建议+agent 订单数据注入"`
 
 ---
 

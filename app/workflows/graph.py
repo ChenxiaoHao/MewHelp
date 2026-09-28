@@ -1,7 +1,8 @@
 """StateGraph 装配（ch05 spec「总体架构与图拓扑」节）。
 
 指代消解→意图识别→按意图分流(knowledge/retrieve→gate/agent|data→agent|
-complaint|chitchat)→日志→END。checkpointer=InMemorySaver,仅进程内跨轮(D3)。
+refund/槽位检→选择器|取单→扩写→政策→gate→agent|complaint|chitchat)→日志→END。
+checkpointer=InMemorySaver,仅进程内跨轮(D3)。
 
 T6 起本模块另负责 `stream_graph_turn` 适配层：图流(custom 模式透传的 ReAct
 事件 + 终态) → routes 直接消费的 ToolEvent 形状帧流。
@@ -42,17 +43,35 @@ def build_graph(settings, model, checkpointer=None):
     g.add_node("complaint", N.complaint_node)
     g.add_node("chitchat", N.chitchat_node)
     g.add_node("logging", N.logging_node)
+    # ch06 退款确定性子流程(需求 5/6):取单→扩写→政策多路检索→闸(复用 ch05 语义)
+    g.add_node("refund_slot", N.refund_slot_node)
+    g.add_node("refund_selector", N.make_refund_selector_node(settings))
+    g.add_node("refund_fetch", N.refund_fetch_node)
+    g.add_node("refund_expand", N.make_refund_expand_node(model))
+    g.add_node("refund_policy", N.make_refund_policy_node(settings))
+    g.add_node("refund_gate", N.make_confidence_gate_node(
+        settings, source="ch06_refund_gate", name="refund_gate"))
 
     g.set_entry_point("coref")
     g.add_edge("coref", "intent")
-    # 分流:意图 → 四出口(需求 3)
+    # 分流:意图 → 五出口(ch06 需求 3/5;过渡守卫已拆,ledger 记账)
     g.add_conditional_edges("intent", _dispatch, {
-        "knowledge": "retrieve", "data": "agent",
+        "knowledge": "retrieve", "data": "agent", "refund": "refund_slot",
         "complaint": "complaint", "chitchat": "chitchat",
     })
     # 知识闸:证据弱直接兜底不进 Agent(需求 7)
     g.add_edge("retrieve", "gate")
     g.add_conditional_edges("gate", _after_gate, {"pass": "agent", "fail": "logging"})
+    # 退款链:槽位缺 → 弹卡(直接关流);有单号 → 取单→扩写→政策→闸
+    g.add_conditional_edges("refund_slot", _after_slot, {
+        "fetch": "refund_fetch", "selector": "refund_selector",
+    })
+    g.add_edge("refund_selector", "logging")
+    g.add_edge("refund_fetch", "refund_expand")
+    g.add_edge("refund_expand", "refund_policy")
+    g.add_edge("refund_policy", "refund_gate")
+    g.add_conditional_edges("refund_gate", _after_gate,
+                            {"pass": "agent", "fail": "logging"})
     g.add_edge("agent", "logging")
     g.add_edge("complaint", "logging")
     g.add_edge("chitchat", "logging")
@@ -61,10 +80,11 @@ def build_graph(settings, model, checkpointer=None):
 
 
 def _dispatch(state):
-    # T2→T4 过渡守卫:refund 出口节点未接线前暂归 knowledge(带闸安全出口);
-    # Task 4 接通子流程后本行白名单扩入 refund(ledger 记账)。
-    route = state.get("route", "knowledge")
-    return route if route in ("knowledge", "data", "complaint", "chitchat") else "knowledge"
+    return state.get("route", "knowledge")
+
+
+def _after_slot(state):
+    return "fetch" if state.get("slot_order_id") else "selector"
 
 
 def _after_gate(state):

@@ -6,6 +6,8 @@ retrieve 经 `retriever.retrieve(...)` 模块属性调用点(非 from-import 绑
 测试据此 monkeypatch 注入假检索,生产代码零改动(D7 只读)。
 """
 
+import asyncio
+import json
 import logging
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -16,15 +18,26 @@ from app.agents.react import react_agent_stream
 from app.prompts.coref import COREF_PROMPT
 from app.prompts.customer_service import CUSTOMER_SERVICE_PROMPT
 from app.prompts.intent import INTENT_PROMPT
+from app.prompts.query_expand import EXPAND_PROMPT
 from app.rag import retriever
 from app.services import refusals          # 经模块属性调用,pool 可被测试替换
 from app.services.chat_service import get_model, trim_history
+from app.tools.definitions import _make_order, list_user_orders
 from app.workflows.routing import (
     chitchat_fast_path,
+    extract_order_id,
+    match_order_selection,
+    merge_evidence,
     parse_intent_json,
+    parse_queries_json,
     route_for_intent,
 )
-from app.workflows.state import CREATE_TICKET, TRANSFER_HUMAN
+from app.workflows.state import (
+    CREATE_TICKET,
+    REFUND_APPLY,
+    SELECT_ORDER_ASK,
+    TRANSFER_HUMAN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +61,17 @@ def make_coref_node(model):
     """
     async def coref_node(state: dict) -> dict:
         q = state.get("user_query", "")
+        # 续跑识别(T4,pending_flow 先读后清):选择器点卡片协议句 → 模板补全,零模型调用
+        resume_oid = (match_order_selection(q)
+                      if state.get("pending_flow") == "refund" else None)
         reset = {"log": {"nodes": ["coref"]}, "evidence": [], "suggestions": [],
                  "answer_text": "", "gate_pass": False, "pending_flow": "",
                  "slot_order_id": "", "order_data": {}, "expanded_queries": [],
                  "orders_payload": [], "intent_confidence": 0.0}
+        if resume_oid:
+            reset["log"].update(coref="resume", resume=True)
+            return {**reset, "slot_order_id": resume_oid,
+                    "resolved_query": f"订单 {resume_oid} 能不能申请退款？"}
         hist = list(state.get("messages") or [])[:-1]      # 本轮 human 已在图入参
         if not any(isinstance(m, HumanMessage) for m in hist):
             reset["log"]["coref"] = "passthrough"
@@ -105,6 +125,11 @@ def make_intent_node(model, settings):
     async def intent_node(state: dict) -> dict:
         log = _note(state, "intent")
         query = state.get("resolved_query") or state.get("user_query", "")
+        if state.get("slot_order_id"):
+            # 续跑直通(coref resume 已钉死办事意图):协议句无需再判类,零调用
+            return {"intent": "退款退货", "route": "refund", "intent_confidence": 1.0,
+                    "log": {**log, "intent": "退款退货", "confidence": 1.0,
+                            "resume": True}}
         if chitchat_fast_path(state.get("user_query", "")):  # D5 + ch06:快路看原话
             return {"intent": "闲聊", "route": "chitchat", "intent_confidence": 1.0,
                     "log": {**log, "fast_path": True, "intent": "闲聊"}}
@@ -152,18 +177,21 @@ def evidence_gate_verdict(items, threshold: float) -> tuple[bool, float]:
 RRF_DEGRADED_MAX = 0.04
 
 
-def make_confidence_gate_node(settings):
+def make_confidence_gate_node(settings, source: str = "ch05_gate",
+                              name: str = "gate"):
     async def confidence_gate_node(state: dict, config: RunnableConfig) -> dict:
         """Task 4 阈值版(P1):弱证据 → 兜底话术 + 落低置信池(source=ch05_gate)。
 
-        池写失败由 refusals.pool_low_confidence 内部吞掉,不阻断兜底(Review Focus 5)。
+        ch06 T4:source 参数化——refund_gate 实例传 "ch06_refund_gate" 分池归因;
+        默认参不动 ch05 行为。池写失败由 refusals.pool_low_confidence 内部吞掉,
+        不阻断兜底(Review Focus 5)。
         """
         evidence = state.get("evidence") or []
         ok, best = evidence_gate_verdict(evidence, settings.retrieval_low_conf_threshold)
         degraded = (not ok) and bool(evidence) and best <= RRF_DEGRADED_MAX
         if degraded:
             ok = True
-        log = _note(state, "gate")
+        log = _note(state, name)
         log["gate_pass"] = ok
         log["gate_best_score"] = round(best, 4)
         if degraded:
@@ -172,7 +200,7 @@ def make_confidence_gate_node(settings):
             query = state.get("resolved_query") or state.get("user_query", "")
             cid = (config.get("configurable") or {}).get("conversation_id")
             await refusals.pool_low_confidence(
-                cid, query, "ch05_gate",
+                cid, query, source,
                 f"best={best:.4f}<{settings.retrieval_low_conf_threshold}")
             return {"gate_pass": False, "answer_text": refusals.REFUSAL_ANSWER,
                     "suggestions": [TRANSFER_HUMAN],
@@ -219,9 +247,72 @@ def make_agent_node(model, settings):
         upd = {"answer_text": answer, "log": log,
                "messages": [AIMessage(content=answer)]}
         if done["suggestions"]:
-            upd["suggestions"] = done["suggestions"]
+            upd["suggestions"] = done["suggestions"]   # 预算/轮数熔断转人工不被覆盖
+        elif state.get("route") == "refund":
+            # spec 追加拍板:闸过即固定挂退款入口(「不能退」时=仍要提交人工复核)
+            upd["suggestions"] = [REFUND_APPLY]
         return upd
     return agent_node
+
+
+# --- ch06 需求 5/6: 退款确定性子流程(槽位检→选择器|取单→扩写→政策检索→闸) -----
+
+
+def refund_slot_node(state: dict) -> dict:
+    """槽位检(纯同步,模型不许猜单号):已有 slot 或正文可正则提取;分支交条件边。"""
+    oid = state.get("slot_order_id") or extract_order_id(
+        state.get("resolved_query"), state.get("user_query"))
+    log = _note(state, "refund_slot")
+    return {"slot_order_id": oid or "", "log": log}
+
+
+def make_refund_selector_node(settings):
+    def refund_selector_node(state: dict) -> dict:
+        """无单号 → 弹订单卡片(orders 帧,T5 接线)+ 挂 pending_flow 等续跑。"""
+        log = _note(state, "refund_selector")
+        return {"orders_payload": list_user_orders(settings.demo_user_id),
+                "pending_flow": "refund", "answer_text": SELECT_ORDER_ASK,
+                "messages": [AIMessage(content=SELECT_ORDER_ASK)], "log": log}
+    return refund_selector_node
+
+
+def refund_fetch_node(state: dict) -> dict:
+    """取单:_make_order 与详情工具同播种(P4),交 Agent 注入用,不经模型选工具。"""
+    log = _note(state, "refund_fetch")
+    return {"order_data": _make_order(state["slot_order_id"]), "log": log}
+
+
+def make_refund_expand_node(model):
+    async def refund_expand_node(state: dict) -> dict:
+        """Query 扩写(仅本高敏子流程;FAQ 不扩写):≤3 条侧重不同,原问法居首;
+        烂输出/异常 → 单路 [resolved] 照常检索(降级不阻断)。"""
+        log = _note(state, "refund_expand")
+        resolved = state.get("resolved_query") or state.get("user_query", "")
+        qs = None
+        try:
+            ai = await model.ainvoke(EXPAND_PROMPT.format_messages(question=resolved))
+            qs = parse_queries_json(_text_of(ai))
+        except Exception:  # noqa: BLE001
+            logger.warning("refund expand degraded; single query", exc_info=True)
+        expanded = [resolved] + [q for q in (qs or []) if q != resolved][:3]
+        return {"expanded_queries": expanded, "log": log}
+    return refund_expand_node
+
+
+def make_refund_policy_node(settings):
+    async def refund_policy_node(state: dict) -> dict:
+        """多路政策检索(并行)→ chunk_id 去重取最高分 → 截 rerank_top_n(P3)。"""
+        log = _note(state, "refund_policy")
+        groups = await asyncio.gather(*[
+            retriever.retrieve(q, strategy="hybrid_rerank", settings=settings)
+            for q in state["expanded_queries"]])
+        grps = [[{"chunk_id": c.chunk_id, "score": c.score,
+                  "text": retriever.vector_text(c.row)} for c in g.chunks]
+                for g in groups]
+        merged = merge_evidence(grps, cap=settings.rerank_top_n)
+        log["retrieve_hits"] = len(merged)
+        return {"evidence": merged, "log": log}
+    return refund_policy_node
 
 
 def complaint_node(state: dict) -> dict:

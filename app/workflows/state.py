@@ -13,6 +13,10 @@ from langgraph.graph.message import add_messages
 # 操作建议常量（T5 起 nodes/agents 双向要用，落本无依赖模块断环）
 TRANSFER_HUMAN = {"action": "transfer_human", "label": "转人工"}
 CREATE_TICKET = {"action": "create_ticket", "label": "建工单"}
+# ch06 需求 6/前端配套：退款闸通过后固定挂载的申请入口
+REFUND_APPLY = {"action": "refund_apply", "label": "发起退款申请"}
+# 订单选择器轮固定话术（cards 走 orders 帧,不进消息历史）
+SELECT_ORDER_ASK = "好的，请从下方卡片选择要办理退款的订单："
 
 
 class ChatState(TypedDict, total=False):
