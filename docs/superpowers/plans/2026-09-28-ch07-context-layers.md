@@ -203,8 +203,8 @@ class ConversationSummary(Base):
 - Produces:`schedule_summary(session_factory, cid, settings, model) -> bool`(in-flight 集合防重入→False+`summary skip`;True=已 `asyncio.create_task`);`async run_summary(...)`(自开 session:load→渲染批(层2半压)→SUMMARIZE_PROMPT(旧梗概背景)→ainvoke→清洗(去空行;>400 字截)→`append_summary_segment`(from=upto+1 边界推导, upto=旧 layer1_from)→`set_summary_projection`(全段按 seq 重拼, upto 追边界)→`logger.info("summary done 第%d段 (%d,%d] 耗时%.2fs", ...)`;except:`logger.warning("summary failed cid=%s", exc)`,finally 释放 in-flight)
 - Consumes:crud、render_layer2、SUMMARIZE_PROMPT
 
-- [ ] **Step 1: 失败测试**:fake model 返回固定梗概→断 append/projection 参数与 done 日志;model 抛→仅 WARN、锚不变、in-flight 空;任务未落时二次 schedule→False+skip 日志;`schedule_summary` **同步返回不等任务**(`await asyncio.sleep(0)` 后任务仍未完成即证不阻塞)。
-- [ ] Step 2 实现+绿;Step 3 提交 `feat(ch07-t6): 后台摘要任务(自开session/防重入/段追加不回炉/边界追至层1起点/失败WARN不重试)`。
+- [x] **Step 1: 失败测试**:fake model 返回固定梗概→断 append/projection 参数与 done 日志;model 抛→仅 WARN、锚不变、in-flight 空;任务未落时二次 schedule→False+skip 日志;`schedule_summary` **同步返回不等任务**(`await asyncio.sleep(0)` 后任务仍未完成即证不阻塞)。
+- [x] Step 2 实现+绿;Step 3 提交 `feat(ch07-t6): 后台摘要任务(自开session/防重入/段追加不回炉/边界追至层1起点/失败WARN不重试)`。
 
 ---
 
