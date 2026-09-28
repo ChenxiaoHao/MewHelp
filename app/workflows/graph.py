@@ -132,8 +132,14 @@ async def stream_graph_turn(
         cfg["configurable"]["thread_id"] = thread = f"conv-{conversation_id}"
         input_msgs = [HumanMessage(content=current)]
         if ctx_store is not None:
-            input_msgs = await _refill_input(graph, cfg, ctx_store, settings, current) \
-                + input_msgs
+            # 终审 I2:回填=第四处 store 消费面,漏在 T7「store 面异常全吞」兜底
+            # 清单外。DB 闪断等价 ch06 无 store 行为(无回填裸进),聊天不断线。
+            try:
+                prefix = await _refill_input(graph, cfg, ctx_store, settings, current)
+            except Exception:  # noqa: BLE001
+                logger.warning("refill degraded cid=%s", conversation_id, exc_info=True)
+                prefix = []
+            input_msgs = prefix + input_msgs
     else:
         cfg["configurable"]["thread_id"] = thread = f"anon-{uuid.uuid4()}"
         input_msgs = to_langchain_messages(chat_messages)

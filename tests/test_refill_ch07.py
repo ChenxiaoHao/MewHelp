@@ -115,5 +115,29 @@ async def test_stream_turn_refills_empty_thread_and_coref_not_first_round(monkey
     assert ("token", N.CHITCHAT_FIXED) in frames   # 闲聊固定话术照常整段补发
 
 
+async def test_refill_store_boom_turn_still_streams(caplog):
+    """终审 I2:回填是第四处 store 消费面——DB 闪断 fetch_layer1 抛异常必须
+    内部吞+WARN,不得冒穿 SSE(等价 ch06 无 store 行为:本轮照常出 token 帧)。"""
+    import logging
+    caplog.set_level(logging.WARNING)
+    G.reset_checkpointer()
+
+    class BoomStore(FakeStore):
+        async def fetch_layer1(self):
+            raise ConnectionError("mysql gone")
+
+    rows = [_row(1, "user", "旧问"), _row(2, "assistant", "旧答"), _row(3, "user", "你好")]
+    store = BoomStore(rows, (None, 0, 0))
+    model = SimpleNamespace(calls=[], bind_tools=lambda tools: None,
+                            ainvoke=lambda *a: None)
+    frames = [f async for f in G.stream_graph_turn(
+        [SimpleNamespace(content="你好")], _settings(), model,
+        conversation_id=7, persister=None, ctx_store=store)]
+    assert ("token", N.CHITCHAT_FIXED) in frames, "DB 闪断把本轮打成只剩 error"
+    assert not [k for k, _ in frames if k == "error"]
+    assert any("refill degraded" in r.getMessage() for r in caplog.records), \
+        "兜底须留 WARN 痕(grep 面)"
+
+
 async def _none():
     return None
