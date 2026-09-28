@@ -60,6 +60,11 @@ async def react_agent_stream(
     if state.get("evidence"):
         ev = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(state["evidence"]))
         messages = [SystemMessage(content=f"知识库证据:\n{ev}"), *messages]
+    if state.get("order_data"):
+        # ch06 T4:退款子流程已取到本单详情——办事之问要看着自己订单的数据答
+        # (政策条款走 evidence,二者独立前置;无 order_data 键时零注入=ch05 回归面)
+        od = json.dumps(state["order_data"], ensure_ascii=False)
+        messages = [SystemMessage(content=f"订单数据:\n{od}"), *messages]
     # D2「Agent 自动建单方案作废」+ 需求 8 红线:建单唯一入口=前端按钮→
     # POST /api/tickets。绑定集剔除 create_ticket(registry 保留件供执行器层复用,
     # 模型侧不可自触;终审修复批)。

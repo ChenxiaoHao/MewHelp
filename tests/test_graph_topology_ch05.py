@@ -84,8 +84,10 @@ def thread_cfg(n):
 
 
 async def test_knowledge_route_forces_retrieval_before_answer(fake_env, one_chunk_result):
+    # ch06 T2 重定向:退款退货已改道 refund,知识路探针换「商品咨询」;JSON 补 confidence
     env = fake_env(
-        [AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策是7天无理由")],
+        [AIMessage(content='{"intent":"商品咨询","confidence":0.9}'),
+         AIMessage(content="政策是7天无理由")],
         one_chunk_result.chunks,
     )
     out = await env.graph.ainvoke(init_state("退款政策是什么"), config=thread_cfg(1))
@@ -101,7 +103,7 @@ async def test_chitchat_makes_zero_model_calls(fake_env):
 
 
 async def test_complaint_emits_two_unbound_suggestions(fake_env):
-    env = fake_env([AIMessage(content='{"intent":"投诉"}')], [])
+    env = fake_env([AIMessage(content='{"intent":"投诉","confidence":0.95}')], [])
     out = await env.graph.ainvoke(init_state("我要投诉"), config=thread_cfg(3))
     assert [s["action"] for s in out["suggestions"]] == ["transfer_human", "create_ticket"]
     assert env.model.calls == 1  # 仅意图分类;投诉话术固定
@@ -110,7 +112,8 @@ async def test_complaint_emits_two_unbound_suggestions(fake_env):
 
 async def test_business_route_skips_retrieval(fake_env):
     # 业务数据类旁路:拓扑证据=日志节点链里没有 retrieve/gate(需求 3/7)
-    env = fake_env([AIMessage(content='{"intent":"物流"}'), AIMessage(content="包裹已到")], [])
+    env = fake_env([AIMessage(content='{"intent":"物流","confidence":0.9}'),
+                    AIMessage(content="包裹已到")], [])
     out = await env.graph.ainvoke(init_state("物流到哪了"), config=thread_cfg(4))
     assert out["log"]["nodes"] == ["coref", "intent", "agent", "logging"]
     assert "retrieve" not in out["log"]["nodes"] and "gate" not in out["log"]["nodes"]
@@ -121,7 +124,7 @@ async def test_gate_fail_renders_refusal_and_persists(fake_env, fake_settings, m
     async def no_pool(*a, **k):  # 落池语义归 T4 测管,这里只防真实写库副作用
         pass
     monkeypatch.setattr(refusals, "pool_low_confidence", no_pool)
-    env = fake_env([AIMessage(content='{"intent":"退款退货"}')], [])  # 空 chunks → 闸不过
+    env = fake_env([AIMessage(content='{"intent":"商品咨询","confidence":0.9}')], [])  # 空 chunks → 闸不过
     out = await env.graph.ainvoke(init_state("退款政策是什么"), config=thread_cfg(5))
     assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "logging"]
     assert out["answer_text"] == refusals.REFUSAL_ANSWER
@@ -131,18 +134,21 @@ async def test_p2_fallback_to_knowledge_after_retry(fake_env, one_chunk_result):
     env = fake_env([AIMessage(content="not json"), AIMessage(content="still not"),
                     AIMessage(content="兜底回答")], one_chunk_result.chunks)
     out = await env.graph.ainvoke(init_state("随便说点什么"), config=thread_cfg(6))
-    assert out["intent"] == "商品咨询"   # brief 兜底口径:P2 重试一次后归知识类
+    assert out["intent"] == "其他"       # ch06 P1:重试×2 仍败 → 归「其他」(route=knowledge)
     assert out["log"]["nodes"] == ["coref", "intent", "retrieve", "gate", "agent", "logging"]
     assert env.model.calls == 3          # 意图×2(含重试) + agent×1
 
 
 async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_result):
     """M1-I1:同 thread 三轮(投诉→知识→业务),建议/证据/节点链均按轮隔离;
-    messages 历史照常累积(checkpointer 语义不变)。"""
+    messages 历史照常累积(checkpointer 语义不变)。
+    ch06 T1 重定向:第 2/3 轮有历史→coref 各多耗一条脚本消息(输出=补全后问法)。"""
     env = fake_env([
-        AIMessage(content='{"intent":"投诉"}'),
-        AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策A"),
-        AIMessage(content='{"intent":"物流"}'), AIMessage(content="包裹已到"),
+        AIMessage(content='{"intent":"投诉","confidence":0.95}'),
+        AIMessage(content="退款政策是什么"),
+        AIMessage(content='{"intent":"商品咨询","confidence":0.9}'), AIMessage(content="政策A"),
+        AIMessage(content="订单1001物流到哪了"),
+        AIMessage(content='{"intent":"物流","confidence":0.9}'), AIMessage(content="包裹已到"),
     ], one_chunk_result.chunks)
     out = await env.graph.ainvoke(init_state("我要投诉"), config=thread_cfg(20))
     assert out["suggestions"]  # 第一轮投诉确有建议
@@ -155,9 +161,14 @@ async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_res
                    for m in env.model.last_msgs)  # 陈旧证据未被注入模型调用
 
 
-async def test_coref_passthrough_keeps_history(fake_env, one_chunk_result):
-    env = fake_env([AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策A"),
-                    AIMessage(content='{"intent":"退款退货"}'), AIMessage(content="政策B")],
+async def test_coref_completion_keeps_history(fake_env, one_chunk_result):
+    """ch06 T1 重定向(原 test_coref_passthrough_keeps_history):首轮零调用,
+    次轮 coref 走 LLM(脚本插补全输出),InMemorySaver 跨轮累积语义不变。"""
+    env = fake_env([AIMessage(content='{"intent":"商品咨询","confidence":0.9}'),
+                    AIMessage(content="政策A"),
+                    AIMessage(content="第二问是什么退款政策"),
+                    AIMessage(content='{"intent":"商品咨询","confidence":0.9}'),
+                    AIMessage(content="政策B")],
                    one_chunk_result.chunks)
     await env.graph.ainvoke(init_state("第一问"), config=thread_cfg(7))
     out = await env.graph.ainvoke(init_state("第二问"), config=thread_cfg(7))

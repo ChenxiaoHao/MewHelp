@@ -14,7 +14,9 @@ def test_low_confidence_question_columns():
     cols = t.columns
     assert cols["conversation_id"].nullable is True
     assert {fk.target_fullname for fk in cols["conversation_id"].foreign_keys} == {"conversations.id"}
-    assert set(cols["source"].type.enums) == {"retrieval_low_conf", "self_check", "user_feedback"}
+    assert set(cols["source"].type.enums) == {
+            "retrieval_low_conf", "self_check", "user_feedback",
+            "ch05_gate", "ch06_refund_gate"}  # ch06 T8:闸池 source 值入列(否则生产静默丢行)
     assert cols["raw_question"].nullable is False and cols["source"].nullable is False
 
 

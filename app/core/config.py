@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     react_max_iterations: int = 6
     react_token_budget: int = 8000
 
+    # --- ch06: 意图降级路(拍板 P2:默认空=只用大模型,配置后小判大复) ---
+    intent_small_model: str = ""
+    intent_confidence_threshold: float = 0.75
+
     # --- ch03: RAG 知识库(全部带默认值,不破坏 ch01/ch02 构造) ---
     milvus_uri: str = "http://127.0.0.1:19530"
     milvus_collection: str = "knowledge"

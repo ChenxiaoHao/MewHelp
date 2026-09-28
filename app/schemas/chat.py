@@ -50,9 +50,10 @@ class ToolResultEvent(BaseModel):
 
 
 class Suggestion(BaseModel):
-    """ch05 操作建议项：转人工/建工单两按钮各自独立（需求 8），前端自选渲染。"""
+    """ch05 操作建议项：转人工/建工单两按钮各自独立（需求 8），前端自选渲染。
+    ch06 T5 扩 refund_apply（退款申请表单入口，拍板 P7）。"""
 
-    action: Literal["transfer_human", "create_ticket"]
+    action: Literal["transfer_human", "create_ticket", "refund_apply"]
     label: str
 
 
@@ -60,3 +61,19 @@ class SuggestionsEvent(BaseModel):
     """SSE `suggestions` 帧 data：后端只发建议不代决策（spec「SSE 契约」节）。"""
 
     items: list[Suggestion]
+
+
+class OrderCard(BaseModel):
+    """ch06 订单选择器卡片（临时 UI 数据,不落消息历史;与 query_order 同播种）。"""
+
+    order_id: str
+    status: str
+    amount: float
+    created_at: str
+    items: list[str]          # 「商品名 ×数量」显示串
+
+
+class OrdersEvent(BaseModel):
+    """SSE `orders` 帧 data：退款流程缺单号时弹可点卡片（需求 6/拍板 P5）。"""
+
+    items: list[OrderCard]

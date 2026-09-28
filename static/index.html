@@ -160,6 +160,33 @@
   }
   .sug-btn.picked { background: var(--orange); }
 
+  /* ===== ch06(T6): orders 帧订单卡片 + refund_apply 轻表单 ===== */
+  .order-row { display: flex; gap: 10px; align-self: stretch; flex-wrap: wrap; margin-top: 4px; }
+  .order-card {
+    flex: 0 1 210px; display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px; background: var(--win); color: var(--ink);
+    border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 rgba(41, 41, 41, .35);
+    font-size: 12px; line-height: 1.45;
+  }
+  .order-card .oc-id { font-weight: 700; font-size: 13px; }
+  .order-card .oc-items { color: #6b5f47; font-size: 11px; }
+  .order-card.picked { background: var(--orange); box-shadow: 3px 3px 0 var(--ink); }
+  .order-pick-btn { align-self: flex-start; padding: 2px 10px; font-size: 12px; }
+  .refund-form {
+    display: flex; flex-direction: column; gap: 6px; align-self: flex-start;
+    margin-top: 6px; padding: 10px 12px; background: var(--win); color: var(--ink);
+    border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 rgba(41, 41, 41, .35); font-size: 12px;
+  }
+  .refund-form label { display: flex; align-items: center; gap: 8px; }
+  .refund-form input, .refund-form select {
+    font: inherit; font-size: 12px; padding: 3px 6px;
+    background: var(--paper); color: var(--ink);
+    border: 2px solid var(--ink); border-radius: 3px;
+  }
+  .refund-bar { display: flex; gap: 8px; margin-top: 2px; }
+
   /* ===== 输入区域 ===== */
   #input-bar {
     flex: 0 0 auto; display: flex; gap: 10px;
@@ -451,6 +478,7 @@ async function send() {
   let answer = '';
   let roundCitations = null;  // ch04(T13): 本轮 tool_result 帧 citations 暂存(同轮多次 query_faq 后帧覆盖前帧,见 dev-notes)
   let roundSuggestions = null;  // ch05(T8): suggestions 帧暂存(末 token 后、done 前到达=RF4)
+  let roundOrders = null;       // ch06(T6): orders 帧暂存(suggestions 前到达=P7 帧序)
   try {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
@@ -501,6 +529,8 @@ async function send() {
             badge.title = tr.summary || '';  // 悬停看摘要
           }
           if (tr.citations && tr.citations.length) roundCitations = tr.citations;  // ch04(T13): 分支内加性暂存,帧处理逻辑零变更
+        } else if (event === 'orders') {
+          roundOrders = JSON.parse(data).items || [];  // ch06(T6): 订单选择卡片,只暂存
         } else if (event === 'suggestions') {
           roundSuggestions = JSON.parse(data).items || [];  // ch05(T8): 只暂存,渲染在流收尾后
         } else if (event === 'error') {
@@ -514,6 +544,8 @@ async function send() {
       // ch04(T13): 最终答案渲染后处理——[n]→可点角标(仅本轮带 citations 时),气泡左下 👍/👎
       renderAnswerCitations(bubble, roundCitations);
       addFeedbackRow(col, assistantSeqFromHistory());
+      if (roundOrders && roundOrders.length)
+        addOrderCards(col, roundOrders);                        // ch06(T6): 卡片先于建议钮(帧序一致)
       if (roundSuggestions && roundSuggestions.length)
         addSuggestionRow(col, roundSuggestions, text, answer);  // ch05(T8): 操作建议行
     } else row.remove();
@@ -629,6 +661,8 @@ function addFeedbackRow(col, seq) {
 // ===== ch05(T8): suggestions 帧 → 两个互不绑定的独立按钮(需求 8) =====
 // 后端只发建议不代决策；转人工=纯前端模拟零 fetch；建工单=点下才 POST /api/tickets。
 const TRANSFER_LINES = ['已转接人工客服', '您好，我是客服小猫，请问有什么可以帮您的'];
+// ch06(T6): refund_apply 第三钮(固定四类原因表单);未知 action 兜底不渲染(需求面 P7)
+const SUG_ICONS = { transfer_human: '🧑‍💼 ', create_ticket: '🎫 ', refund_apply: '🧾 ' };
 function addSuggestionRow(col, items, userText, answerText) {
   const rowEl = document.createElement('div');
   rowEl.className = 'sug-row';
@@ -637,13 +671,17 @@ function addSuggestionRow(col, items, userText, answerText) {
   note.textContent = '可以试试：';
   rowEl.appendChild(note);
   for (const it of items) {
+    const icon = SUG_ICONS[it.action];
+    if (!icon) continue;  // 未知 action 不渲染(ch05 兜底语义)
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn btn-sm sug-btn';
-    b.textContent = (it.action === 'transfer_human' ? '🧑‍💼 ' : '🎫 ') + (it.label || '操作');
+    b.textContent = icon + (it.label || '操作');
     b.addEventListener('click', async () => {
       if (b.disabled) return;
-      if (it.action === 'transfer_human') {
+      if (it.action === 'refund_apply') {
+        openRefundForm(col, b);   // ch06(T6): 轻表单,提交前不置灰(可反复开合)
+      } else if (it.action === 'transfer_human') {
         b.disabled = true; b.classList.add('picked');       // 一次性；不碰另一个钮
         for (const line of TRANSFER_LINES)                  // 仅展示，不入 history=无隐藏动作
           addMessage('assistant', line);
@@ -679,6 +717,119 @@ function addSuggestionRow(col, items, userText, answerText) {
   col.appendChild(rowEl);
   scrollBottom();
   return rowEl;
+}
+
+// ===== ch06(T6): orders 帧 → 像素风订单卡,点卡=回填协议句续跑(需求6/P5) =====
+function addOrderCards(col, items) {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'order-row';
+  const group = [];
+  for (const o of items) {
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    const id = document.createElement('div');
+    id.className = 'oc-id';
+    id.textContent = '订单 ' + o.order_id + ' · ' + o.status;
+    const meta = document.createElement('div');
+    meta.textContent = '¥' + Number(o.amount).toFixed(2) + (o.created_at ? ' · ' + o.created_at : '');
+    const its = document.createElement('div');
+    its.className = 'oc-items';
+    its.textContent = (o.items || []).join('，');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm order-pick-btn';
+    btn.textContent = '选这个';
+    btn.addEventListener('click', () => {
+      if (sendBtn.disabled) return;   // 上一轮流未结束,忽略点击
+      for (const g of group) { g.btn.disabled = true; g.card.classList.remove('picked'); }
+      card.classList.add('picked');
+      inputEl.value = '我选择订单 ' + o.order_id;  // 协议句(与后端正则逐字对齐)
+      send();                          // 走既有流程:入 history、出 user 气泡
+    });
+    card.append(id, meta, its, btn);
+    rowEl.appendChild(card);
+    group.push({ card, btn });
+  }
+  col.appendChild(rowEl);
+  scrollBottom();
+}
+
+// ===== ch06(T6): refund_apply → 固定四类原因轻表单(需求6/P6:原因不让用户自由填) =====
+const REFUND_REASONS = ['七天无理由', '商品质量问题', '拍错多拍', '其他'];
+function lastSelectedOrderId() {  // 预填=本会话最后一条选择协议句
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i].role === 'user' && /^我选择订单\s*([0-9]{3,})$/.exec((history[i].content || '').trim());
+    if (m) return m[1];
+  }
+  return '';
+}
+function openRefundForm(col, triggerBtn) {
+  if (col.querySelector('.refund-form')) return;  // 已展开不重复
+  if (conversationId == null) {
+    addMessage('error', '⚠ 当前无服务端会话（数据库未启用），无法提交退款申请');
+    return;                                        // 不置灰,可重试(Review Focus 5)
+  }
+  const form = document.createElement('form');
+  form.className = 'refund-form';
+  const idLabel = document.createElement('label');
+  idLabel.append('单号 ');
+  const idIn = document.createElement('input');
+  idIn.name = 'order_id';
+  idIn.required = true;
+  idIn.pattern = '[0-9]{3,}';
+  idIn.value = lastSelectedOrderId();
+  idIn.placeholder = '如 1002';
+  idLabel.appendChild(idIn);
+  const rLabel = document.createElement('label');
+  rLabel.append('原因 ');
+  const sel = document.createElement('select');
+  sel.required = true;
+  for (const r of REFUND_REASONS) {
+    const op = document.createElement('option');
+    op.value = op.textContent = r;
+    sel.appendChild(op);
+  }
+  rLabel.appendChild(sel);
+  const bar = document.createElement('div');
+  bar.className = 'refund-bar';
+  const sub = document.createElement('button');
+  sub.type = 'submit';
+  sub.className = 'btn btn-sm sug-btn';
+  sub.textContent = '提交退款申请';
+  const can = document.createElement('button');
+  can.type = 'button';
+  can.className = 'btn btn-sm sug-btn';
+  can.textContent = '取消';
+  bar.append(sub, can);
+  form.append(idLabel, rLabel, bar);
+  can.addEventListener('click', () => form.remove());
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const oid = idIn.value.trim();
+    if (!/^[0-9]{3,}$/.test(oid)) { addMessage('error', '⚠ 订单号需为至少 3 位数字'); return; }
+    sub.disabled = true;
+    try {
+      const resp = await fetch('/api/refunds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: conversationId, order_id: oid, reason: sel.value }),
+      });
+      const body = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        const d = body && typeof body.detail === 'string' ? body.detail : ('HTTP ' + resp.status);
+        throw new Error(d);
+      }
+      form.remove();
+      triggerBtn.disabled = true;
+      triggerBtn.classList.add('picked');
+      addMessage('assistant', '🎫 退款申请 ' + body.ticket_no + ' 已提交（订单 ' + oid + '）');
+    } catch (err) {
+      sub.disabled = false;  // 失败可重试不锁死
+      addMessage('error', '⚠ 退款申请提交失败：' + err.message);
+    }
+  });
+  col.appendChild(form);
+  scrollBottom();
 }
 
 // ===== ch04(T13) ③原文弹窗:GET /api/chunks/{id}(页面唯一新增请求面) =====
