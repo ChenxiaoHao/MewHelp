@@ -13,6 +13,16 @@ from app.db.engine import check_db, dispose_engine, init_engine
 
 logging.basicConfig(level=logging.INFO)
 
+# ch07 需求6:日志落盘 log/app.log(验收4 的 model_ctx/history_ctx grep 锚)。
+# encoding 显式 UTF-8——Windows GBK 控制台红线;目录自建,.gitignore 已排 log/。
+LOG_DIR = Path(__file__).resolve().parent.parent / "log"
+LOG_DIR.mkdir(exist_ok=True)
+_file_handler = logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8")
+_file_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+)
+logging.getLogger().addHandler(_file_handler)
+
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 logger = logging.getLogger(__name__)

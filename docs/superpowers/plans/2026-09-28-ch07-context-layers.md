@@ -151,7 +151,7 @@ class ConversationSummary(Base):
 **Interfaces:**
 - Produces:
   - `render_layer2(rows, settings) -> list[BaseMessage]`:扫描 messages 行(role/content/tool_calls)——`user`→HumanMessage 原样;`assistant` 无 tool_calls→AIMessage 前 `assistant_head_chars` 字+「…」;`assistant` 带 tool_calls 及其后连续 `tool` 行→**整链折叠为一个 AIMessage**,content=`[工具结果·{name}·≈{estimate_tokens(结果全文)} token 已折叠]`(链首 assistant 若有文本则保留其头部再附折叠行);**绝不产出 ToolMessage/带 tool_calls 的 AIMessage**(Review Focus 1)
-  - `pick_degrade_cut(layer1_rows, budget, est) -> int|None`:从最新往老累计估算,首个超预算处**向后取整到 human 边界**(切割点必须是保留段首条 human);全量不超→None
+  - `pick_degrade_cut(layer1_rows, budget, est) -> int|None`:从最新往老累计估算,首个超预算处**向新取整到 human 边界**(切割点必须是保留段首条 human,保留段必 ≤ 预算;向老对齐会死循环——M1 评审 Important 裁决,T4 实测翻转,规4 同笔改措辞);连一整轮都装不下→整批降级交层2 摘要
   - `ContextStore(session_factory, conversation_id, settings)`:`async load_ctx()->(summary, upto, layer1_from)`、`async fetch_all_rows()`、`async fetch_layer1()`、`async set_layer1_from(v)`
 - Consumes:crud(Task 2 同名)、estimate_items(Task 1)
 
@@ -174,8 +174,8 @@ class ConversationSummary(Base):
   - `async degrade_if_needed(store, settings) -> tuple[int,int]|None`(挪锚 UPDATE + `logger.info("层1 降级 %d→%d", ...)`);`async build_history_view(store, settings) -> str`(摘要行+层1末 `history_view_messages` 条,`logger.info("history_ctx cid=%s\n%s", ...)`,每轮必打);`log_model_ctx(cid, msgs, tokens)`(「model_ctx cid=… segs=… msgs=… tokens≈…」+逐条正文)
 - Consumes:layers T3 函数、crud 锚点、budget
 
-- [ ] **Step 1: 失败测试**(caplog):五段顺序逐类断言(段2/3 间无 System;段5 在段4 **之后**且唯一);段5 三子项省并;`层1 降级` 日志与锚 UPDATE 同现;FileHandler 存在且 `encoding="utf-8"`(main.py 导入后 root.handlers 查)。
-- [ ] **Step 2: 实现 + 全量绿**(ch01 legacy `build_messages` 路径不动)。提交 `feat(ch07-t4): 五段装配序+保底trim+model_ctx/history_ctx每轮留痕+log/app.log(UTF-8)`。
+- [x] **Step 1: 失败测试**(caplog):五段顺序逐类断言(段2/3 间无 System;段5 在段4 **之后**且唯一);段5 三子项省并;`层1 降级` 日志与锚 UPDATE 同现;FileHandler 存在且 `encoding="utf-8"`(main.py 导入后 root.handlers 查)。
+- [x] **Step 2: 实现 + 全量绿**(ch01 legacy `build_messages` 路径不动)。提交 `feat(ch07-t4): 五段装配序+保底trim+model_ctx/history_ctx每轮留痕+log/app.log(UTF-8)`。
 
 ---
 
