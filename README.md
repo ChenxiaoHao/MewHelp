@@ -235,3 +235,26 @@ uv run uvicorn app.main:app --port 8000        # 起服务(docker mysql/milvus �
 uv run pytest -m integration -q -p no:cacheprovider tests/e2e/   # 双章 e2e(A1–A5,B1–B3)
 uv run python evals/smoke_ch06.py                                # prompt 质量真模型冒烟(不进 CI)
 ```
+
+## ch07 会话上下文管理:三层分层 + 后台异步摘要 + 多会话侧栏
+
+- **三层模型**:层1=近史原文(DB messages 按 `layer1_from_msg_id` 锚切)/层2=降级批(只挪锚不动行)/梗概=`conversation_summaries` 分段表+单列投影。装配=五段:System→层2半压(用户全留、客服留头 `assistant_head_chars`)→层1 原文→当前句→段5 合并注入(梗概投影+知识库证据+订单数据,**一条 Human**;react 不再 System 前置)。
+- **预算公式同源**:`compute_budgets` = 窗-输出-输入-工具峰值(步数×工具上限)-固定项(System 543/证据面 2500/梗概注入 707/安全垫 1000),滑窗取 `min(窗口面, turns_to_keep×steady)`;层1/层2 七三开。demo 组六键(`MODEL_CONTEXT_WINDOW=18000 MAX_AGENT_STEPS=3` 等;六键中仅这两键异于默认)钉死锚点 **5650/3954/1695**;token 计数=CJK 估算器(汉字 1:1、其余 4:1),react 熔断同源。
+- **后台异步摘要不阻塞**:ctx 入口节点每轮先降级再判层2 超预算→`asyncio.create_task` 排任务(防重入 in-flight);当轮帧序零变化,summary done 落库+投影追平边界。**多 worker 挂账**:in-flight 是进程内集合,spec 明言单 worker 语义;多进程部署需外置队列(未做)。
+- **只读 API×2(P8)**:`GET /api/conversations`(id 降序+首问预览 40 字+已摘要标记)、`GET /api/conversations/{id}/messages`(全行升序含 tool 行;不存在/非属主同答 404;引擎未起 503)。前端侧栏:点选换轨续聊(清 checkpointer 场景=回填供史)、tool 行浅色 🔧、「＋新对话」旧会话留栏;列表失败=一行提示不挡聊天。
+- **日志留痕(验收4 grep 锚)**:`model_ctx cid=`(逐条+tokens≈)/`history_ctx cid=`(**每轮必打**,闲聊轮也有)/`summary trigger|done|skip|failed`/`层1 降级 X→Y`;落盘 `log/app.log`(UTF-8)。**已知边界**:FileHandler 无轮转(≈10-30KB/轮,RotatingFileHandler 零依赖可解未做);梗概投影 `summary` 列 TEXT 上限≈64KB(约 160 段后触顶);>400 字梗概硬截可断数字串尾(罕见)。
+- **输入闸**:`MAX_USER_INPUT_TOKENS`(默认 2000)超限 422(估算器同源,`ChatRequest` 校验)。
+
+```bash
+# demo env(spec 验收锚,写进 .env 或命令行):
+MODEL_CONTEXT_WINDOW=18000 MAX_OUTPUT_TOKENS=2000 MAX_USER_INPUT_TOKENS=2000 \
+MAX_AGENT_STEPS=3 TOOL_RESULT_MAX_TOKENS=1200 RERANK_TOP_K=5 \
+uv run uvicorn app.main:app --port 8000
+# 浏览器开 http://127.0.0.1:8000/ 演示话术:
+#   验收3 默认窗连聊 20 轮 → log grep -c "层1 降级" = 0(装得下就不压)
+#   验收4 demo env 连聊 ~20 轮(用户句用 200 字级长文;层2 触发按半压后估算,
+#         轻话术轮均≈80 攒不满 1695 预算)→ grep "summary trigger"/"层1 降级"/"model_ctx" 齐现,当轮关流不卡
+#   验收5 侧栏:点旧会话回载气泡、tool 行浅色🔧、「＋新对话」清屏旧会话留栏
+uv run pytest -m integration -q -p no:cacheprovider tests/e2e/   # 三章 e2e(A1–A5,B1–B3,C1–C4)
+uv run python evals/smoke_ch07.py                                # 摘要 prompt 真模型冒烟(不进 CI)
+```

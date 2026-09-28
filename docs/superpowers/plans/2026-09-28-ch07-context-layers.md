@@ -267,7 +267,10 @@ class ConversationSummary(Base):
 **C3 非阻塞**:trigger 当轮 done 帧正常关流(任务未完成不影响帧序)。
 **C4 回载续聊**:API 面新 store 重启语义(清 checkpointer)→回填轮 coref 日志非 passthrough。
 
-- [ ] Step 1–2 e2e 双章全绿(9+4);Step 3 README+dev-notes 完结+演示命令;Step 4 提交 `test(ch07-t11): 级联/零降级/非阻塞/回填续聊 e2e + README/dev-notes 完结交付`;Step 5 终审包 → 终审批 → finishing 菜单。
+- [x] Step 1–2: e2e 全目录单跑 13 绿(ch05/06 九测+ch07 四测,共环;原「9+4」拆分组合已由单跑取代)
+- [x] Step 3: README ch07 节+dev-notes 完结+演示命令
+- [x] Step 4: 提交 `test(ch07-t11): 级联/零降级/非阻塞/回填续聊 e2e + README/dev-notes 完结交付`(M3 批已另笔 46721e0)
+- [ ] Step 5: 终审包 → 终审批(Re-grade→一轮 fix→minor 入 ledger)→ finishing 菜单(停等人)
 
 ---
 
