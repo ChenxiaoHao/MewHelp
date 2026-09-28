@@ -471,3 +471,14 @@ async def list_user_conversations(
         (r[0], r[1], (r[2] or "")[:40] or None, r[3] is not None)
         for r in rows
     ]
+
+
+async def get_conversation_for_user(session, cid: int, user_id: str):
+    """只读 API 归属校验(T9,spec P8「非属主 404」):id+user_id 双条件,查无即 404。"""
+    return (
+        await session.execute(
+            select(Conversation).where(
+                Conversation.id == cid, Conversation.user_id == user_id
+            )
+        )
+    ).scalar_one_or_none()

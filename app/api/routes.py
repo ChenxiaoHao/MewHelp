@@ -17,6 +17,7 @@ from app.schemas.chat import (
     ToolCallEvent,
     ToolResultEvent,
 )
+from app.schemas.conversation import ConversationItem, ConversationList, MessageItem
 from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
 from app.schemas.refund import RefundRequest
 from app.schemas.ticket import TicketCreateRequest, TicketOut
@@ -205,3 +206,34 @@ async def patch_faith_case(case_id: int, req: FaithCasePatch, session=Depends(de
     if row is None:
         raise HTTPException(status_code=404, detail="个案不存在")
     return row
+
+
+@router.get("/api/conversations", response_model=ConversationList)
+async def list_conversations(settings=Depends(dep_settings),
+                             session=Depends(dep_db_session)):
+    """侧栏列表(ch07 T9,只读):id 降序+首问预览截 40 字+已摘要标记,demo_user_id 面(P8)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    rows = await crud.list_user_conversations(session, settings.demo_user_id)
+    return ConversationList(items=[
+        ConversationItem(id=r[0], created_at=r[1], preview=r[2], summarized=r[3])
+        for r in rows
+    ])
+
+
+@router.get("/api/conversations/{conversation_id}/messages",
+            response_model=list[MessageItem])
+async def get_conversation_messages(conversation_id: int,
+                                    settings=Depends(dep_settings),
+                                    session=Depends(dep_db_session)):
+    """消息回载(ch07 T9,只读):全行升序含 tool 行(P8 口径);不存在与非属主同答
+    404(不泄归属面);limit=10000 显式——I2 同律,静默截断=前端少历史还装全。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    if await crud.get_conversation_for_user(
+            session, conversation_id, settings.demo_user_id) is None:
+        raise HTTPException(status_code=404, detail="会话不存在或无权访问")
+    rows = await crud.list_messages_after(session, conversation_id, 0, limit=10000)
+    return [MessageItem(id=m.id, role=m.role, content=m.content,
+                        tool_calls=m.tool_calls, created_at=m.created_at)
+            for m in rows]

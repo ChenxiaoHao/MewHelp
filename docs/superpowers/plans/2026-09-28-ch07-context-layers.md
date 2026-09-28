@@ -241,7 +241,7 @@ class ConversationSummary(Base):
 - Modify: `app/api/routes.py`(GET /api/conversations、GET /api/conversations/{id}/messages;引擎 None→503;未知/非属主 cid→404,P8)
 - Test: `tests/test_api_conversations_ch07.py`(dependency_overrides FakeSession 模式,ch06 退款 API 同构)
 
-- [ ] Step 1 RED→GREEN;Step 2 全量绿;提交 `feat(ch07-t9): GET conversations 列表/消息回载只读API(预览40字/已摘要标记/404/503)`。
+- [x] Step 1 RED→GREEN;Step 2 全量绿;提交 `feat(ch07-t9): GET conversations 列表/消息回载只读API(预览40字/已摘要标记/404/503)`。
 
 ---
 
