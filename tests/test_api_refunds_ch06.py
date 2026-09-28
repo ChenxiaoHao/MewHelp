@@ -63,6 +63,20 @@ async def test_order_id_shape_422(client, monkeypatch):
     app.dependency_overrides.clear()
 
 
+async def test_order_id_fullwidth_digits_422(client, monkeypatch):
+    # M3 评审回归:全角单号(\d 的 Unicode 穿透)不许进 tickets 表——
+    # 脏票号无正则/种子可对齐,与 5712e93 槽位面同一口径。
+    fake = FakeCrud()
+    monkeypatch.setattr(routes_mod, "crud", fake)
+    _override_db(object())
+    r = await client.post("/api/refunds",
+                          json={"conversation_id": 7, "order_id": "１００２",
+                                "reason": "七天无理由"})
+    assert r.status_code == 422
+    assert fake.calls == []
+    app.dependency_overrides.clear()
+
+
 async def test_no_db_503(client):
     async def none_session():
         yield None

@@ -13,5 +13,5 @@ RefundReason = Literal["七天无理由", "商品质量问题", "拍错多拍", 
 
 class RefundRequest(BaseModel):
     conversation_id: int = Field(ge=1)
-    order_id: str = Field(pattern=r"^\d{3,}$")
+    order_id: str = Field(pattern=r"^[0-9]{3,}$")
     reason: RefundReason
