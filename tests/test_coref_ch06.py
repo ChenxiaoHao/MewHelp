@@ -57,6 +57,8 @@ async def test_empty_model_output_falls_back_to_original():
     m = ScriptModel(["   "])
     upd = await make_coref_node(m)(_state(["上轮", "它能退吗"]))
     assert upd["resolved_query"] == "它能退吗"
+    # M1 评审 Finding 1:spec 降级表钉「空输出→degraded」,done 会让运营日志失明
+    assert upd["log"]["coref"] == "degraded"
 
 
 async def test_reset_clears_ch06_keys_but_consumes_pending():

@@ -61,12 +61,13 @@ def make_coref_node(model):
                 history=_render_history(hist[-6:]), question=q)
             text = _text_of(await model.ainvoke(msgs)).strip()
             resolved = next((ln.strip() for ln in reversed(text.splitlines())
-                             if ln.strip()), "") or q
+                             if ln.strip()), "")
         except Exception:  # noqa: BLE001
             reset["log"]["coref"] = "degraded"
             return {**reset, "resolved_query": q}
-        reset["log"]["coref"] = "done"
-        return {**reset, "resolved_query": resolved}
+        # spec 降级表:LLM 异常与空输出同归 degraded(done 只留给真补全,M1-F1)
+        reset["log"]["coref"] = "done" if resolved else "degraded"
+        return {**reset, "resolved_query": resolved or q}
     return coref_node
 
 
