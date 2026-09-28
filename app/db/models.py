@@ -29,6 +29,14 @@ class Conversation(Base):
         nullable=False,
         server_default="进行中",
     )
+    # ch07 三层边界:投影摘要 + 两锚点(NULL 一律按 0 解读,新会话全史在层1);DDL=07a/07b 用户原文
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_upto_msg_id: Mapped[int | None] = mapped_column(
+        BIGINT(unsigned=True), nullable=True
+    )
+    layer1_from_msg_id: Mapped[int | None] = mapped_column(
+        BIGINT(unsigned=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -204,3 +212,21 @@ class FaithCase(Base):
     )
     resolution: Mapped[str | None] = mapped_column(String(300), nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class ConversationSummary(Base):
+    """分段梗概,一段一行只追加(压完不回炉,一个事实一生一次有损压缩);DDL=07b 用户原文逐列。"""
+
+    __tablename__ = "conversation_summaries"
+
+    id: Mapped[int] = _pk()
+    conversation_id: Mapped[int] = mapped_column(
+        BIGINT(unsigned=True), ForeignKey("conversations.id"), nullable=False, index=True
+    )
+    seq: Mapped[int] = mapped_column(nullable=False)
+    from_msg_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False)
+    upto_msg_id: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )

@@ -121,8 +121,8 @@ def compute_budgets(settings) -> Budgets:
 - Produces(crud):`get_conv_ctx(session, cid) -> (summary: str|None, upto: int, layer1_from: int)`(NULL→0);`set_layer1_from(session, cid, value)`;`append_summary_segment(session, cid, *, from_msg_id, upto_msg_id, content) -> int`(seq=MAX+1,返回 seq;撞 uk 重算一次);`set_summary_projection(session, cid, *, summary, upto_msg_id)`;`list_messages_after(session, cid, after_id, limit=500)`;`list_user_conversations(session, user_id, limit=50) -> list[(id, created_at, preview, summarized)]`(preview=首条 user 截 40 字;summarized=`summary_upto_msg_id IS NOT NULL`;id 降序)
 - Consumes:07a/07b 列名口径(`summary`,`summary_upto_msg_id`,`layer1_from_msg_id`,`conversation_summaries`)
 
-- [ ] **Step 1: 失败接缝测试**——解析 `db/init/*.sql` 的 `CREATE TABLE conversations|conversation_summaries` 列 + `ALTER TABLE conversations ADD COLUMN ...`(跨行正则,ch06 接缝测试同款「移走 07 文件演示真 RED、放回演示 GREEN」双证);断言 `Conversation`/`ConversationSummary` 模型列 ⊆ DDL 并集。
-- [ ] **Step 2: 落 07a/07b 原文 + 模型三列 + `ConversationSummary`**
+- [x] **Step 1: 失败接缝测试**——解析 `db/init/*.sql` 的 `CREATE TABLE conversations|conversation_summaries` 列 + `ALTER TABLE conversations ADD COLUMN ...`(跨行正则,ch06 接缝测试同款「移走 07 文件演示真 RED、放回演示 GREEN」双证);断言 `Conversation`/`ConversationSummary` 模型列 ⊆ DDL 并集。
+- [x] **Step 2: 落 07a/07b 原文 + 模型三列 + `ConversationSummary`**
 
 ```python
 class ConversationSummary(Base):
@@ -137,8 +137,8 @@ class ConversationSummary(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 ```
 
-- [ ] **Step 3: crud 六函数 + test_crud_context_ch07**(复用既有 `db`/MySQL 测试夹具,integration 标记的沿用现配置;单元面 FakeSession 断不到就整组挂 integration 文件跑真库)。锚点 UPDATE 用 `update(Conversation)` 语句直写。
-- [ ] **Step 4: dev 活库 apply + 取证;全量绿;提交** `feat(ch07-t2): 07a/07b 用户SQL原文入库+锚点/段表 ORM 与 crud+接缝扩展`。
+- [x] **Step 3: crud 六函数 + test_crud_context_ch07**(复用既有 `db`/MySQL 测试夹具,integration 标记的沿用现配置;单元面 FakeSession 断不到就整组挂 integration 文件跑真库)。锚点 UPDATE 用 `update(Conversation)` 语句直写。
+- [x] **Step 4: dev 活库 apply + 取证;全量绿;提交** `feat(ch07-t2): 07a/07b 用户SQL原文入库+锚点/段表 ORM 与 crud+接缝扩展`。
 
 ---
 
