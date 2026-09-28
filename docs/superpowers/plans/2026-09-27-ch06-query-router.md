@@ -383,10 +383,10 @@ async def test_orders_single_source_consistency():
 **Files:**
 - Create: `tests/samples/ch06_intent_qa.csv`、`tests/samples/ch06_coref_qa.csv`、`evals/smoke_ch06.py`
 
-- [ ] **Step 1: 样例落盘**——intent CSV(question,expected_intent)≥14 行:**含「退货政策是什么→商品咨询」(Review Focus 1 的评估面)**、八类各≥1、「你们app好怪我不知道该说啥」「asdf 心情不好」类其他带≥3;coref CSV(history|question|expected_contains)≥6 行:「它/这个」补全对+自包含原样对。
-- [ ] **Step 2: 写 `evals/smoke_ch06.py`**(自包含:载入两 CSV→get_model→INTENT_PROMPT/COREF_PROMPT 直调→parse/包含判定→打印逐行对照+准确率;恒 exit 0,不进 CI)
-- [ ] **Step 3: 真模型跑** `PYTHONPATH=. uv run python evals/smoke_ch06.py`,读输出;意图准确率过低(<85%)→ 只调 few-shot 表述重跑,**不动 route 表/代码**(选型定死);结果记 dev-notes「Prompt 质量」段
-- [ ] **Step 4: Commit** `"test(ch06-t7): 意图/消解标注样例+smoke_ch06 真模型冒烟评估"`
+- [x] **Step 1: 样例落盘**——intent CSV(question,expected_intent)≥14 行:**含「退货政策是什么→商品咨询」(Review Focus 1 的评估面)**、八类各≥1、「你们app好怪我不知道该说啥」「asdf 心情不好」类其他带≥3;coref CSV(history|question|expected_contains)≥6 行:「它/这个」补全对+自包含原样对。
+- [x] **Step 2: 写 `evals/smoke_ch06.py`**(自包含:载入两 CSV→get_model→INTENT_PROMPT/COREF_PROMPT 直调→parse/包含判定→打印逐行对照+准确率;恒 exit 0,不进 CI)
+- [x] **Step 3: 真模型跑** `PYTHONPATH=. uv run python evals/smoke_ch06.py`,读输出;意图准确率过低(<85%)→ 只调 few-shot 表述重跑,**不动 route 表/代码**(选型定死);结果记 dev-notes「Prompt 质量」段
+- [x] **Step 4: Commit** `"test(ch06-t7): 意图/消解标注样例+smoke_ch06 真模型冒烟评估"`
 
 ---
 
