@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import json
 
 import pytest
 
@@ -99,6 +100,35 @@ async def test_string_result_coerced(ctx):
     fake = FakeTool("query_faq", returns_str)
     out = await execute_tool(_spec(fake), {}, "call_1", ctx)
     assert out.ok and out.result == {"hits": [], "keyword": "y"}
+
+
+async def test_mcp_content_block_list_restored(ctx):
+    """T6 真链路实证:adapters 0.3.2 的 ainvoke 回 content 块列表(dict 在 artifact 里),
+    唯一 text 块且为合法 JSON → 还原 dict 走格式化面(原码翻人话)。"""
+    payload = json.dumps({"carrier": "中通快递", "current_status": "TRANSPORT"},
+                         ensure_ascii=False)
+
+    async def returns_blocks(call, args):
+        return [{"type": "text", "text": payload, "id": "lc_1"}]
+
+    fake = FakeTool("query_logistics", returns_blocks)
+    spec = ToolSpec(fake, "readonly", "mcp", "logistics")
+    out = await execute_tool(spec, {}, "call_1", ctx)
+    assert out.ok and isinstance(out.result, dict)
+    assert out.result["current_status"] == "运输中"
+
+
+async def test_mcp_non_json_blocks_untouched(ctx):
+    """防御分支不做过度还原:非 JSON 文本/多块列表原样透传(空结果不是异常,需求4)。"""
+    async def returns_multi(call, args):
+        return [{"type": "text", "text": "not json"},
+                {"type": "image", "url": "x"}]
+
+    fake = FakeTool("query_logistics", returns_multi)
+    spec = ToolSpec(fake, "readonly", "mcp", "logistics")
+    out = await execute_tool(spec, {}, "call_1", ctx)
+    assert out.ok and out.result == [{"type": "text", "text": "not json"},
+                                     {"type": "image", "url": "x"}]
 
 
 def test_make_summary_shapes():

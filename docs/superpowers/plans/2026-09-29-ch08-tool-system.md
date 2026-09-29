@@ -773,7 +773,7 @@ settings 默认 10.0;`tests/test_executor.py` 原「超时重试」断言按新�
 - Consumes: T2 `make_mcp_client/snapshot_tools`;T3/T5 `execute_tool`
 - Produces: 工具契约(名字/schema/返回形态)= spec「MCP Servers」节三契约;`_STATUS_LABELS` 对应新码(已入 T5 STATUS_LABELS)
 
-- [ ] **Step 0: 定名验版(TDD 前置的事实核对,uv 解析版本为准)**
+- [x] **Step 0: 定名验版(TDD 前置的事实核对,uv 解析版本为准)**
 
 ```bash
 uv run python -c "import mcp, mcp.server.fastmcp as f; print(f.__name__, f.FastMCP)"
@@ -781,7 +781,7 @@ uv run python -c "import mcp, mcp.server.fastmcp as f; print(f.__name__, f.FastM
 
 若 ImportError → 试 `from mcp.server.mcpserver import MCPServer`;哪个通哪个名写进两 server 文件(Context7 两形制,差异仅 import 行与构造名),记 ledger/dev-notes。
 
-- [ ] **Step 1: 失败测**
+- [x] **Step 1: 失败测**
 
 ```python
 """ch08 T6(integration):真 Streamable HTTP 链路——发现合并/经 MCP 查/拒连降级。
@@ -834,7 +834,7 @@ async def test_server_down_snapshot_degrades(monkeypatch):
 
 (成功断言里 server 回的是原码、executor 翻人话,二形态都认——格式化面 T5 已钉,这里只验链路。)
 
-- [ ] **Step 2: logistics_server.py**
+- [x] **Step 2: logistics_server.py**
 
 ```python
 """ch08 物流 MCP Server(需求6):独立进程,8101 /mcp,Streamable HTTP。
@@ -876,7 +876,7 @@ if __name__ == "__main__":
     mcp.run(transport="streamable-http")
 ```
 
-- [ ] **Step 3: aftersale_server.py**(同形制,port=8102,name="aftersale")
+- [x] **Step 3: aftersale_server.py**(同形制,port=8102,name="aftersale")
 
 ```python
 @mcp.tool()
@@ -904,8 +904,8 @@ async def query_return_progress(order_id: str) -> dict:
                      "CLOSED": "已关闭"}[s]} for s in flow[:i + 1]]}
 ```
 
-- [ ] **Step 4: 集成跑** `pytest tests/test_mcp_servers_ch08_integration.py -m integration -v`(输出落文件读)。
-- [ ] **Step 5: 提交** `"feat(ch08-t6): 物流/售后双 MCP Server(Streamable HTTP 8101/8102,mock 播种)+真链路集成测 …"`
+- [x] **Step 4: 集成跑** `pytest tests/test_mcp_servers_ch08_integration.py -m integration -v`(输出落文件读)。
+- [x] **Step 5: 提交** `"feat(ch08-t6): 物流/售后双 MCP Server(Streamable HTTP 8101/8102,mock 播种)+真链路集成测 …"`
 
 ### Task 7: 确认流图侧(preview 捕获 + ticket_confirm 节点 + interrupt 帧)
 

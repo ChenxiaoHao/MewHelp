@@ -188,6 +188,17 @@ async def execute_tool(
             break
     duration_ms = int((time.monotonic() - t0) * 1000)
     if status == "成功":
+        if spec.source == "mcp" and isinstance(result, list) and len(result) == 1:
+            # T6 真链路实证:adapters 0.3.2 ainvoke 回 LangChain content 块列表
+            # (结构化 dict 在 artifact 里),唯一 text 块为合法 JSON 时还原成 dict,
+            # 格式化面才能挑字段/翻人话;非 JSON/多块原样透传(需求4 空结果非异常)。
+            blk = result[0]
+            if (isinstance(blk, dict) and blk.get("type") == "text"
+                    and isinstance(blk.get("text"), str)):
+                try:
+                    result = json.loads(blk["text"])
+                except json.JSONDecodeError:
+                    pass
         if isinstance(result, str):
             # 部分 LangChain 版本会把 dict 返回值转成 str，兜底还原
             # （本地 langchain_core 1.6.3 实测 dict 原样透传，此分支纯属防御;
