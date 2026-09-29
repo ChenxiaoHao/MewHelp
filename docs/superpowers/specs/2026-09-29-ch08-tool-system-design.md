@@ -37,7 +37,7 @@
         │ tool_call
         ▼
 执行引擎单点 execute_tool(spec, args, tool_call_id, ctx)
-  权限闸 → 校验闸 → 超时/重试(只暂时性) → 三类分诊 → 结果格式化 → 审计落行
+  校验闸 → 权限闸 → 超时/重试(只暂时性) → 三类分诊 → 结果格式化 → 审计落行
         │                                    (write 无凭证 → 拒 → 确认流)
         ▼                                    ▼
    ToolOutcome 回灌 react 环          ticket_confirm 节点(interrupt ⇄ 前端卡片 resume)
@@ -80,6 +80,7 @@ class ToolSpec:
 
 ### 权限闸
 
+- **闸序=校验→权限**(spec 自查订正,2026-09-29):写调用若先过权限闸被拒,「必填缺失先回校验错误让模型追问」(验收4)永远触发不了;必填齐了才谈得上转确认流。
 - 判定唯一依据=`ToolSpec.permission`;MCP 自带任何声明一概不采信、模型不临场判断(需求3 原文语义)。
 - `write` 且 `ctx.ticket_confirmed=False` → 拒:回 `ToolOutcome(ok=False, result={"error": "写操作需客户明确确认后执行"})`。凭证是 **ToolContext 服务端字段**,不是工具参数——模型 args 受 Schema 校验,伪造不进来(需求「不给模型绕过去的机会」的机制保证)。
 - create_ticket 被拒且参数合法 → react 把 `{ticket_type, description}` 捕获进 `state.ticket_preview`,图路由转 ticket_confirm 节点(「建工单确认流」节);此时**不写审计**(中间态,终局按确认流结论写,见审计节);非确认流程的 write 拒(理论面,本章无)→ 审计「权限拒绝」。
@@ -162,6 +163,7 @@ async def ticket_confirm_node(state, config):
 - `stream_graph_turn` 增 stream_mode `updates`,检测 `__interrupt__` 载荷 → 发新帧 `("ticket_preview", {"ticket_type", "description", "conversation_id"})` 后正常收尾(routes 照发 done)——前端体验与 ch06 orders 卡同形,机制为 LangGraph 原生暂停(与需求7「照第6章订单选择器的做法」的类比一致,差异已在拍板 P6 记死)。
 - 新端点 `POST /api/tickets/confirm`,body `{conversation_id, decision: "confirm" | "cancel"}` → `graph.astream(Command(resume=decision), config{thread_id: conv-{cid}})` → 返回**新 SSE 流**(复用 routes 现 SSE 适配件,工单号以 token 帧续播)。
 - 线程态丢失(InMemorySaver 进程内,ch07 D3 同源边界):resume 命中无待确认 interrupt 的 thread → **409** `{"detail": "确认已过期,请重新发起建单"}`。
+- **implicit-cancel 语义**(预览卡片弹出后用户不点按钮、直接发新消息):普通聊天轮进入前检测线程有 pending interrupt → 先以 `"cancel"` 自动 resume(建单不执行+审计「权限拒绝」,语义准确:未经确认即放弃),再正常跑新输入。绝不让 pending interrupt 把新轮炸掉或吃掉。
 - ch05 投诉流按钮路 `/api/tickets` POST 原样不动(需求7 原文红线)。
 
 ### react.py 变更收口
