@@ -1062,7 +1062,7 @@ g.add_edge("ticket_confirm", "logging")
 - Consumes: T7 `stream_graph_turn(resume_value=…)`、`ticket_preview` 帧
 - Produces: `POST /api/tickets/confirm` body `{conversation_id:int, decision:"confirm"|"cancel"}` → SSE 流;409 无 pending;SSE event 名 `ticket_preview`,data=TicketPreviewEvent
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 async def test_confirm_sse_streams_ticket_no(client_with_reach_preview):
@@ -1086,7 +1086,7 @@ async def test_unknown_decision_422(client_with_reach_preview):
     # 复证:随后 decision=confirm 仍能成
 ```
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 routes.py:帧→SSE 映射抽 `_sse_event(kind, payload)`(现 chat_stream elif 链搬入,chat_stream 改调;新 `elif kind == "ticket_preview": yield ServerSentEvent(data=TicketPreviewEvent(**payload).model_dump(), event="ticket_preview")`)。新端点:
 
@@ -1119,7 +1119,7 @@ async def ticket_confirm(req: TicketConfirmRequest,
 
 (stream_graph_turn resume 分支需容忍 chat_messages=None:current 取 ""、skip refill、无 user 行——T7 已铺,此处如未铺一并补上并测。)
 
-- [ ] **Step 3: 全绿+提交** `"feat(ch08-t8): /api/tickets/confirm resume 端点——SSE 续播+409 过期+422 乱值 …"`
+- [x] **Step 3: 全绿+提交** `"feat(ch08-t8): /api/tickets/confirm resume 端点——SSE 续播+409 过期+422 乱值 …"`
 
 ### Task 9: 前端工单预览卡片(后端契约 TDD;html/js 部分 Vibe 例外)
 
