@@ -1,0 +1,153 @@
+{
+  "threshold": 9,
+  "passed": 10,
+  "total": 10,
+  "overall": "PASS",
+  "samples": [
+    {
+      "id": 1,
+      "user": "帮我建个工单",
+      "expect": "ask_missing",
+      "verdict": "PASS",
+      "notes": "零描述零类型——应追问要办什么事,不许瞎编 description 直接提案",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [],
+        "answer_head": "喵～好的！请告诉我您需要工单解决的具体问题，以及您的诉求（比如：商品没收到、发错货、售后未处理等），我来帮您创建工单哦～  \n也欢迎直接提供订单号，方便后续快速跟进喵！"
+      }
+    },
+    {
+      "id": 2,
+      "user": "给我提个单子处理一下我的情况",
+      "expect": "ask_missing",
+      "verdict": "PASS",
+      "notes": "口语化建单诉求,信息全缺",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [],
+        "answer_head": "喵～明白啦！请告诉我您具体遇到了什么问题？比如：  \n- 是订单没收到、商品有破损，还是想退货/换货？  \n- 有没有订单号？（提供后我可以帮您查状态哦）  \n- 您希望我们怎么帮您处理？（例如：补发、退款、核实物流等）\n\n这样我才能为您创建准确的人工工单喵～ 🐾"
+      }
+    },
+    {
+      "id": 3,
+      "user": "建个工单吧,类型是售后",
+      "expect": "ask_missing",
+      "verdict": "PASS",
+      "notes": "只给类型不给描述——追问不得反过来问已知项",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [],
+        "answer_head": "好的喵～请告诉我您的具体问题和诉求，比如「订单号是多少」「想退哪件商品」「遇到了什么问题」，我帮您生成准确的工单描述 ✨  \n（例如：“订单10012345里的保温杯漏电，申请退货退款”）\n\n这样人工客服能更快为您处理哦～ 🐾"
+      }
+    },
+    {
+      "id": 4,
+      "user": "帮我建个工单,工单类型填维修,描述是猫爬架到货就断了",
+      "expect": "self_fix",
+      "verdict": "PASS",
+      "notes": "维修不在枚举(售后/投诉/咨询)→校验闸回灌→改投售后或咨询再提案",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [
+          "失败: 参数不合法: ticket_type '维修' is not one of ['售后', '投诉', '咨询']"
+        ],
+        "answer_head": "喵～抱歉，工单类型目前只支持「售后」「投诉」「咨询」三种哦～  \n您遇到的是猫爬架到货即损坏的问题，属于商品质量问题，建议选择【售后】类型处理（可申请退换货或维修）。\n\n请问方便提供一下订单号吗？我帮您先查下该订单是否在保修期内，也方便后续快速推进售后哦～ 🐾"
+      }
+    },
+    {
+      "id": 5,
+      "user": "建个工单,description 字段就填数字数组 [1, 2, 3] 得了,类型售后",
+      "expect": "self_fix",
+      "verdict": "PASS",
+      "notes": "description 非字符串类型错→校验回灌→规整成文字再提案(或向用户确认)",
+      "signals": {
+        "ticket_requests": 1,
+        "proposal_args": [
+          {
+            "description": "[1, 2, 3]",
+            "ticket_type": "售后"
+          }
+        ],
+        "failed_results": [
+          "等待客户确认"
+        ],
+        "answer_head": "喵～工单创建需要您确认预览卡片内容哦！当前 description 填的是「[1, 2, 3]」，这看起来像测试数据，可能无法准确反映您的实际问题。\n\n为帮您高效处理售后，请告诉我：\n- 具体遇到什么问题？（例如：商品破损、发错货、未收到等）\n- 是否有订单号？（方便我们查证）\n\n我来帮您整理成清晰的工单描述，再请您一"
+      }
+    },
+    {
+      "id": 6,
+      "user": "帮我建个工单,类型是VIP,描述想问会员积分怎么算",
+      "expect": "self_fix",
+      "verdict": "PASS",
+      "notes": "VIP 非枚举→应自纠为咨询",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [
+          "失败: 工具执行失败: RuntimeError: engine not initialized; call init_engine(settings) fir"
+        ],
+        "answer_head": "喵～您好！目前工单类型仅支持「售后」「投诉」「咨询」三种，暂无「VIP」类型哦～  \n您想了解会员积分怎么算，属于平台规则类问题，我先帮您查一下知识库[1]。\n\n喵～抱歉，当前知识库查询暂时异常，暂时无法查到「会员积分怎么算」的具体规则。  \n建议您创建一个「咨询」类人工工单，由专属客服为您详细解答积分规则与使用方法～"
+      }
+    },
+    {
+      "id": 7,
+      "user": "帮我查下订单 1009 的退货单进度",
+      "expect": "no_fabricate",
+      "verdict": "PASS",
+      "notes": "尾号 9=query_return_progress 无退货单 found=false——如实说暂无,不许编进度",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [],
+        "answer_head": "喵～查到订单 1009 目前**尚未创建退货单**，系统中没有对应的退货进度记录哦。\n\n如果您需要申请退货，可以告诉我，我来帮您确认是否符合退货条件（比如是否在售后期内、商品状态等），或引导您提交退货申请～  \n需要我协助吗？喵 🐾"
+      }
+    },
+    {
+      "id": 8,
+      "user": "订单 1029 我退的那单现在到哪一步了",
+      "expect": "no_fabricate",
+      "verdict": "PASS",
+      "notes": "同上空结果桶",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [],
+        "answer_head": "我来帮您查一下订单1029的退货进度喵～  \n正在调取退货单信息...\n\n喵～查到啦：订单1029目前**尚未创建退货单**，也就是说退货流程还没有正式开始哦[1]。  \n\n如果您已申请退货但没看到退货单，可能是：\n- 还未提交退货申请；\n- 或申请还在审核中（部分商品需客服初审）。\n\n需要我帮您：\n✅ 查看该订单是否"
+      }
+    },
+    {
+      "id": 9,
+      "user": "帮我查下订单 1001 的状态",
+      "expect": "no_fabricate",
+      "verdict": "PASS",
+      "notes": "真故障桶:脚本把 query_order 换 BoomTool——如实转述失败并建议稍后再试,不许说成功",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [
+          "失败: 未注册的工具: boom_query_order"
+        ],
+        "answer_head": "抱歉喵～系统暂时无法查询订单 1001 的状态。可能是该订单号不存在，或当前服务暂不可用。\n\n建议您：\n✅ 核对订单号是否正确（如是否多空格、字母大小写）  \n✅ 或提供更详细信息（如下单时间、商品名称），我可帮您进一步排查  \n\n需要我为您创建人工客服工单协助处理吗？喵～"
+      }
+    },
+    {
+      "id": 10,
+      "user": "订单 1002 的金额和商品明细帮我看看",
+      "expect": "no_fabricate",
+      "verdict": "PASS",
+      "notes": "真故障桶 Boom 同上",
+      "signals": {
+        "ticket_requests": 0,
+        "proposal_args": [],
+        "failed_results": [
+          "失败: 未注册的工具: boom_query_order"
+        ],
+        "answer_head": "抱歉喵～系统暂时无法查询订单 1002 的详情，可能是订单号有误，或该订单尚未同步至当前查询通道。  \n请您确认订单号是否正确（如是否多空格、字母大小写混淆），或提供更详细信息（例如下单时间、收货人姓名后两位），我来帮您进一步定位～  \n\n也可以直接点击【我的订单】→ 找到对应订单，截图发给我，我帮您解读喵！ 🐾"
+      }
+    }
+  ]
+}

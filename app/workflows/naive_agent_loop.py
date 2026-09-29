@@ -13,8 +13,8 @@ from typing import Any
 
 from langchain_core.messages import ToolMessage
 
-from app.tools.executor import ToolContext, ToolOutcome, execute_tool
-from app.tools.registry import get_tools
+from app.tools.executor import ToolContext, ToolOutcome, execute_tool, make_summary
+from app.tools.registry import BUILTIN_SPECS, get_tools
 
 
 @dataclass
@@ -55,7 +55,13 @@ async def naive_agent_turn(
         if not tool_calls:
             return NaiveLoopResult(text=_text_of(ai), steps=steps, tool_calls=outcomes)
         for tc in tool_calls:  # 同轮并行调用逐个执行（冒烟实测语义）
-            outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
+            spec = BUILTIN_SPECS.get(tc["name"])
+            if spec is None:
+                _err = f"未注册的工具: {tc['name']}"
+                outcome = ToolOutcome(tc["name"], tc["id"], False, {"error": _err},
+                                      make_summary(tc["name"], {"error": _err}))
+            else:
+                outcome = await execute_tool(spec, tc.get("args") or {}, tc["id"], ctx)
             outcomes.append(outcome)
             messages.append(
                 ToolMessage(

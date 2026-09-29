@@ -85,3 +85,13 @@ class OrdersEvent(BaseModel):
     """SSE `orders` 帧 data：退款流程缺单号时弹可点卡片（需求 6/拍板 P5）。"""
 
     items: list[OrderCard]
+
+
+class TicketPreviewEvent(BaseModel):
+    """SSE `ticket_preview` 帧 data：ch08 确认流预览卡（图 interrupt 挂起，等客户在
+    卡片上决策；confirm 端点回传后续播，需求7）。"""
+
+    tool_call_id: str
+    ticket_type: str
+    description: str
+    conversation_id: int | None = None

@@ -1,20 +1,18 @@
-import random
-
 import pytest
 
 
-def test_registry_contains_five_tools_in_order():
-    from app.tools.registry import TOOL_REGISTRY, get_tool, get_tools
+def test_builtin_specs_registry_shape():
+    """ch08 起唯一权威清单=BUILTIN_SPECS(四件套,logistics 下线归 MCP)。"""
+    from app.tools.registry import BUILTIN_SPECS, get_tool, get_tools
 
-    assert list(TOOL_REGISTRY) == [
+    assert list(BUILTIN_SPECS) == [
         "query_order",
         "query_product",
-        "query_logistics",
         "query_faq",
         "create_ticket",
     ]
-    assert [t.name for t in get_tools()] == list(TOOL_REGISTRY)
-    assert get_tool("query_order") is TOOL_REGISTRY["query_order"]
+    assert [t.name for t in get_tools()] == list(BUILTIN_SPECS)
+    assert get_tool("query_order") is BUILTIN_SPECS["query_order"].tool
     assert get_tool("nope") is None
 
 
@@ -31,22 +29,12 @@ def test_create_ticket_schema_hides_conversation_id():
 def test_mock_tools_have_docstrings_and_schemas():
     from app.tools.registry import get_tool
 
-    for name in ("query_order", "query_product", "query_logistics"):
+    for name in ("query_order", "query_product"):
         t = get_tool(name)
         assert t.description.strip(), f"{name} 缺 docstring（模型选工具靠它）"
         assert "order_id" in t.args or "product_id" in t.args
 
-
-async def test_query_logistics_shape(monkeypatch):
-    from app.tools import definitions as d
-
-    monkeypatch.setattr(random, "randint", lambda a, b: a)  # 确定性
-    monkeypatch.setattr(random, "choice", lambda seq: seq[0])
-    out = await d.query_logistics.ainvoke({"order_id": "1001"})
-    assert out["order_id"] == "1001"
-    assert out["carrier"] and out["current_status"]
-    assert isinstance(out["traces"], list) and len(out["traces"]) >= 1
-    assert {"time", "location", "detail"} <= set(out["traces"][0].keys())
+# ch08: test_query_logistics_shape 随内置工具下线删除(轨迹面归 MCP,契约测在 T6)
 
 
 async def test_query_order_and_product_shape():

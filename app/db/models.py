@@ -7,7 +7,7 @@
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text, func, text
-from sqlalchemy.dialects.mysql import BIGINT, INTEGER
+from sqlalchemy.dialects.mysql import BIGINT, INTEGER, TINYINT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -230,3 +230,23 @@ class ConversationSummary(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
+
+class ToolAuditLog(Base):
+    """ch08 工具调用审计(DDL=db/init/08_ch08_tool_audit.sql 逐字对齐;无 FK 红线)。"""
+    __tablename__ = "tool_audit_logs"
+
+    id: Mapped[int] = mapped_column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int | None] = mapped_column(BIGINT(unsigned=True), nullable=True, index=True)
+    tool_call_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tool_name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    tool_source: Mapped[str] = mapped_column(Enum("builtin", "mcp", name="tool_source"), nullable=False)
+    mcp_server: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    arguments: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum("成功", "失败", "超时", "校验拦下", "权限拒绝", name="tool_audit_status"),
+        nullable=False, index=True)
+    error_message: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    retry_count: Mapped[int] = mapped_column(TINYINT(unsigned=True), nullable=False, server_default="0")
+    duration_ms: Mapped[int | None] = mapped_column(INTEGER(unsigned=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

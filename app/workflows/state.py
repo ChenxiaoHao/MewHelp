@@ -37,3 +37,5 @@ class ChatState(TypedDict, total=False):
     order_data: dict           # refund_fetch 取到的订单详情（agent 注入用）
     expanded_queries: list[str]  # 实际参与政策检索的问法（≤4，原问法居首）
     orders_payload: list[dict]   # orders 帧数据（临时 UI，不落消息历史）
+    # --- ch08 T7 建单确认流 ---
+    ticket_preview: dict         # {tool_call_id, ticket_type, description}；非空=agent 后走确认节点

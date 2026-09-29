@@ -3,8 +3,8 @@
 AgentEvent 元组形状逐字符对齐 ch04 ToolEvent(routes 层零改动复用,T6):
 ("token", str) | ("tool_call", {id,name,args}) | ("tool_result", {id,name,ok,summary})
 新增 ("done", {"steps": int, "suggestions": list})。
-模型用真 AIMessageChunk 脚本化(ch04 同款 + 累加聚合路径),工具执行按仓内
-既有模式 monkeypatch executor.get_tool。
+模型用真 AIMessageChunk 脚本化(ch04 同款 + 累加聚合路径),工具执行 ch08 T3 起
+monkeypatch react 模块的 BUILTIN_SPECS(ToolSpec 直传执行器,假件补 name/args 属性)。
 """
 
 import json
@@ -12,15 +12,19 @@ from types import SimpleNamespace
 
 from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage
 
+import app.agents.react as react_mod
 from app.agents.react import react_agent_stream
 from app.core.config import Settings
-from app.tools import executor as ex
+from app.tools.registry import ToolSpec
 from app.workflows.nodes import TRANSFER_HUMAN
 
 
 class FakeTool:
-    def __init__(self, payload):
+    def __init__(self, payload, name=""):
         self.payload = payload
+        self.name = name
+        self.description = ""
+        self.args = {}
         self.calls = 0
 
     async def ainvoke(self, args, config=None, **kwargs):
@@ -30,10 +34,10 @@ class FakeTool:
 
 def _install_fake_tools(monkeypatch):
     fakes = {
-        "query_order": FakeTool({"order_id": "1001", "status": "运输中"}),
-        "query_logistics": FakeTool({"order_id": "1001", "status": "已签收"}),
+        "query_order": FakeTool({"order_id": "1001", "status": "运输中"}, name="query_order"),
     }
-    monkeypatch.setattr(ex, "get_tool", lambda name: fakes.get(name))
+    specs = {n: ToolSpec(t, "readonly", "builtin") for n, t in fakes.items()}
+    monkeypatch.setattr(react_mod, "BUILTIN_SPECS", specs)
     return fakes
 
 
@@ -87,7 +91,7 @@ async def test_complex_question_walks_multiple_steps(monkeypatch):
     _install_fake_tools(monkeypatch)
     model = ScriptStreamModel([
         _turn("先看订单。", [("query_order", {"order_id": "1001"}, "c1")]),
-        _turn(tool_calls=[("query_logistics", {"order_id": "1001"}, "c2")]),
+        _turn(tool_calls=[("query_order", {"order_id": "1001"}, "c2")]),  # ch08:logistics 下线,第二步用 query_order 顶替(多步语义不变)
         _turn("已签收，放在驿站。"),
     ])
     events = [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
@@ -166,27 +170,34 @@ def test_settings_react_defaults_pinned():
     assert Settings.model_fields["react_token_budget"].default == 8000
 
 
-async def test_agent_never_binds_create_ticket():
-    """终审 F 批:D2「Agent 自动建单方案作废」+ 用户钉「点『建工单』才写 tickets」
-    → react 绑定集必须排除 create_ticket(建单唯一入口=前端按钮→POST /api/tickets)。"""
+async def test_agent_binds_full_snapshot_including_create_ticket():
+    """ch08 T7 反转(规4,需求7 取代 ch05 D2/终审 F 批红线):绑定集=快照全集
+    (含 create_ticket)——写提案由执行层权限闸拦下转确认流,不再靠 bind 剔除。"""
     model = ScriptStreamModel([_turn("答案")])
     [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
     names = {t.name for t in model.bound_with}
-    assert "create_ticket" not in names
-    assert names == {"query_order", "query_product", "query_logistics", "query_faq"}
+    assert "create_ticket" in names
+    assert names == {"query_order", "query_product", "query_faq", "create_ticket"}
 
 
-async def test_hallucinated_create_ticket_blocked_before_executor(monkeypatch):
-    """执行闸:模型幻调 create_ticket 也绝不到执行器(即便按名可查),仅回 ok=False。"""
+async def test_create_ticket_proposal_parks_confirmation(monkeypatch):
+    """ch08 T7:模型建单提案(无凭证)被权限闸拦在执行器之前——
+    真件零调用 + ticket_request 内部事件 + tool_result 回灌「等待客户确认」。"""
     fakes = _install_fake_tools(monkeypatch)
-    fakes["create_ticket"] = FakeTool({"ticket_no": "T_SHOULD_NOT_EXIST"})
+    ticket = FakeTool({"ticket_no": "T_SHOULD_NOT_EXIST"}, name="create_ticket")
+    specs = {n: ToolSpec(t, "readonly", "builtin") for n, t in fakes.items()}
+    specs["create_ticket"] = ToolSpec(ticket, "write", "builtin")
+    monkeypatch.setattr(react_mod, "BUILTIN_SPECS", specs)
     model = ScriptStreamModel([
         _turn("我建个单。", [("create_ticket",
                              {"conversation_id": 42, "description": "x", "ticket_type": "投诉"},
                              "ct1")]),
-        _turn("按钮在下方，请确认后点击。"),
+        _turn("请在卡片上确认。"),
     ])
     events = [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
-    assert fakes["create_ticket"].calls == 0, "create_ticket 真执行了(违 D2/需求8)"
+    assert ticket.calls == 0, "create_ticket 真执行了(权限闸失守)"
+    req = next(d for k, d in events if k == "ticket_request")
+    assert req["tool_call_id"] == "ct1" and req["args"]["description"] == "x"
     result = next(d for k, d in events if k == "tool_result")
     assert result["name"] == "create_ticket" and result["ok"] is False
+    assert result["summary"] == "等待客户确认"

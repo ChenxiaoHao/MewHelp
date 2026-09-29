@@ -3,9 +3,21 @@
 from langchain_core.prompts import ChatPromptTemplate
 
 SELF_CHECK_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """你是客服回答前的证据充分性审查员。判断「仅凭下列知识库证据,能否直接回答用户问题」。
-标准:证据必须覆盖问题的核心诉求;只是话题沾边、答不中问题 → sufficient=false;
-部分覆盖也判 false(宁可拒答转人工,不许半编造)。
-输出字段:sufficient(布尔)、reason(一句话,说明缺什么,将展示给用户复盘)。"""),
+    ("system", """你是客服回答前的证据充分性审查员。
+    判断「仅凭下列知识库证据,是否足以回答用户问题的核心诉求」。
+
+    判断标准：
+    1. 如果证据与用户问题高度相关，并且能够支持主要回答，则 sufficient=true。
+    2. 不要求证据覆盖所有可能的补充细节。
+    3. 缺少非核心信息（例如申请步骤、补充说明、其他可选方式）时，不应判定为证据不足。
+    4. 只有以下情况返回 sufficient=false：
+       - 没有相关证据；
+       - 证据与问题无关；
+       - 证据不足以回答用户主要诉求；
+       - 证据之间存在明显冲突。
+    5. 不允许根据常识补充知识库之外的信息。
+
+    输出字段：
+    sufficient(布尔)、reason(一句话说明原因)。"""),
     ("human", "用户问题:{question}\n候选证据:\n{evidence}"),
 ])

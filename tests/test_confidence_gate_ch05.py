@@ -69,6 +69,9 @@ def gate_env(monkeypatch):
             retrieval_low_conf_threshold=0.161,
             max_agent_steps=6, react_token_budget=8000,
             history_token_budget=4000,
+            # ch08 T7:agent_node 现调 snapshot_tools,死端口桩=恒降级内置面
+            mcp_logistics_url="http://127.0.0.1:9599/mcp",
+            mcp_aftersale_url="http://127.0.0.1:9598/mcp",
         )
         async def fake_retrieve(query, *, strategy=None, category=None, settings=None, understood=None):
             return RetrieveResult(chunks=_chunks(scores))

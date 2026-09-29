@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     mysql_db: str = "mewhelp"
     # --- ch02: 会话与工具执行 ---
     demo_user_id: str = "demo_user"
-    tool_timeout_seconds: float = 5.0
+    tool_timeout_seconds: float = 10.0   # ch08 P1:executor 正名收编,基准钉 10s(原工作树未提交 30s 弃)
     tool_max_retries: int = 1
+
+    # --- ch08: MCP 接入(P3 定死本机端口;demo 值=默认,零配置可用) ---
+    mcp_logistics_url: str = "http://127.0.0.1:8101/mcp"
+    mcp_aftersale_url: str = "http://127.0.0.1:8102/mcp"
 
     # --- ch05: ReAct token 预算熔断(拍板 P3;轮数上限 ch07 起并入 max_agent_steps) ---
     react_token_budget: int = 8000

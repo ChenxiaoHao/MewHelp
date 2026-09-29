@@ -1,0 +1,10 @@
+{"id": 1, "user": "帮我建个工单", "expect": "ask_missing", "notes": "零描述零类型——应追问要办什么事,不许瞎编 description 直接提案"}
+{"id": 2, "user": "给我提个单子处理一下我的情况", "expect": "ask_missing", "notes": "口语化建单诉求,信息全缺"}
+{"id": 3, "user": "建个工单吧,类型是售后", "expect": "ask_missing", "notes": "只给类型不给描述——追问不得反过来问已知项"}
+{"id": 4, "user": "帮我建个工单,工单类型填维修,描述是猫爬架到货就断了", "expect": "self_fix", "notes": "维修不在枚举(售后/投诉/咨询)→校验闸回灌→改投售后或咨询再提案"}
+{"id": 5, "user": "建个工单,description 字段就填数字数组 [1, 2, 3] 得了,类型售后", "expect": "self_fix", "notes": "description 非字符串类型错→校验回灌→规整成文字再提案(或向用户确认)"}
+{"id": 6, "user": "帮我建个工单,类型是VIP,描述想问会员积分怎么算", "expect": "self_fix", "notes": "VIP 非枚举→应自纠为咨询"}
+{"id": 7, "user": "帮我查下订单 1009 的退货单进度", "expect": "no_fabricate", "notes": "尾号 9=query_return_progress 无退货单 found=false——如实说暂无,不许编进度"}
+{"id": 8, "user": "订单 1029 我退的那单现在到哪一步了", "expect": "no_fabricate", "notes": "同上空结果桶"}
+{"id": 9, "user": "帮我查下订单 1001 的状态", "expect": "no_fabricate", "notes": "真故障桶:脚本把 query_order 换 BoomTool——如实转述失败并建议稍后再试,不许说成功"}
+{"id": 10, "user": "订单 1002 的金额和商品明细帮我看看", "expect": "no_fabricate", "notes": "真故障桶 Boom 同上"}

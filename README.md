@@ -258,3 +258,32 @@ uv run uvicorn app.main:app --port 8000
 uv run pytest -m integration -q -p no:cacheprovider tests/e2e/   # 三章 e2e(A1–A5,B1–B3,C1–C4)
 uv run python evals/smoke_ch07.py                                # 摘要 prompt 真模型冒烟(不进 CI)
 ```
+
+## ch08 工具层升级:注册中心 + MCP 即插即用 + 三道闸 + 确认流
+
+- **注册中心三件套**:`ToolSpec(tool, permission, source, mcp_server)` / `BUILTIN_SPECS`(内置视图)/ `snapshot_tools(settings)` 每对话轮现拿「内置 ∪ MCP」快照,**无缓存**(P4:adapters 每次调用新建会话,Server 侧加/改工具下轮即见,客服侧零改动)。`query_logistics` 唯一来源=MCP(P7 内置版已下线,无共存窗口)。
+- **三道闸(单漏斗 executor)**:闸序=校验→权限(spec 自查订正)。JSON Schema 校验闸(必填缺失/枚举外→「参数不合法: 」回灌,模型向用户追问,不瞎编);权限闸(read/write 两级,唯一 write=`create_ticket`——未确认时停在 `awaiting_confirmation` 中间态进确认流,**中间态不落审计**);执行闸=超时+重试白名单(只对暂时性故障 ConnectionError/Timeout 类重试,业务硬错不重;`write` 恒 attempts=1——重复建单比失败更糟,写超时给「人工核实」提示)。三类失败分诊回灌文案(校验拦下/权限拒绝/执行失败+超时)。
+- **审计 `tool_audit_logs`**(db/init/08):每次真实执行一行——工具名/来源/参数摘要/结果摘要/状态(成功/失败/超时/校验拦下/权限拒绝)/`retry_count`/`duration_ms` 全列;审计写败只 WARN 不拦执行(需求5 红线)。
+- **双自建 MCP Server(Streamable HTTP)**:`mcp_servers/logistics_server.py`(8101:`query_logistics`)、`mcp_servers/aftersale_server.py`(8102:`query_warranty`/`query_return_progress`)。env:`MCP_LOGISTICS_URL`/`MCP_AFTERSALE_URL`(默认 `http://127.0.0.1:8101/mcp`、`.../8102/mcp`);连不上=当轮静默降级只剩内置面(WARN)。
+- **LangGraph interrupt 建工单确认流**:create_ticket 必填齐→权限闸给 `ticket_request` 内部事件→条件边进 `ticket_confirm` 节点 `interrupt` 暂停,末帧 `ticket_preview {tool_call_id, ticket_type, description, conversation_id}`(暂停轮无 done/suggestions,前端卡片照挂)。`POST /api/tickets/confirm {conversation_id, decision: confirm|cancel}` 以 `Command(resume)` 续跑:confirm→真建单+审计「成功」+零 LLM 模板答复回工单号;cancel→不建单+审计「权限拒绝」;新消息隐式 cancel(drain 旧 interrupt 落账);resume 重放安全(interrupt 前零副作用);挂起态再 confirm=409,缺参=422(依赖层预检,标准 JSON 非 SSE)。
+- **前端**:preview 帧→工单预览卡片(「✅ 确认建单」「✖ 取消」,点击后双钮置灰);确认后独立 SSE 简读续播工单号。
+
+```bash
+# 演示(三条命令按序;8101/8102 不起=当轮无 MCP 工具,不报错)
+.venv/Scripts/python.exe mcp_servers/logistics_server.py    # 终端1:物流 MCP 8101
+.venv/Scripts/python.exe mcp_servers/aftersale_server.py    # 终端2:售后 MCP 8102
+uv run uvicorn app.main:app --port 8000                     # 终端3:主服务,浏览器开 http://127.0.0.1:8000/
+# 验收演示脚本(P9 手工面):
+#   验收1 只注册即用:往 logistics_server.py 加一个新 @mcp.tool(如查仓库)→只重启 8101
+#         →客服侧零改动零重启,下轮即问即用
+#   验收2 MCP 查物流:起两 Server 后问「订单 1001 的物流到哪了」→🔧 query_logistics(mcp 源)
+#   验收4 建单确认:「帮我查下订单1002的物流，查完后务必建个工单记录猫粮包装破损的情况，
+#         方便后续补发」(话术敏感性:纯「建个工单+缺货」会被判退款流,约 1/3 命中率,
+#         可换顺承句重试)→出预览卡→点确认→回工单号 T…
+#   验收5 取消:预览卡点「✖ 取消」→不建单,tool_audit_logs 落「权限拒绝」
+#   验收6 超时:log/grep「超时」+ SELECT retry_count/duration_ms FROM tool_audit_logs
+uv run pytest -q                                              # 单元全绿(含 e2e C4–C6 单元级钉)
+uv run pytest -m integration -q -p no:cacheprovider          # 含 ch08 双 Server 真链路(T6)+三章 e2e
+uv run python evals/run_ch08_eval.py                          # 三桶话术评估(先起两 Server;不进 CI)
+```
+- **已知边界(spec 挂账原文)**:InMemorySaver 进程内——多 worker/重启丢待确认 interrupt,confirm 得 409(=用户可见「确认已过期」语义);审计表只增不清;每轮两次 MCP 会话的本地开销(demo 规模可接受,缓存/TTL 挂账);外部 server 写语义不支持(P5:MCP 工具一律 readonly);naive_agent_loop / tool_chat_service 两个 legacy 面不吃 MCP 新工具(单漏斗闸与审计照吃)。

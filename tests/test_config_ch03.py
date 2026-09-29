@@ -47,4 +47,4 @@ def test_ch01_ch02_still_untouched(env):
         model_name="fake-model",
     )
     assert s.history_token_budget == 4000
-    assert s.tool_timeout_seconds == 5.0
+    assert s.tool_timeout_seconds == 10.0  # ch08 T5 改基准

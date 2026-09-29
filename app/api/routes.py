@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 from collections.abc import AsyncIterable
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,18 +16,19 @@ from app.schemas.chat import (
     HealthResponse,
     OrdersEvent,
     SuggestionsEvent,
+    TicketPreviewEvent,
     ToolCallEvent,
     ToolResultEvent,
 )
 from app.schemas.conversation import ConversationItem, ConversationList, MessageItem
 from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
 from app.schemas.refund import RefundRequest
-from app.schemas.ticket import TicketCreateRequest, TicketOut
+from app.schemas.ticket import TicketConfirmRequest, TicketCreateRequest, TicketOut
 from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
-from app.workflows.graph import stream_graph_turn
+from app.workflows.graph import build_graph, stream_graph_turn, thread_lock
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,6 +55,94 @@ async def dep_db_session():
         return
     async with factory() as session:
         yield session
+
+
+def _sse_event(kind: str, payload) -> ServerSentEvent | None:
+    """帧→SSE 映射 helper（ch08 T8 抽取自 chat_stream elif 链，chat/confirm 两端复用）。
+
+    token/done/error 帧字节面与 ch01 逐字符一致（spec 红线）；未知 kind 静默丢
+    （与旧 elif 链行为一致）。"""
+    if kind == "token":
+        return ServerSentEvent(data=payload, event="token")
+    if kind == "tool_call":
+        return ServerSentEvent(data=ToolCallEvent(**payload).model_dump(), event="tool_call")
+    if kind == "tool_result":
+        return ServerSentEvent(
+            data=ToolResultEvent(**payload).model_dump(exclude_none=True), event="tool_result"
+        )
+    if kind == "orders":  # ch06 新帧(P7):末 token 后、suggestions 前(适配层保证)
+        return ServerSentEvent(data=OrdersEvent(**payload).model_dump(), event="orders")
+    if kind == "suggestions":  # ch05 新帧(P4):末 token 后、done 前(适配层保证)
+        return ServerSentEvent(data=SuggestionsEvent(**payload).model_dump(), event="suggestions")
+    if kind == "ticket_preview":  # ch08 需求7:预览卡帧,其后无 done 语义由编排层保证
+        return ServerSentEvent(data=TicketPreviewEvent(**payload).model_dump(), event="ticket_preview")
+    return None
+
+
+# M2-I3:「409 预检 + resume」两段 await 之间无原子性——卡片双击并发两发都在对方
+# 写 checkpoint 前通过预检,同点重放 ticket_confirm → 唯一 write 双落(需求4 红线)。
+# 修法:短临界区(检+加之间无 await)单入口;端点生成器 finally 释放。
+# dep 通过后生成器未及启动的断连泄漏由 TTL 自愈(120s≫resume 实际百毫秒级;
+# 过期只放松「在飞拦截」不放松「pending 检查」——重复建单闸不因此失效)。
+_CONFIRM_INFLIGHT_TTL = 120.0
+_confirm_inflight: dict[int, float] = {}
+_confirm_guard = asyncio.Lock()
+
+
+async def dep_confirm_pending(
+    req: TicketConfirmRequest,
+    settings=Depends(dep_settings),
+    model=Depends(dep_chat_model),
+    session=Depends(dep_db_session),
+):
+    """503/409 预检放依赖层:端点流式函数体在响应头发送后才执行,体内 raise
+    改不了 HTTP 状态码;依赖在发送前 await,409/503 走标准 HTTP 错误面(需求7)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    graph = build_graph(settings, model)
+    cfg = {"configurable": {"thread_id": f"conv-{req.conversation_id}",
+                            "conversation_id": req.conversation_id,
+                            "persister": None, "ctx_store": None}}
+    # 终审 I-1:「查 pending+标 inflight」与新消息轮的「查 pending+drain」共持
+    # per-thread 锁(锁只跨检查段,resume 头段锁在 stream_graph_turn 内接力)。
+    async with thread_lock(cfg["configurable"]["thread_id"]):
+        snap = await graph.aget_state(cfg)
+        if not (getattr(snap, "interrupts", ()) or ()):
+            raise HTTPException(status_code=409, detail="确认已过期,请重新发起建单")
+        now = time.monotonic()
+        async with _confirm_guard:
+            started = _confirm_inflight.get(req.conversation_id)
+            if started is not None and now - started < _CONFIRM_INFLIGHT_TTL:
+                raise HTTPException(status_code=409, detail="已有确认在处理中，请稍候")
+            _confirm_inflight[req.conversation_id] = now
+    return session
+
+
+@router.post("/api/tickets/confirm", response_class=EventSourceResponse)
+async def ticket_confirm(
+    req: TicketConfirmRequest,
+    settings=Depends(dep_settings),
+    model=Depends(dep_chat_model),
+    session=Depends(dep_confirm_pending),
+) -> AsyncIterable[ServerSentEvent]:
+    """ch08 需求7:预览卡片回传 → Command(resume) 同线程续跑,SSE 续播答复。
+
+    409=线程无挂起 interrupt(卡片过期/已被消费,预检挡);
+    422=decision 乱值(请求体校验挡下,interrupt 不被消耗——Review Focus 2)。"""
+    persister = DBChatPersister(session, req.conversation_id)
+    try:
+        async for kind, payload in stream_graph_turn(
+                None, settings, model, conversation_id=req.conversation_id,
+                persister=persister, resume_value=req.decision):
+            ev = _sse_event(kind, payload)
+            if ev is not None:
+                yield ev
+        yield ServerSentEvent(raw_data="[DONE]", event="done")
+    except Exception as exc:  # noqa: BLE001 —— SSE 惯例：错误进事件流后正常关流
+        logger.exception("confirm resume failed")
+        yield ServerSentEvent(data={"detail": str(exc)}, event="error")
+    finally:
+        _confirm_inflight.pop(req.conversation_id, None)   # M2-I3 释放单入口
 
 
 @router.post("/api/chat/stream", response_class=EventSourceResponse)
@@ -103,24 +194,9 @@ async def chat_stream(
             persister=persister,
             ctx_store=ctx_store,
         ):
-            if kind == "token":
-                yield ServerSentEvent(data=payload, event="token")
-            elif kind == "tool_call":
-                yield ServerSentEvent(
-                    data=ToolCallEvent(**payload).model_dump(), event="tool_call"
-                )
-            elif kind == "tool_result":
-                yield ServerSentEvent(
-                    data=ToolResultEvent(**payload).model_dump(exclude_none=True), event="tool_result"
-                )
-            elif kind == "orders":  # ch06 新帧(P7):末 token 后、suggestions 前(适配层保证)
-                yield ServerSentEvent(
-                    data=OrdersEvent(**payload).model_dump(), event="orders"
-                )
-            elif kind == "suggestions":  # ch05 新帧(P4):末 token 后、done 前(适配层保证)
-                yield ServerSentEvent(
-                    data=SuggestionsEvent(**payload).model_dump(), event="suggestions"
-                )
+            ev = _sse_event(kind, payload)
+            if ev is not None:
+                yield ev
         yield ServerSentEvent(raw_data="[DONE]", event="done")
     except Exception as exc:  # noqa: BLE001 —— SSE 惯例：错误进事件流后正常关流
         logger.exception("chat stream failed")

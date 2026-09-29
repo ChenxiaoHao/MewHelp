@@ -17,6 +17,7 @@ from app.db.models import (
     Message,
     QaExtractionStaging,
     Ticket,
+    ToolAuditLog,
 )
 
 logger = logging.getLogger(__name__)
@@ -482,3 +483,9 @@ async def get_conversation_for_user(session, cid: int, user_id: str):
             )
         )
     ).scalar_one_or_none()
+
+async def insert_tool_audit(session: AsyncSession, **fields) -> None:
+    """ch08 审计写入(spec 审计节):单行 insert,失败上抛由 sink 层 WARN 吞——
+    审计不许反拦工具执行是需求5 红线,故这里不做重试也不做兜底。"""
+    session.add(ToolAuditLog(**fields))
+    await session.commit()

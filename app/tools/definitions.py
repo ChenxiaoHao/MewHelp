@@ -1,5 +1,6 @@
-"""五个业务工具。query_order/query_product/query_logistics 为 mock（不接真实接口、不建表）；
+"""四个内置工具。query_order/query_product 为 mock（不接真实接口、不建表）；
 query_faq 走混合检索+重排(app/rag/retriever.py,ch04);create_ticket 写 tickets 表。
+ch08:内置 query_logistics 已下线,物流轨迹改由 MCP server 提供(需求6,不留重名)。
 
 工具函数一律返回 dict（结构化结果），异常向上抛由 executor 统一包装——
 definitions 里不写错误处理（职责分离）。
@@ -19,8 +20,6 @@ from app.rag.retriever import apply_head_tail, retrieve
 from app.services.refusals import pool_low_confidence
 
 _ORDER_STATUSES = ["待付款", "待发货", "运输中", "已签收", "已取消"]
-_CARRIERS = ["中通快递", "圆通速递", "韵达快递", "顺丰速运"]
-_CITIES = ["杭州转运中心", "苏州分拨中心", "南京集散中心", "上海虹桥网点", "北京大兴网点"]
 _PRODUCT_NAMES = ["喵帮定制猫爬架", "冻干鸡肉猫粮 2kg", "宠物自动饮水机", "猫砂盆除臭剂", "磨爪逗猫棒套装"]
 _CATEGORIES = ["猫粮", "用品", "零食", "清洁"]
 
@@ -79,29 +78,6 @@ async def query_product(product_id: str) -> dict:
 
 
 @tool
-async def query_logistics(order_id: str) -> dict:
-    """按订单号查询物流轨迹：承运商、当前状态与最近几条轨迹。用户问「物流到哪了」「快递走到哪了」「什么时候到」时使用。order_id: 订单号，如 1001。"""
-    rnd = random.Random(f"logistics-{order_id}")
-    n = rnd.randint(2, 4)
-    now = datetime.now()
-    cities = rnd.sample(_CITIES, n)
-    traces = [
-        {
-            "time": (now - timedelta(hours=8 * (n - i))).strftime("%Y-%m-%d %H:%M"),
-            "location": city,
-            "detail": rnd.choice(["快件已到达", "快件已发出，下一站", "运输中", "已揽收"]),
-        }
-        for i, city in enumerate(cities)
-    ]
-    return {
-        "order_id": order_id,
-        "carrier": rnd.choice(_CARRIERS),
-        "current_status": rnd.choice(["运输中", "派送中", "已签收", "已揽收"]),
-        "traces": traces,
-    }
-
-
-@tool
 async def query_faq(keyword: str, config: RunnableConfig) -> dict:
     """语义检索平台知识库,回答规则、政策、费用与商品使用类问题(退换货政策、运费与包邮门槛、售后流程、积分等)。用户咨询任何平台规则、政策、费用、商品用法类问题时,必须先调用本工具再作答,即使你认为自己知道通用答案。keyword: 用户的原始问题完整句子(语义检索按整句匹配,请勿自行拆词)。返回的 hits 按相关性首尾排布:[1] 与末位最相关,回答引用时用其 n 编号;refused=true 表示证据不足,此时必须拒答不得编造。"""
     res = await retrieve(keyword)
@@ -119,7 +95,7 @@ async def create_ticket(
     ticket_type: Literal["售后", "投诉", "咨询"],
     config: RunnableConfig,
 ) -> dict:
-    """创建人工客服工单（转人工）。仅当用户明确要求转人工，或问题超出工具与 FAQ 能力、需要人工跟进时使用。description: 用一句话概括用户的问题与诉求; ticket_type: 工单类型，售后/投诉/咨询三选一。"""
+    """创建人工客服工单。客户明确要求建工单时调用；description 必填且须来自客户原话、不得编造，信息不足先追问。调用后不会直接写单——由客户在预览卡片确认后系统才真正创建（ch08 确认流，需求7）。description: 用一句话概括客户的问题与诉求; ticket_type: 工单类型，售后/投诉/咨询三选一。"""
     conversation_id = (config.get("configurable") or {}).get("conversation_id")
     async with get_session_factory()() as session:
         ticket = await crud_create_ticket(

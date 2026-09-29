@@ -21,8 +21,8 @@ from app.schemas.chat import ChatMessage
 from app.services.chat_service import build_messages, stream_chat
 from app.services.refusals import REFUSAL_ANSWER, pool_low_confidence
 from app.services.self_check import evaluate_evidence
-from app.tools.executor import ToolContext, ToolOutcome, execute_tool
-from app.tools.registry import get_tools
+from app.tools.executor import ToolContext, ToolOutcome, execute_tool, make_summary
+from app.tools.registry import BUILTIN_SPECS, get_tools
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,14 @@ async def stream_chat_with_tools(
     faq_hits: list | None = None
     for tc in tool_calls:
         yield ("tool_call", {"id": tc["id"], "name": tc["name"], "args": tc.get("args") or {}})
-        outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
+        spec = BUILTIN_SPECS.get(tc["name"])
+        if spec is None:
+            _err = f"未注册的工具: {tc['name']}"
+            logger.warning("tool lookup failed: %s", tc["name"])
+            outcome = ToolOutcome(tc["name"], tc["id"], False, {"error": _err},
+                                  make_summary(tc["name"], {"error": _err}))
+        else:
+            outcome = await execute_tool(spec, tc.get("args") or {}, tc["id"], ctx)
         payload = {
             "id": outcome.tool_call_id,
             "name": outcome.name,

@@ -28,5 +28,5 @@ def test_ch02_defaults(env):
     assert s.mysql_password == "mewhelp_dev"
     assert s.mysql_db == "mewhelp"
     assert s.demo_user_id == "demo_user"
-    assert s.tool_timeout_seconds == 5.0
+    assert s.tool_timeout_seconds == 10.0  # ch08 T5 基准 5→10(MCP 往返留余量)
     assert s.tool_max_retries == 1

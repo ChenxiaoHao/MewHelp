@@ -66,7 +66,7 @@ def tc_chunk(args_fragment, first=False):
         content="",
         tool_call_chunks=[
             {
-                "name": "query_logistics" if first else None,
+                "name": "query_order" if first else None,
                 "args": args_fragment,
                 "id": "call_1" if first else None,
                 "index": 0,
@@ -115,7 +115,7 @@ async def test_pure_chat_passthrough(settings):
     assert events == [("token", "你好"), ("token", "呀")]
     assert model.calls == 1
     assert model.round2_messages is None
-    assert len(model.bound_tools) == 5  # 第一轮确实 bind 了 5 个工具
+    assert len(model.bound_tools) == 4  # ch08 内置四件套(logistics 归 MCP)
     assert ("final", 1, "你好呀") in p.calls
     assert [c[0] for c in p.calls] == ["final"]
 
@@ -126,15 +126,15 @@ async def test_tool_flow_events_and_round2_feedback(settings, monkeypatch):
         round2=[AIMessageChunk(content="您的包裹"), AIMessageChunk(content="在杭州")],
     )
 
-    async def fake_execute(name, args, tcid, ctx):
-        assert name == "query_logistics"
+    async def fake_execute(spec, args, tcid, ctx):
+        assert spec.name == "query_order"  # ch08:新签名首参=ToolSpec
         assert args == {"order_id": "1001"}  # 分片 args 已聚合解析
         assert tcid == "call_1"
         assert ctx.conversation_id == 3
         assert ctx.timeout_seconds == settings.tool_timeout_seconds
         assert ctx.max_retries == settings.tool_max_retries
         return ToolOutcome(
-            name=name, tool_call_id=tcid, ok=True,
+            name=spec.name, tool_call_id=tcid, ok=True,
             result={"current_status": "运输中"}, summary="运输中",
         )
 
@@ -148,8 +148,8 @@ async def test_tool_flow_events_and_round2_feedback(settings, monkeypatch):
     )
     kinds = [k for k, _ in events]
     assert kinds == ["tool_call", "tool_result", "token", "token"]
-    assert events[0][1] == {"id": "call_1", "name": "query_logistics", "args": {"order_id": "1001"}}
-    assert events[1][1] == {"id": "call_1", "name": "query_logistics", "ok": True, "summary": "运输中"}
+    assert events[0][1] == {"id": "call_1", "name": "query_order", "args": {"order_id": "1001"}}
+    assert events[1][1] == {"id": "call_1", "name": "query_order", "ok": True, "summary": "运输中"}
 
     # 第二轮回灌：裸 model 收到 [...历史, AIMessage(含tool_calls), ToolMessage(结果JSON)]
     assert model.calls == 2
@@ -159,12 +159,12 @@ async def test_tool_flow_events_and_round2_feedback(settings, monkeypatch):
     assert tm[0].tool_call_id == "call_1"
     assert "运输中" in tm[0].content
     ai = [m for m in r2 if getattr(m, "tool_calls", None)]
-    assert ai and ai[0].tool_calls[0]["name"] == "query_logistics"
+    assert ai and ai[0].tool_calls[0]["name"] == "query_order"
 
     # 落库三挂点按序各一次
     assert [c[0] for c in p.calls] == ["tool_calls", "tool_result", "final"]
     assert p.calls[0][2] == ""  # 第一轮无文本
-    assert p.calls[0][3][0]["name"] == "query_logistics"
+    assert p.calls[0][3][0]["name"] == "query_order"
     assert p.calls[2][2] == "您的包裹在杭州"
 
 
@@ -175,9 +175,9 @@ async def test_tool_failure_still_converges(settings, monkeypatch):
         round2=[AIMessageChunk(content="抱歉，暂时查询不到")],
     )
 
-    async def fake_execute(name, args, tcid, ctx):
+    async def fake_execute(spec, args, tcid, ctx):
         return ToolOutcome(
-            name=name, tool_call_id=tcid, ok=False,
+            name=spec.name, tool_call_id=tcid, ok=False,
             result={"error": "工具执行失败: 执行超时(>5.0s)"}, summary="失败: 执行超时",
         )
 
@@ -228,7 +228,7 @@ async def test_gate1_refused_exits_with_fixed_refusal_no_round2(settings, monkey
         round2=[AIMessageChunk(content="不该走到第二轮")],
     )
 
-    async def fake_execute(name, args, tcid, ctx):
+    async def fake_execute(spec, args, tcid, ctx):
         return faq_outcome(refused=True, note="证据置信度不足")
 
     monkeypatch.setattr(svc, "execute_tool", fake_execute)
@@ -249,7 +249,7 @@ async def test_gate2_insufficient_refuses_and_pools(settings, monkeypatch):
         round1=[faq_chunk('{"keyword": ', first=True), faq_chunk('"退货款几天到账"}')], round2=[])
     seen = {}
 
-    async def fake_execute(name, args, tcid, ctx):
+    async def fake_execute(spec, args, tcid, ctx):
         return faq_outcome(hits=HIT1)
 
     async def fake_check(question, hits, st, *, model=None):
