@@ -204,6 +204,20 @@
   .order-card .oc-id { font-weight: 700; font-size: 13px; }
   .order-card .oc-items { color: #6b5f47; font-size: 11px; }
   .order-card.picked { background: var(--orange); box-shadow: 3px 3px 0 var(--ink); }
+
+  /* ===== ch08(T9): ticket_preview 帧 → 建单确认卡片(需求7) ===== */
+  .ticket-card {
+    display: flex; flex-direction: column; gap: 6px; align-self: stretch;
+    max-width: 420px; margin-top: 4px; padding: 10px 12px;
+    background: var(--win); color: var(--ink);
+    border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 rgba(41, 41, 41, .35);
+    font-size: 12px; line-height: 1.45;
+  }
+  .ticket-card .tk-title { font-weight: 700; font-size: 13px; }
+  .ticket-card .tk-desc { color: #6b5f47; }
+  .ticket-card .tk-btns { display: flex; gap: 8px; }
+  .ticket-card.decided { opacity: .55; }
   .order-pick-btn { align-self: flex-start; padding: 2px 10px; font-size: 12px; }
   .refund-form {
     display: flex; flex-direction: column; gap: 6px; align-self: flex-start;
@@ -520,6 +534,7 @@ async function send() {
   let roundCitations = null;  // ch04(T13): 本轮 tool_result 帧 citations 暂存(同轮多次 query_faq 后帧覆盖前帧,见 dev-notes)
   let roundSuggestions = null;  // ch05(T8): suggestions 帧暂存(末 token 后、done 前到达=RF4)
   let roundOrders = null;       // ch06(T6): orders 帧暂存(suggestions 前到达=P7 帧序)
+  let roundTicketPreview = null; // ch08(T9): ticket_preview 帧暂存(暂停轮=其后无 done/suggestions)
   try {
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
@@ -574,6 +589,8 @@ async function send() {
           roundOrders = JSON.parse(data).items || [];  // ch06(T6): 订单选择卡片,只暂存
         } else if (event === 'suggestions') {
           roundSuggestions = JSON.parse(data).items || [];  // ch05(T8): 只暂存,渲染在流收尾后
+        } else if (event === 'ticket_preview') {
+          roundTicketPreview = JSON.parse(data);            // ch08(T9): 预览卡帧(暂停轮其后无帧)
         } else if (event === 'error') {
           throw new Error(JSON.parse(data).detail || '上游错误');
         }
@@ -587,8 +604,12 @@ async function send() {
       addFeedbackRow(col, assistantSeqFromHistory());
       if (roundOrders && roundOrders.length)
         addOrderCards(col, roundOrders);                        // ch06(T6): 卡片先于建议钮(帧序一致)
+      if (roundTicketPreview)
+        addTicketPreviewCard(col, roundTicketPreview);          // ch08(T9): 预览卡帧后无 done,卡片即本轮终点
       if (roundSuggestions && roundSuggestions.length)
         addSuggestionRow(col, roundSuggestions, text, answer);  // ch05(T8): 操作建议行
+    } else if (roundTicketPreview) {
+      addTicketPreviewCard(col, roundTicketPreview);  // ch08: 暂停轮零 token 形制——卡片仍挂,行不删
     } else row.remove();
   } catch (err) {
     row.remove();
@@ -890,6 +911,97 @@ function addOrderCards(col, items) {
   }
   col.appendChild(rowEl);
   scrollBottom();
+}
+
+// ===== ch08(T9): ticket_preview 帧 → 预览卡片 + 确认/取消两钮(需求7 interrupt 确认流) =====
+// 帧面 {ticket_type, description, conversation_id, tool_call_id};点击 → POST /api/tickets/confirm SSE 续播。
+function addTicketPreviewCard(col, preview) {
+  const card = document.createElement('div');
+  card.className = 'ticket-card';
+  const title = document.createElement('div');
+  title.className = 'tk-title';
+  title.textContent = '🎫 工单预览 · ' + (preview.ticket_type || '咨询');
+  const desc = document.createElement('div');
+  desc.className = 'tk-desc';
+  desc.textContent = preview.description || '';
+  const btns = document.createElement('div');
+  btns.className = 'tk-btns';
+  const okBtn = document.createElement('button');
+  okBtn.type = 'button';
+  okBtn.className = 'btn btn-sm sug-btn';
+  okBtn.textContent = '✅ 确认建单';
+  const noBtn = document.createElement('button');
+  noBtn.type = 'button';
+  noBtn.className = 'btn btn-sm sug-btn';
+  noBtn.textContent = '✖ 取消';
+  const decided = () => {
+    okBtn.disabled = true; noBtn.disabled = true;
+    card.classList.add('decided');
+  };
+  const fire = async (decision, btn) => {
+    if (btn.disabled) return;
+    const cid = preview.conversation_id != null ? preview.conversation_id : conversationId;
+    if (cid == null) {  // 同 create_ticket 钮降级模式:无服务端会话不置灰,可重试
+      addMessage('error', '⚠ 当前无服务端会话(数据库未启用),无法确认建单');
+      return;
+    }
+    decided();
+    try {
+      await confirmTicketResume(cid, decision);
+    } catch (err) {
+      addMessage('error', '⚠ ' + err.message);
+    }
+  };
+  okBtn.addEventListener('click', () => fire('confirm', okBtn));
+  noBtn.addEventListener('click', () => fire('cancel', noBtn));
+  btns.append(okBtn, noBtn);
+  card.append(title, desc, btns);
+  col.appendChild(card);
+  scrollBottom();
+  return card;
+}
+
+// confirm 端点续播:独立简读循环(只吃 token/error/done,帧面=T8 事件);答复进新气泡+history。
+async function confirmTicketResume(cid, decision) {
+  const resp = await fetch('/api/tickets/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_id: cid, decision: decision }),
+  });
+  if (!resp.ok) {  // 409/503/422=标准 HTTP 错误面(预检在依赖层,T8 Ruling),非 SSE
+    const body = await resp.json().catch(() => null);
+    throw new Error((body && body.detail) || ('HTTP ' + resp.status));
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let answer = '';
+  let errMsg = null;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const frames = buf.split(/\r?\n\r?\n/);
+    buf = frames.pop();
+    for (const frame of frames) {
+      let event = 'message';
+      const dataLines = [];
+      for (const line of frame.split(/\r?\n/)) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+      }
+      if (!dataLines.length) continue;
+      const data = dataLines.join('\n');
+      if (event === 'token') answer += JSON.parse(data);
+      else if (event === 'error') errMsg = JSON.parse(data).detail || '上游错误';
+    }
+  }
+  if (errMsg) throw new Error(errMsg);
+  if (answer) {
+    history.push({ role: 'assistant', content: answer });
+    addMessage('assistant', answer);
+  }
+  loadConversations();  // 建单后会话面可能变化(摘要标记),与 send() 轮末同款刷新
 }
 
 // ===== ch06(T6): refund_apply → 固定四类原因轻表单(需求6/P6:原因不让用户自由填) =====

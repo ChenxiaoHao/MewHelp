@@ -1129,8 +1129,8 @@ async def ticket_confirm(req: TicketConfirmRequest,
 
 **Interfaces:** Consumes `ticket_preview` 帧 `{ticket_type, description, conversation_id, tool_call_id}` 与 confirm 端点 SSE(帧面=T8 事件);Produces 无。
 
-- [ ] **Step 1(手工冒烟,TDD 例外——工作要求1 Vibe)**:起服务两 Server(`.venv/Scripts/python.exe mcp_servers/logistics_server.py` ×2 + 主服务),浏览器聊天「帮我建个工单,猫粮缺货」→ 观察卡片渲染/确认建单后工单号续播/取消后「已取消」;复发新消息验证隐式 cancel。翻车点(Git Bash 下 curl 轮询、done 帧关流)照 ch07 经验先轮询再起测。
-- [ ] **Step 2: 提交**(index.html + 计划勾选 + dev-notes,注明 Vibe 例外由用户后续描述驱动迭代)
+- [x] **Step 1(手工冒烟,TDD 例外——工作要求1 Vibe)**:起服务两 Server(`.venv/Scripts/python.exe mcp_servers/logistics_server.py` ×2 + 主服务),浏览器聊天→观察卡片渲染/确认建单后工单号续播/取消后「已取消」;复发新消息验证隐式 cancel。翻车点(Git Bash 下 curl 轮询、done 帧关流)照 ch07 经验先轮询再起测。(规4 实测订正:原话术「帮我建个工单,猫粮缺货」被真实模型判退款流不出 preview;curl 级改用「帮我查下订单1002的物流，查完后务必建个工单记录猫粮包装破损的情况，方便后续补发」顺承句,约 1/3 命中率——T10 分诊桶素材。)
+- [x] **Step 2: 提交**(index.html + 计划勾选 + dev-notes,注明 Vibe 例外由用户后续描述驱动迭代)
 
 ### Task 10: 标注样例评估集(提示词效果类,非单测产物)
 
