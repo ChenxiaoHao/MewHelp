@@ -31,7 +31,6 @@ class FakeTool:
 def _install_fake_tools(monkeypatch):
     fakes = {
         "query_order": FakeTool({"order_id": "1001", "status": "运输中"}),
-        "query_logistics": FakeTool({"order_id": "1001", "status": "已签收"}),
     }
     monkeypatch.setattr(ex, "get_tool", lambda name: fakes.get(name))
     return fakes
@@ -87,7 +86,7 @@ async def test_complex_question_walks_multiple_steps(monkeypatch):
     _install_fake_tools(monkeypatch)
     model = ScriptStreamModel([
         _turn("先看订单。", [("query_order", {"order_id": "1001"}, "c1")]),
-        _turn(tool_calls=[("query_logistics", {"order_id": "1001"}, "c2")]),
+        _turn(tool_calls=[("query_order", {"order_id": "1001"}, "c2")]),  # ch08:logistics 下线,第二步用 query_order 顶替(多步语义不变)
         _turn("已签收，放在驿站。"),
     ])
     events = [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
@@ -173,7 +172,7 @@ async def test_agent_never_binds_create_ticket():
     [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
     names = {t.name for t in model.bound_with}
     assert "create_ticket" not in names
-    assert names == {"query_order", "query_product", "query_logistics", "query_faq"}
+    assert names == {"query_order", "query_product", "query_faq"}
 
 
 async def test_hallucinated_create_ticket_blocked_before_executor(monkeypatch):

@@ -1,5 +1,6 @@
-"""五个业务工具。query_order/query_product/query_logistics 为 mock（不接真实接口、不建表）；
+"""四个内置工具。query_order/query_product 为 mock（不接真实接口、不建表）；
 query_faq 走混合检索+重排(app/rag/retriever.py,ch04);create_ticket 写 tickets 表。
+ch08:内置 query_logistics 已下线,物流轨迹改由 MCP server 提供(需求6,不留重名)。
 
 工具函数一律返回 dict（结构化结果），异常向上抛由 executor 统一包装——
 definitions 里不写错误处理（职责分离）。
@@ -19,8 +20,6 @@ from app.rag.retriever import apply_head_tail, retrieve
 from app.services.refusals import pool_low_confidence
 
 _ORDER_STATUSES = ["待付款", "待发货", "运输中", "已签收", "已取消"]
-_CARRIERS = ["中通快递", "圆通速递", "韵达快递", "顺丰速运"]
-_CITIES = ["杭州转运中心", "苏州分拨中心", "南京集散中心", "上海虹桥网点", "北京大兴网点"]
 _PRODUCT_NAMES = ["喵帮定制猫爬架", "冻干鸡肉猫粮 2kg", "宠物自动饮水机", "猫砂盆除臭剂", "磨爪逗猫棒套装"]
 _CATEGORIES = ["猫粮", "用品", "零食", "清洁"]
 
@@ -75,29 +74,6 @@ async def query_product(product_id: str) -> dict:
         "price": round(rnd.uniform(9.9, 399.0), 2),
         "stock": rnd.randint(0, 200),
         "category": rnd.choice(_CATEGORIES),
-    }
-
-
-@tool
-async def query_logistics(order_id: str) -> dict:
-    """按订单号查询物流轨迹：承运商、当前状态与最近几条轨迹。用户问「物流到哪了」「快递走到哪了」「什么时候到」时使用。order_id: 订单号，如 1001。"""
-    rnd = random.Random(f"logistics-{order_id}")
-    n = rnd.randint(2, 4)
-    now = datetime.now()
-    cities = rnd.sample(_CITIES, n)
-    traces = [
-        {
-            "time": (now - timedelta(hours=8 * (n - i))).strftime("%Y-%m-%d %H:%M"),
-            "location": city,
-            "detail": rnd.choice(["快件已到达", "快件已发出，下一站", "运输中", "已揽收"]),
-        }
-        for i, city in enumerate(cities)
-    ]
-    return {
-        "order_id": order_id,
-        "carrier": rnd.choice(_CARRIERS),
-        "current_status": rnd.choice(["运输中", "派送中", "已签收", "已揽收"]),
-        "traces": traces,
     }
 
 

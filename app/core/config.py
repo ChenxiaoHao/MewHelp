@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     tool_timeout_seconds: float = 5.0
     tool_max_retries: int = 1
 
+    # --- ch08: MCP 接入(P3 定死本机端口;demo 值=默认,零配置可用) ---
+    mcp_logistics_url: str = "http://127.0.0.1:8101/mcp"
+    mcp_aftersale_url: str = "http://127.0.0.1:8102/mcp"
+
     # --- ch05: ReAct token 预算熔断(拍板 P3;轮数上限 ch07 起并入 max_agent_steps) ---
     react_token_budget: int = 8000
 

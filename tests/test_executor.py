@@ -99,7 +99,7 @@ async def test_string_result_coerced(monkeypatch, ctx):
 def test_make_summary_shapes():
     assert ex.make_summary("query_faq", {"keyword": "k", "hits": []}) == "未命中"
     assert ex.make_summary("query_faq", {"keyword": "k", "hits": [{"question": "q"}]}) == "命中 1 条"
-    s = ex.make_summary("query_logistics", {"order_id": "1", "carrier": "中通快递", "current_status": "派送中", "traces": []})
+    s = ex.make_summary("query_order", {"order_id": "1", "status": "派送中", "items": []})
     assert "派送中" in s
     t = ex.make_summary("create_ticket", {"ticket_no": "T20260920001", "status": "待处理"})
     assert t == "工单 T20260920001 已创建"

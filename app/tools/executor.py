@@ -46,7 +46,7 @@ def make_summary(name: str, result: Any) -> str:
         text = "未命中" if not hits else f"命中 {len(hits)} 条"
     elif name == "create_ticket":
         text = f"工单 {result.get('ticket_no', '?')} 已创建"
-    elif name in ("query_order", "query_product", "query_logistics"):
+    elif name in ("query_order", "query_product"):
         status = result.get("current_status") or result.get("status")
         label = result.get("name") or result.get("carrier") or ""
         text = " ".join(x for x in (status, label) if x) or json.dumps(result, ensure_ascii=False)

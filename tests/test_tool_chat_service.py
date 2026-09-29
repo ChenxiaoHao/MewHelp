@@ -115,7 +115,7 @@ async def test_pure_chat_passthrough(settings):
     assert events == [("token", "你好"), ("token", "呀")]
     assert model.calls == 1
     assert model.round2_messages is None
-    assert len(model.bound_tools) == 5  # 第一轮确实 bind 了 5 个工具
+    assert len(model.bound_tools) == 4  # ch08 内置四件套(logistics 归 MCP)
     assert ("final", 1, "你好呀") in p.calls
     assert [c[0] for c in p.calls] == ["final"]
 

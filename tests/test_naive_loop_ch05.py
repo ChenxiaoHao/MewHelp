@@ -45,7 +45,7 @@ def _tc(name, args, id_):
 def _install_fake_tools(monkeypatch):
     fakes = {
         "query_order": FakeTool({"order_id": "1001", "status": "运输中"}),
-        "query_logistics": FakeTool({"order_id": "1001", "status": "已签收"}),
+        "query_product": FakeTool({"product_id": "2001", "name": "冻干鸡肉猫粮 2kg"}),
     }
     monkeypatch.setattr(ex, "get_tool", lambda name: fakes.get(name))
     return fakes
@@ -57,7 +57,7 @@ async def test_two_step_loop_feeds_results_back(monkeypatch):
     model = ScriptedModel([
         AIMessage(content="", tool_calls=[
             _tc("query_order", {"order_id": "1001"}, "c1"),
-            _tc("query_logistics", {"order_id": "1001"}, "c2"),
+            _tc("query_product", {"product_id": "2001"}, "c2"),
         ]),
         AIMessage(content="物流到了，已签收。"),
     ])
@@ -68,14 +68,14 @@ async def test_two_step_loop_feeds_results_back(monkeypatch):
     res = await naive_agent_turn(model, messages, ctx=ctx)
 
     assert res.steps == 1  # 一轮工具迭代
-    assert [t.name for t in res.tool_calls] == ["query_order", "query_logistics"]
-    assert fakes["query_order"].calls == 1 and fakes["query_logistics"].calls == 1
+    assert [t.name for t in res.tool_calls] == ["query_order", "query_product"]
+    assert fakes["query_order"].calls == 1 and fakes["query_product"].calls == 1
     assert "到了" in res.text
     # 结果以 ToolMessage 喂回：Human, AI1, Tool, Tool, AI2
     assert [type(m).__name__ for m in messages[:5]] == [
         "HumanMessage", "AIMessage", "ToolMessage", "ToolMessage", "AIMessage",
     ]
-    assert model.bound_with and len(model.bound_with) == 5  # ch02 注册表原样 bind
+    assert model.bound_with and len(model.bound_with) == 4  # ch08 内置四件套原样 bind
 
 
 async def test_no_tool_call_converges_immediately(monkeypatch):

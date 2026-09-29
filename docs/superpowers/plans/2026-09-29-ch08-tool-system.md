@@ -226,7 +226,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: T1 无直接依赖(同库)
 - Produces: `registry.ToolSpec(tool, permission, source, mcp_server=None)`(frozen dataclass,`.name`/`.description` 为 tool 派生 property);`registry.BUILTIN_SPECS: dict[str, ToolSpec]`(键序=query_order,query_product,query_faq,create_ticket);`registry.get_tools()/get_tool(name)` 签名不变(内置视图,MCP 不掺);`async registry.snapshot_tools(settings, *, client=None) -> dict[str, ToolSpec]`;`registry.make_mcp_client(settings) -> MultiServerMCPClient`
 
-- [ ] **Step 1: 写失败测试** `tests/test_registry_ch08.py`
+- [x] **Step 1: 写失败测试** `tests/test_registry_ch08.py`
 
 ```python
 """ch08 T2:注册中心合并/撞名丢弃/单 server 降级(spec 注册中心节)。"""
@@ -297,7 +297,7 @@ async def test_snapshot_boom_client_all_servers_builtin_only():
 
 Run → FAIL(ToolSpec 不存在)。
 
-- [ ] **Step 2: 实现 registry.py 重构**
+- [x] **Step 2: 实现 registry.py 重构**
 
 ```python
 """工具注册中心(spec 注册中心节):三件套统一登记,内置启动登记,MCP 每轮现拿。
@@ -393,8 +393,8 @@ async def snapshot_tools(settings, *, client=None) -> dict[str, ToolSpec]:
 
 `definitions.py`:query_logistics @tool 整函数删,`_CARRIERS/_CITIES` 若无他用一并删(现仅它用)。
 
-- [ ] **Step 3: 波及修**——跑 `pytest -q`,按失败清单逐处改:断言清单去 logistics、fake 表去 `query_logistics` 项、`e2e test_ch05_acceptance` 与 `test_react_node_ch05.py:90` 用 `query_order` 顶替该调用名(断言语义「工具链跑通」不变,规4 断言随任务改);`test_tools.py` 的 `TOOL_REGISTRY` 断言迁 `BUILTIN_SPECS` 键序;executor docstring 的枚举分支 `elif name in (... "query_logistics")` 删 logistics 项。
-- [ ] **Step 4: 全绿 + 提交**(文件=上表全部 + dev-notes + 计划勾选)
+- [x] **Step 3: 波及修**——跑 `pytest -q`,按失败清单逐处改:断言清单去 logistics、fake 表去 `query_logistics` 项、`e2e test_ch05_acceptance` 与 `test_react_node_ch05.py:90` 用 `query_order` 顶替该调用名(断言语义「工具链跑通」不变,规4 断言随任务改);`test_tools.py` 的 `TOOL_REGISTRY` 断言迁 `BUILTIN_SPECS` 键序;executor docstring 的枚举分支 `elif name in (... "query_logistics")` 删 logistics 项。
+- [x] **Step 4: 全绿 + 提交**(文件=上表全部 + dev-notes + 计划勾选)
 
 ```bash
 git commit -m "feat(ch08-t2): ToolSpec 注册中心(MCP 每轮现拿/撞名丢/降级吞)+内置 query_logistics 下线,MCP url 两键入 settings

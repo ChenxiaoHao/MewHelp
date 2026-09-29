@@ -104,7 +104,7 @@ async def test_a2_order_logistics_agent_calls_tool(db):
     calls = [p for k, p in frames if k == "tool_call"]
     assert calls, "Agent 未自调工具(验收2)"
     names = {c["name"] for c in calls}
-    assert names & {"query_order", "query_logistics"}, names
+    assert names & {"query_order", "query_product"}, names  # ch08:logistics 归 MCP,内置面顶替
     assert _joined_tokens(frames).strip(), "工具链收尾无回答"
 
 
@@ -149,7 +149,7 @@ async def test_a5a_spec_wording_two_tools(db):
     calls = [p for k, p in frames if k == "tool_call"]
     assert len(calls) >= 2, f"工具调用数不足: {len(calls)}(验收5)"
     names = {c["name"] for c in calls}
-    assert "query_order" in names and "query_logistics" in names, names
+    assert "query_order" in names, names  # ch08:双工具钉改单名+两调用(A5a 本意=ReAct 多步;物流 MCP 双腿验收在 ch08 T11)
     assert _joined_tokens(frames).strip()
 
 
