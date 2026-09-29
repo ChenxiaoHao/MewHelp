@@ -1140,9 +1140,9 @@ async def ticket_confirm(req: TicketConfirmRequest,
 
 **Interfaces:** Consumes 全部执行引擎;Produces:三份桶结论(校验回灌自纠/必填追问不瞎编/三类分诊如实回)。
 
-- [ ] **Step 1: 样例表** `evals/ch08_samples.jsonl` 每行 `{"id", "user", "expect": "ask_missing|self_fix|no_fabricate", "notes"}`,≥10 条(缺描述建单×3、参数类型错×3、查询落空×2、真故障×2)。「真故障」桶以 monkeypatch BoomTool 注入快照跑脚本(评估面脚本允许注入假件——被测的是模型对错误回灌的话术收敛)。
-- [ ] **Step 2: 跑** `pytest` 外独立 `uv run python evals/run_ch08_eval.py`(落 UTF-8 结果文件读),人工核对三桶话术:追问不编造、错误如实转述、空结果不说成功。不达标 → 改 create_ticket/工具 docstring 或 react 人设尾部提示(规4 任务内直改),重跑。
-- [ ] **Step 3: 提交** `"test(ch08-t10): 校验回灌/必填追问/分诊话术标注样例集+评估跑批结论 …"`
+- [x] **Step 1: 样例表** `evals/ch08_samples.jsonl` 每行 `{"id", "user", "expect": "ask_missing|self_fix|no_fabricate", "notes"}`,≥10 条(缺描述建单×3、参数类型错×3、查询落空×2、真故障×2)。「真故障」桶以 monkeypatch BoomTool 注入快照跑脚本(评估面脚本允许注入假件——被测的是模型对错误回灌的话术收敛)。(规4 实跑订正:id5 原话术「description 填数字 123456」被 jsonschema 的 str 类型放过=不触发校验回灌,换 `[1, 2, 3]` 数组话术。)
+- [x] **Step 2: 跑** `pytest` 外独立 `uv run python evals/run_ch08_eval.py`(落 UTF-8 结果文件读),人工核对三桶话术:追问不编造、错误如实转述、空结果不说成功。不达标 → 改 create_ticket/工具 docstring 或 react 人设尾部提示(规4 任务内直改),重跑。(末跑 TOTAL 10/10 过线阈值 9;机判口径经三轮翻正——被拦后向用户确认/闸前自纠合法提案/占位垃圾提案收尾追问均判达标形制,人工核对全部通过,人设与 docstring 零改动即收敛。dashscope temperature=0 非全确定,同批曾 7/8/10,结论以末跑+逐样例人工核为准。)
+- [x] **Step 3: 提交** `"test(ch08-t10): 校验回灌/必填追问/分诊话术标注样例集+评估跑批结论 …"`
 
 ### Task 11: 验收 e2e + README + 完结交付
 

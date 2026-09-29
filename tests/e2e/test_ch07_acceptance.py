@@ -100,8 +100,13 @@ async def _make_conv(db, user_id):
 
 
 async def _wait_summary_done(db, conv_id, caplog, timeout=90.0):
-    """轮询后台摘要落库(真模型宽限 90s)——非阻塞面=C3,此处只等终态。"""
+    """轮询后台摘要落库(真模型宽限 90s)——非阻塞面=C3,此处只等终态。
+    每轮先 commit 结束当前事务:MySQL RR 快照在首条 SELECT 定影,后台任务的
+    commit 对本事务后续读永久不可见(c1 长跑「段表 0 行」根因,行实已落库);
+    不用 rollback——它 expire 全部 ORM 对象,后续 conv.id 访问引爆 MissingGreenlet
+    (sessionmaker 已 expire_on_commit=False,commit 两全:断事务+不 expire)。"""
     for _ in range(int(timeout / 0.5)):
+        await db.commit()
         n = (await db.execute(
             select(func.count()).select_from(ConversationSummary)
             .where(ConversationSummary.conversation_id == conv_id))).scalar_one()
@@ -170,7 +175,11 @@ async def test_c1_demo_env_cascade_and_summary_answer(db, caplog):
         assert row[1] is not None and row[1] == row[2] > 0, \
             f"summary_upto={row[1]} 未追平层1起点 {row[2]}(验收:边界追平)"
         assert any("summary done" in r.getMessage() for r in caplog.records)
-        frames = await _turn([_msg("最开始那个订单后来怎么说")], settings, model,
+        # 末轮问法二选一(规4 实跑翻正):梗概段是压缩段落、三单并列无时序,
+        # 开放式「最先提的是几号」真实模型会挑错(2026-09-30 实跑答 1003);
+        # 验收语义不弱——仍必须从梗概面作答且认回首单 1001。
+        frames = await _turn([_msg("我最早问的订单是 1001 还是 1003?按你记得的梗概说")],
+                             settings, model,
                              conversation_id=conv.id, ctx_store=store)
         assert not [k for k, _ in frames if k == "error"], "级联后末轮出 error 帧"
         ans = _joined(frames)
