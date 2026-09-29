@@ -49,7 +49,7 @@ def fake_settings():
     # T4 起闸节点读 retrieval_low_conf_threshold;T5 起 agent 读 react 双熔断键
     return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0,
                            retrieval_low_conf_threshold=0.161,
-                           react_max_iterations=6, react_token_budget=8000,
+                           max_agent_steps=6, react_token_budget=8000,
                            history_token_budget=4000)
 
 
@@ -159,6 +159,16 @@ async def test_per_turn_state_does_not_leak_across_turns(fake_env, one_chunk_res
     assert out3["log"]["nodes"] == ["coref", "intent", "agent", "logging"]  # 链按轮计
     assert not any(type(m).__name__ == "SystemMessage" and "知识库证据" in m.content
                    for m in env.model.last_msgs)  # 陈旧证据未被注入模型调用
+
+
+def test_ctx_entry_point_edge_ch07(fake_settings):
+    """ch07 T7 随迁(规4):入口从 coref 挪到 ctx——断 __start__→ctx→coref,
+    且 coref 不再是入口(旧边必须不存在,否则图面还是双入口)。"""
+    from langgraph.graph import START
+    g = build_graph(fake_settings, ScriptModel([]))
+    edges = {(e.source, e.target) for e in g.get_graph().edges}
+    assert (START, "ctx") in edges and ("ctx", "coref") in edges
+    assert (START, "coref") not in edges
 
 
 async def test_coref_completion_keeps_history(fake_env, one_chunk_result):

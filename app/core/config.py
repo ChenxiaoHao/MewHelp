@@ -23,13 +23,26 @@ class Settings(BaseSettings):
     tool_timeout_seconds: float = 5.0
     tool_max_retries: int = 1
 
-    # --- ch05: ReAct 主力 Agent 双熔断(拍板 P3 默认值) ---
-    react_max_iterations: int = 6
+    # --- ch05: ReAct token 预算熔断(拍板 P3;轮数上限 ch07 起并入 max_agent_steps) ---
     react_token_budget: int = 8000
 
     # --- ch06: 意图降级路(拍板 P2:默认空=只用大模型,配置后小判大复) ---
     intent_small_model: str = ""
     intent_confidence_threshold: float = 0.75
+
+    # --- ch07: 三层上下文预算(拍板 P3/P4/P6;分项默认值以命中验收三数 5650/3954/1695 为校准锚) ---
+    model_context_window: int = 32000
+    max_output_tokens: int = 2000          # P4:软预留,不下发 max_tokens
+    max_user_input_tokens: int = 2000      # P5:当前句超限 422
+    max_agent_steps: int = 6               # P3:T8 接管 ReAct 轮数上限
+    tool_result_max_tokens: int = 1200
+    rerank_top_k: int = 5                  # P3:仅预算面证据条数,不改检索行为
+    turns_to_keep: int = 20                # X:想留住的轮数
+    steady_tokens_per_turn: int = 500      # Y:每轮稳态占用
+    assistant_head_chars: int = 60         # 层2半压:客服答复留头字数
+    summary_inject_tokens: int = 707       # 校准常数(与 S=543/证据面2500/安全1000 凑 demo 固定开销 4750)
+    safety_margin_tokens: int = 1000
+    history_view_messages: int = 6         # 消解/意图共用滑窗条数(=ch06 末6条现状)
 
     # --- ch03: RAG 知识库(全部带默认值,不破坏 ch01/ch02 构造) ---
     milvus_uri: str = "http://127.0.0.1:19530"

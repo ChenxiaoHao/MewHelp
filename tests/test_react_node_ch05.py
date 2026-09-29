@@ -70,7 +70,7 @@ class ScriptStreamModel:
 
 def st(**over):
     base = dict(tool_timeout_seconds=5.0, tool_max_retries=0,
-                react_max_iterations=6, react_token_budget=8000)
+                max_agent_steps=6, react_token_budget=8000)
     base.update(over)
     return SimpleNamespace(**base)
 
@@ -105,27 +105,30 @@ async def test_clarifying_question_only_tokens_and_zero_steps(monkeypatch):
 
 
 async def test_rf2_forever_tool_calls_terminate_within_max_iters(monkeypatch):
-    """Review Focus 2:模型恒要工具 → max_iterations 内收流不抛。"""
+    """Review Focus 2:模型恒要工具 → max_agent_steps 内收流不抛(T8 接管轮数上限)。"""
     _install_fake_tools(monkeypatch)
     forever = [_turn(tool_calls=[("query_order", {"order_id": "x"}, f"c{i}")])
                for i in range(5)]
     model = ScriptStreamModel(forever)
     events = [e async for e in react_agent_stream(
-        state_with_evidence(), st(react_max_iterations=5), model)]
+        state_with_evidence(), st(max_agent_steps=5), model)]
     assert events[-1][0] == "done" and events[-1][1]["steps"] == 5
     assert events[-1][1]["suggestions"] == [TRANSFER_HUMAN]  # 超限=兜底建议
     assert model.calls == 5
 
 
 async def test_token_budget_breaker_streams_no_more(monkeypatch):
-    """每轮 token 累计对 react_token_budget 熔断:超预算当轮收尾,不再进循环。"""
+    """每轮 token 累计对 react_token_budget 熔断:超预算当轮收尾,不再进循环。
+    T8 计数同源:CJK 估算器(40 汉字≈40+4=44)替代 count_tokens_approximately
+    (旧口径≈10 不熔断)——阈值按新源重校,旧实现必显形(第二轮照跑)。"""
     _install_fake_tools(monkeypatch)
-    long_text = "很" * 400  # count_tokens_approximately≈chars/4 → ≈100 > 50
+    long_text = "很" * 40
     model = ScriptStreamModel([
         _turn(long_text, [("query_order", {"order_id": "1001"}, "c1")]),
+        _turn("旧计数口径才会走到这第二轮"),
     ])
     events = [e async for e in react_agent_stream(
-        state_with_evidence(), st(react_token_budget=50), model)]
+        state_with_evidence(), st(react_token_budget=40), model)]
     assert events[-1][1]["suggestions"] == [TRANSFER_HUMAN]
     assert model.calls == 1  # 熔断后无第二轮调用
 
@@ -144,17 +147,22 @@ async def test_event_payload_shapes_align_tool_event(monkeypatch):
     assert set(result) == {"id", "name", "ok", "summary"}
 
 
-async def test_evidence_injected_as_system_message(monkeypatch):
-    """知识路证据前置注入(自 T3 agent_node 移入 react,state 驱动)。"""
+async def test_state_evidence_never_prepends_system_message(monkeypatch):
+    """ch07 T8 改形(规4 旧断言翻转):证据/订单注入=装配段5 之责(当前句后一条
+    Human);react 不再读 state.evidence/order_data,任何 System 前置都不许再出现。"""
+    state = state_with_evidence()
+    state["order_data"] = {"order_id": "1001"}
     model = ScriptStreamModel([_turn("答案")])
-    [e async for e in react_agent_stream(state_with_evidence(), st(), model)]
-    assert isinstance(model.last_msgs[0], SystemMessage)
-    assert "知识库证据" in model.last_msgs[0].content
+    [e async for e in react_agent_stream(state, st(), model)]
+    assert not any(isinstance(m, SystemMessage) for m in model.last_msgs)
+    assert isinstance(model.last_msgs[0], HumanMessage)   # 入参 msgs 原样透传
 
 
 def test_settings_react_defaults_pinned():
-    """P3 拍板默认值钉死:6 轮 / 8000 token。"""
-    assert Settings.model_fields["react_max_iterations"].default == 6
+    """P3 拍板默认值钉死(T8 接管):轮数上限=max_agent_steps(默认 6),
+    react_max_iterations 键删除不留别名;token 预算 8000 不动。"""
+    assert Settings.model_fields["max_agent_steps"].default == 6
+    assert "react_max_iterations" not in Settings.model_fields
     assert Settings.model_fields["react_token_budget"].default == 8000
 
 

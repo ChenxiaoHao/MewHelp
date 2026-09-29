@@ -12,7 +12,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 
@@ -35,7 +35,8 @@ def reset_checkpointer() -> None:
 
 def build_graph(settings, model, checkpointer=None):
     g = StateGraph(ChatState)
-    g.add_node("coref", N.make_coref_node(model))
+    g.add_node("ctx", N.make_ctx_node(settings, model))          # ch07 入口:边界决策
+    g.add_node("coref", N.make_coref_node(model, settings))
     g.add_node("intent", N.make_intent_node(model, settings))
     g.add_node("retrieve", N.make_knowledge_retrieve_node(settings))
     g.add_node("gate", N.make_confidence_gate_node(settings))
@@ -52,7 +53,8 @@ def build_graph(settings, model, checkpointer=None):
     g.add_node("refund_gate", N.make_confidence_gate_node(
         settings, source="ch06_refund_gate", name="refund_gate"))
 
-    g.set_entry_point("coref")
+    g.set_entry_point("ctx")
+    g.add_edge("ctx", "coref")
     g.add_edge("coref", "intent")
     # 分流:意图 → 五出口(ch06 需求 3/5;过渡守卫已拆,ledger 记账)
     g.add_conditional_edges("intent", _dispatch, {
@@ -91,27 +93,56 @@ def _after_gate(state):
     return "pass" if state.get("gate_pass") else "fail"
 
 
+async def _refill_input(graph, cfg, store, settings, current: str) -> list:
+    """空线程回填(Review Focus 3):重启/切换后 thread 无 messages 而 DB 有史 →
+    层1 原文近 history_view_messages*2 条前置入图 input。只取 Human/AI 两类:
+    tool 行与带 tool_calls 的 assistant 行绝不入(回填形态无工具链,孤儿链=400)。
+    """
+    state = await graph.aget_state(cfg)
+    if ((getattr(state, "values", None) or {}).get("messages") or []):
+        return []                                   # 线程非空:checkpoint 即史
+    rows = await store.fetch_layer1()
+    kept = [r for r in rows
+            if r.role == "user" or (r.role == "assistant" and not r.tool_calls)]
+    if kept and kept[-1].role == "user" and (kept[-1].content or "") == current:
+        kept = kept[:-1]                            # 当前句由调用方尾置,不重复
+    return [HumanMessage(r.content or "") if r.role == "user" else AIMessage(r.content or "")
+            for r in kept[-(settings.history_view_messages * 2):]]
+
+
 async def stream_graph_turn(
     chat_messages, settings, model, *,
-    conversation_id=None, persister=None,
+    conversation_id=None, persister=None, ctx_store=None,
 ) -> AsyncIterator[tuple]:
     """一轮图编排 → ("token"|"tool_call"|"tool_result"|"suggestions", payload) 帧流。
 
     thread key=conv-{cid};降级(cid=None,引擎未初始化)→ anon-uuid 线程跨轮不可
     复用,故整包客户端历史入图(与 ch01 无状态语义对齐)。有 cid 时只入本轮新
-    human 消息,历史由 checkpointer 按线程累积(spec「State 贯穿」)。
+    human 消息,历史由 checkpointer 按线程累积(spec「State 贯穿」);ch07:线程空
+    而 DB 有史(重启/切换)→ ctx_store 回填近史前缀;store 经 configurable 供
+    ctx/coref/agent 三消费面。
     落库挂点:Agent 出口由 react 内部三挂点自落(ch04 同源);其余出口在此
     补 on_final_answer——user 行始终归 routes bootstrap。
     """
     graph = build_graph(settings, model)
+    current = chat_messages[-1].content
+    cfg = {"configurable": {"thread_id": None, "conversation_id": conversation_id,
+                            "persister": persister, "ctx_store": ctx_store}}
     if conversation_id is not None:
-        thread = f"conv-{conversation_id}"
-        input_msgs = [HumanMessage(content=chat_messages[-1].content)]
+        cfg["configurable"]["thread_id"] = thread = f"conv-{conversation_id}"
+        input_msgs = [HumanMessage(content=current)]
+        if ctx_store is not None:
+            # 终审 I2:回填=第四处 store 消费面,漏在 T7「store 面异常全吞」兜底
+            # 清单外。DB 闪断等价 ch06 无 store 行为(无回填裸进),聊天不断线。
+            try:
+                prefix = await _refill_input(graph, cfg, ctx_store, settings, current)
+            except Exception:  # noqa: BLE001
+                logger.warning("refill degraded cid=%s", conversation_id, exc_info=True)
+                prefix = []
+            input_msgs = prefix + input_msgs
     else:
-        thread = f"anon-{uuid.uuid4()}"
+        cfg["configurable"]["thread_id"] = thread = f"anon-{uuid.uuid4()}"
         input_msgs = to_langchain_messages(chat_messages)
-    cfg = {"configurable": {"thread_id": thread, "conversation_id": conversation_id,
-                            "persister": persister}}
     streamed = False
     final: dict = {}
     async for mode, chunk in graph.astream(

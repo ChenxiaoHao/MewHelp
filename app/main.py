@@ -13,6 +13,16 @@ from app.db.engine import check_db, dispose_engine, init_engine
 
 logging.basicConfig(level=logging.INFO)
 
+# ch07 需求6:日志落盘 log/app.log(验收4 的 model_ctx/history_ctx grep 锚)。
+# encoding 显式 UTF-8——Windows GBK 控制台红线;目录自建,.gitignore 已排 log/。
+LOG_DIR = Path(__file__).resolve().parent.parent / "log"
+LOG_DIR.mkdir(exist_ok=True)
+_file_handler = logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8")
+_file_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+)
+logging.getLogger().addHandler(_file_handler)
+
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 logger = logging.getLogger(__name__)
@@ -37,6 +47,13 @@ async def lifespan(app: FastAPI):
     logger.info(
         "MySQL 已连接 %s:%s/%s", settings.mysql_host, settings.mysql_port, settings.mysql_db
     )
+    # ch07 需求4:预算启动自检——连一轮稳态都装不下即报警(不阻断启动,降级面仍可聊)
+    from app.context.budget import selfcheck_budget
+
+    if (budget_warn := selfcheck_budget(settings)) is not None:
+        logger.error("上下文预算不足: %s", budget_warn)
+    else:
+        logger.info("上下文预算自检通过")
 
     from app.rag import milvus_store  # 模块级 import 亦可;pymilvus 已是硬依赖
 

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     Conversation,
+    ConversationSummary,
     FaithCase,
     Faq,
     KnowledgeChunk,
@@ -357,3 +358,127 @@ async def set_faith_case_status(session, case_id: int, status: str, resolution: 
         row.resolved_at = datetime.now()
     await session.commit()
     return row
+
+
+# ---------- ch07: 三层边界锚点 / 分段梗概 / 侧栏列表(边界按 id 划,不搬数据) ----------
+
+async def get_conv_ctx(session, cid: int) -> tuple[str | None, int, int]:
+    """(投影摘要, 摘要覆盖边界, 层1起点);NULL 一律按 0——新会话全史在层1。"""
+    row = (
+        await session.execute(
+            select(
+                Conversation.summary,
+                Conversation.summary_upto_msg_id,
+                Conversation.layer1_from_msg_id,
+            ).where(Conversation.id == cid)
+        )
+    ).one_or_none()
+    if row is None:  # 会话不存在:按空锚回退,调用方(cid 非法面)自行兜底
+        return (None, 0, 0)
+    summary, upto, layer1_from = row
+    return (summary, upto or 0, layer1_from or 0)
+
+
+async def set_layer1_from(session, cid: int, value: int) -> None:
+    """层1 降级=只挪起点 id(批次对齐 human 轮边界由 layers 模块算好)。"""
+    await session.execute(
+        update(Conversation).where(Conversation.id == cid).values(layer1_from_msg_id=value)
+    )
+    await session.commit()
+
+
+async def append_summary_segment(
+    session, cid: int, *, from_msg_id: int, upto_msg_id: int, content: str
+) -> int:
+    """段表只追加:seq=当前 MAX+1;并发撞 uk_conv_seq 重算重试一次(create_ticket 同款)。"""
+    for attempt in (0, 1):
+        max_seq = (
+            await session.execute(
+                select(func.max(ConversationSummary.seq)).where(
+                    ConversationSummary.conversation_id == cid
+                )
+            )
+        ).scalar() or 0
+        seq = max_seq + 1
+        session.add(
+            ConversationSummary(
+                conversation_id=cid, seq=seq,
+                from_msg_id=from_msg_id, upto_msg_id=upto_msg_id, content=content,
+            )
+        )
+        try:
+            await session.commit()
+            return seq
+        except IntegrityError:
+            await session.rollback()
+            if attempt == 1:
+                raise
+            logger.warning("summary seq collision, recomputing (conv %s)", cid)
+    raise RuntimeError("unreachable")
+
+
+async def set_summary_projection(
+    session, cid: int, *, summary: str, upto_msg_id: int
+) -> None:
+    """投影列重拼 + 边界追到层1起点(层2 清空重攒,spec「摘要覆盖区间」)。"""
+    await session.execute(
+        update(Conversation)
+        .where(Conversation.id == cid)
+        .values(summary=summary, summary_upto_msg_id=upto_msg_id)
+    )
+    await session.commit()
+
+
+async def list_messages_after(
+    session, cid: int, after_id: int, limit: int = 500
+) -> list[Message]:
+    """回载/摘要批查询:(after_id, +∞) 升序;含 tool 行(P8 口径)。"""
+    rows = (
+        await session.execute(
+            select(Message)
+            .where(Message.conversation_id == cid, Message.id > after_id)
+            .order_by(Message.id)
+            .limit(limit)
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+async def list_user_conversations(
+    session, user_id: str, limit: int = 50
+) -> list[tuple[int, datetime, str | None, bool]]:
+    """侧栏行:(id, created_at, 首问预览截40字, 已摘要标记);id 降序=新在前,不分页(P8)。"""
+    first_user = (
+        select(Message.content)
+        .where(Message.conversation_id == Conversation.id, Message.role == "user")
+        .order_by(Message.id)
+        .limit(1)
+        .correlate(Conversation)
+        .scalar_subquery()
+    )
+    rows = (
+        await session.execute(
+            select(
+                Conversation.id, Conversation.created_at, first_user,
+                Conversation.summary_upto_msg_id,
+            )
+            .where(Conversation.user_id == user_id)
+            .order_by(Conversation.id.desc())
+            .limit(limit)
+        )
+    ).all()
+    return [
+        (r[0], r[1], (r[2] or "")[:40] or None, r[3] is not None)
+        for r in rows
+    ]
+
+
+async def get_conversation_for_user(session, cid: int, user_id: str):
+    """只读 API 归属校验(T9,spec P8「非属主 404」):id+user_id 双条件,查无即 404。"""
+    return (
+        await session.execute(
+            select(Conversation).where(
+                Conversation.id == cid, Conversation.user_id == user_id
+            )
+        )
+    ).scalar_one_or_none()

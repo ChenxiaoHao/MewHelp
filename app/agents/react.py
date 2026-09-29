@@ -4,9 +4,13 @@
 （ch04 同款 AIMessageChunk `+` 累加聚合），tool_calls 同轮逐个执行回喂
 （R5 冒烟语义）。在裸循环之上加三件事：
 1. 每轮 token 累计对 settings.react_token_budget 熔断（P3=8000）；
-2. 轮数上限 settings.react_max_iterations（P3=6）；
+2. 轮数上限 settings.max_agent_steps（ch07 T8 接管，P3=6）；
 3. 超限收尾不追加模型调用、外发最后一段模型自述 + suggestions=[转人工]
    （ledger R11：省一次调用与延迟，"已有信息收尾"的最小实现）。
+
+ch07 T8 改形：证据/订单注入=装配段5（build_model_context）之责，本模块不再
+读 state.evidence/order_data 做任何 System 前置；轮数上限=settings.
+max_agent_steps（P3 接管）；token 计数与预算层同源（CJK 估算器 estimate_msg）。
 
 事件元组与 ch04 ToolEvent 逐键对齐，done 为 T6 帧序新增：
 ("token", str) | ("tool_call", {id,name,args})
@@ -20,9 +24,9 @@ from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
-from langchain_core.messages.utils import count_tokens_approximately
+from langchain_core.messages import AIMessage, ToolMessage
 
+from app.context.budget import estimate_msg
 from app.tools.executor import ToolContext, execute_tool
 from app.tools.registry import get_tools
 from app.workflows.state import TRANSFER_HUMAN
@@ -57,14 +61,9 @@ async def react_agent_stream(
             logger.warning("persister.%s failed; stream continues", hook, exc_info=True)
 
     messages: list = list(state["messages"])
-    if state.get("evidence"):
-        ev = "\n".join(f"[{i+1}] {c['text']}" for i, c in enumerate(state["evidence"]))
-        messages = [SystemMessage(content=f"知识库证据:\n{ev}"), *messages]
-    if state.get("order_data"):
-        # ch06 T4:退款子流程已取到本单详情——办事之问要看着自己订单的数据答
-        # (政策条款走 evidence,二者独立前置;无 order_data 键时零注入=ch05 回归面)
-        od = json.dumps(state["order_data"], ensure_ascii=False)
-        messages = [SystemMessage(content=f"订单数据:\n{od}"), *messages]
+    # ch07 T8:证据/订单不再 System 前置——段5 装配(build_model_context)已把
+    # 「知识库证据」/「订单数据」合注入当前句之后一条 Human;此处读 state 会双份注入。
+    # 退化面(无 store→legacy trim)见 Ruling:本轮 gate 仍拦弱证据,仅少文本注入。
     # D2「Agent 自动建单方案作废」+ 需求 8 红线:建单唯一入口=前端按钮→
     # POST /api/tickets。绑定集剔除 create_ticket(registry 保留件供执行器层复用,
     # 模型侧不可自触;终审修复批)。
@@ -80,14 +79,13 @@ async def react_agent_stream(
     tokens_used = 0
     last_text = ""
     all_text: list[str] = []
-    while steps < settings.react_max_iterations:
+    while steps < settings.max_agent_steps:
         full = None
         async for chunk in bound.astream(messages):
             full = chunk if full is None else full + chunk
             text = getattr(chunk, "text", "") or ""
             if text:
-                tokens_used += count_tokens_approximately(
-                    [AIMessage(content=text)])
+                tokens_used += estimate_msg(AIMessage(content=text))
                 all_text.append(text)
                 yield ("token", text)
         full = full if full is not None else AIMessage(content="")
@@ -131,7 +129,7 @@ async def react_agent_stream(
             await _p("on_tool_result", cid, outcome)             # ch04 同位挂点
         steps += 1
         logger.info("ch05 react step %d/%d tokens≈%d",
-                    steps, settings.react_max_iterations, tokens_used)
+                    steps, settings.max_agent_steps, tokens_used)
     wrap = EXHAUST_PREFIX + last_text
     await _p("on_final_answer", cid, wrap)
     yield ("token", wrap)

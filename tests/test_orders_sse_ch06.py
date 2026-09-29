@@ -18,7 +18,7 @@ from app.workflows.state import REFUND_APPLY
 def fake_settings():
     return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0,
                            retrieval_low_conf_threshold=0.161,
-                           react_max_iterations=6, react_token_budget=8000,
+                           max_agent_steps=6, react_token_budget=8000,
                            history_token_budget=4000, demo_user_id="demo_user",
                            rerank_top_n=10, intent_small_model="",
                            intent_confidence_threshold=0.75,
