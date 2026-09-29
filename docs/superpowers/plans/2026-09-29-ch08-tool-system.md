@@ -572,7 +572,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: T3 管线;`ToolContext.ticket_confirmed`(T3 已进形)
 - Produces: `ToolOutcome(+awaiting_confirmation: bool = False)`;写拒绝文本 `"写操作需客户在预览卡片确认后才执行"`(T7 react 捕获 preview 的触发信号)
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 """ch08 T4:权限闸(spec 权限闸节)。MCP 声明不可信:P5 恒只读由 T2 构造保证,
@@ -608,7 +608,7 @@ async def test_invalid_write_hits_validation_not_permission():
 
 Run → FAIL。
 
-- [ ] **Step 2: 实现**——校验闸通过后:
+- [x] **Step 2: 实现**——校验闸通过后:
 
 ```python
     if spec.permission == "write" and not ctx.ticket_confirmed:
@@ -619,7 +619,7 @@ Run → FAIL。
 
 `ToolOutcome` 加 `awaiting_confirmation: bool = False`。T4 测「成功」断言以现状最小放行(审计全量在 T5)。
 
-- [ ] **Step 3: 全绿+提交** `git commit -m "feat(ch08-t4): 权限闸——write 无凭证拒/凭证服务端持有模型不可伪造,闸序校验→权限钉测 …"`(尾注同规)
+- [x] **Step 3: 全绿+提交** `git commit -m "feat(ch08-t4): 权限闸——write 无凭证拒/凭证服务端持有模型不可伪造,闸序校验→权限钉测 …"`(尾注同规)
 
 ### Task 5: 超时/重试分诊 + 结果格式化 + 全路径审计 + 默认超时 10s
 

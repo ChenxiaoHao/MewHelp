@@ -38,6 +38,7 @@ class ToolOutcome:
     result: Any  # dict：成功=工具返回；失败={"error": "..."}
     summary: str  # ≤80 字符：前端徽章文案 / tool 消息落库 content
     citations: list | None = None  # ch04: query_faq 命中集引用(前端弹窗数据);其余工具恒 None
+    awaiting_confirmation: bool = False  # ch08 T4:写闸拒绝→T7 react 捕获转确认流
 
 
 _SCHEMA_CACHE: dict[int, dict] = {}
@@ -128,6 +129,14 @@ async def execute_tool(
         return ToolOutcome(name, tool_call_id, False, {"error": err},
                            make_summary(name, {"error": err}))
 
+    # 权限闸(校验之后,闸序=校验→权限,spec 五道闸节):唯一 write=create_ticket,
+    # 凭证 ticket_confirmed 在服务端 ToolContext 里,模型参数面无法伪造。
+    # 拒绝不发审计——等待确认是中间态,审计按终局(confirm/cancel 路在 T7 落)。
+    if spec.permission == "write" and not context.ticket_confirmed:
+        err = "写操作需客户在预览卡片确认后才执行"
+        return ToolOutcome(name, tool_call_id, False, {"error": err},
+                           "等待客户确认", awaiting_confirmation=True)
+
     tool = spec.tool
     config = {"configurable": {"conversation_id": context.conversation_id}}
     attempts = max(1, context.max_retries + 1)
@@ -147,8 +156,11 @@ async def execute_tool(
             citations = None
             if name == "query_faq" and isinstance(result, dict):
                 citations = build_citations(result.get("hits", [])) or None
+            summary = make_summary(name, result)
+            await _emit(context, _record(context, spec, tool_call_id, args,
+                                         "成功", summary))
             return ToolOutcome(name, tool_call_id, True, result,
-                               make_summary(name, result), citations=citations)
+                               summary, citations=citations)
         except TimeoutError:
             last_err = f"执行超时(>{context.timeout_seconds}s)"
             logger.warning("tool %s timeout (attempt %d/%d)", name, i + 1, attempts)
