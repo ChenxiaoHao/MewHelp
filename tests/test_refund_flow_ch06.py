@@ -49,7 +49,10 @@ def fake_settings():
                            max_agent_steps=6, react_token_budget=8000,
                            history_token_budget=4000, demo_user_id="demo_user",
                            rerank_top_n=10, intent_small_model="",
-                           intent_confidence_threshold=0.75)
+                           intent_confidence_threshold=0.75,
+                           # ch08 T7:agent_node 现调 snapshot_tools,死端口桩=恒降级内置面
+                           mcp_logistics_url="http://127.0.0.1:9599/mcp",
+                           mcp_aftersale_url="http://127.0.0.1:9598/mcp")
 
 
 @pytest.fixture
@@ -161,7 +164,8 @@ async def test_gate_pass_attaches_refund_apply(fake_env):
 
 
 async def test_budget_transfer_suggestion_not_overridden(fake_env, monkeypatch):
-    async def fake_react(state, settings, model, *, persister=None):
+    async def fake_react(state, settings, model, *, persister=None, specs=None):
+        # ch08 T7:agent_node 新增 specs kwarg(快照全集),替身同签名
         yield ("token", "预算用尽收尾")
         yield ("done", {"steps": 6, "suggestions": [TRANSFER_HUMAN]})
     monkeypatch.setattr(N, "react_agent_stream", fake_react)

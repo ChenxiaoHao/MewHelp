@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
+from langgraph.types import Command
 
 from app.services.chat_service import to_langchain_messages
 from app.workflows import nodes as N
@@ -43,6 +44,7 @@ def build_graph(settings, model, checkpointer=None):
     g.add_node("agent", N.make_agent_node(model, settings))
     g.add_node("complaint", N.complaint_node)
     g.add_node("chitchat", N.chitchat_node)
+    g.add_node("ticket_confirm", N.ticket_confirm_node)   # ch08 T7 确认流
     g.add_node("logging", N.logging_node)
     # ch06 退款确定性子流程(需求 5/6):取单→扩写→政策多路检索→闸(复用 ch05 语义)
     g.add_node("refund_slot", N.refund_slot_node)
@@ -74,7 +76,11 @@ def build_graph(settings, model, checkpointer=None):
     g.add_edge("refund_policy", "refund_gate")
     g.add_conditional_edges("refund_gate", _after_gate,
                             {"pass": "agent", "fail": "logging"})
-    g.add_edge("agent", "logging")
+    # ch08 T7:agent 出口二分支——建单提案捕获过就走确认节点(interrupt 暂停),
+    # 其余照旧直达 logging。
+    g.add_conditional_edges("agent", _after_agent,
+                            {"confirm": "ticket_confirm", "done": "logging"})
+    g.add_edge("ticket_confirm", "logging")
     g.add_edge("complaint", "logging")
     g.add_edge("chitchat", "logging")
     g.add_edge("logging", END)
@@ -91,6 +97,10 @@ def _after_slot(state):
 
 def _after_gate(state):
     return "pass" if state.get("gate_pass") else "fail"
+
+
+def _after_agent(state):
+    return "confirm" if state.get("ticket_preview") else "done"
 
 
 async def _refill_input(graph, cfg, store, settings, current: str) -> list:
@@ -112,26 +122,39 @@ async def _refill_input(graph, cfg, store, settings, current: str) -> list:
 
 async def stream_graph_turn(
     chat_messages, settings, model, *,
-    conversation_id=None, persister=None, ctx_store=None,
+    conversation_id=None, persister=None, ctx_store=None, resume_value=None,
 ) -> AsyncIterator[tuple]:
-    """一轮图编排 → ("token"|"tool_call"|"tool_result"|"suggestions", payload) 帧流。
+    """一轮图编排 → ("token"|"tool_call"|"tool_result"|"ticket_preview"|"suggestions", payload) 帧流。
 
     thread key=conv-{cid};降级(cid=None,引擎未初始化)→ anon-uuid 线程跨轮不可
     复用,故整包客户端历史入图(与 ch01 无状态语义对齐)。有 cid 时只入本轮新
     human 消息,历史由 checkpointer 按线程累积(spec「State 贯穿」);ch07:线程空
     而 DB 有史(重启/切换)→ ctx_store 回填近史前缀;store 经 configurable 供
     ctx/coref/agent 三消费面。
+    ch08 T7:resume_value 非空=确认流续跑(以 Command(resume) 入图,不重建
+    user 行);普通轮若检测到上轮 interrupt 未处置 → 先按 cancel drain(隐式取消,
+    Review Focus 1);流尽后若仍挂 interrupt → 发 ("ticket_preview", {...}) 帧即关流。
     落库挂点:Agent 出口由 react 内部三挂点自落(ch04 同源);其余出口在此
     补 on_final_answer——user 行始终归 routes bootstrap。
     """
     graph = build_graph(settings, model)
-    current = chat_messages[-1].content
     cfg = {"configurable": {"thread_id": None, "conversation_id": conversation_id,
                             "persister": persister, "ctx_store": ctx_store}}
     if conversation_id is not None:
-        cfg["configurable"]["thread_id"] = thread = f"conv-{conversation_id}"
+        cfg["configurable"]["thread_id"] = f"conv-{conversation_id}"
+    else:
+        cfg["configurable"]["thread_id"] = f"anon-{uuid.uuid4()}"
+
+    if resume_value is not None:
+        graph_input = Command(resume=resume_value)   # 确认流续跑,不重建输入
+    else:
+        current = chat_messages[-1].content
+        # 隐式 cancel(卡片未处置就来新消息):先按取消 drain 旧单,本轮正常答,不 500。
+        snap0 = await graph.aget_state(cfg)
+        if getattr(snap0, "interrupts", ()):
+            await graph.ainvoke(Command(resume="cancel"), config=cfg)
         input_msgs = [HumanMessage(content=current)]
-        if ctx_store is not None:
+        if conversation_id is not None and ctx_store is not None:
             # 终审 I2:回填=第四处 store 消费面,漏在 T7「store 面异常全吞」兜底
             # 清单外。DB 闪断等价 ch06 无 store 行为(无回填裸进),聊天不断线。
             try:
@@ -140,15 +163,14 @@ async def stream_graph_turn(
                 logger.warning("refill degraded cid=%s", conversation_id, exc_info=True)
                 prefix = []
             input_msgs = prefix + input_msgs
-    else:
-        cfg["configurable"]["thread_id"] = thread = f"anon-{uuid.uuid4()}"
-        input_msgs = to_langchain_messages(chat_messages)
+        elif conversation_id is None:
+            input_msgs = to_langchain_messages(chat_messages)
+        graph_input = {"messages": input_msgs, "user_query": current}
+
     streamed = False
     final: dict = {}
     async for mode, chunk in graph.astream(
-            {"messages": input_msgs,
-             "user_query": chat_messages[-1].content},
-            config=cfg, stream_mode=["custom", "values"]):
+            graph_input, config=cfg, stream_mode=["custom", "values"]):
         if mode == "custom":
             kind = chunk[0]
             if kind == "token":
@@ -157,6 +179,13 @@ async def stream_graph_turn(
                 yield chunk          # done 等内部事件不外发
         elif mode == "values":
             final = chunk
+    # 暂停轮检测:interrupt 挂起 → 发 preview 帧即关流(无 suggestions/落库补发)
+    snap = await graph.aget_state(cfg)
+    pend = getattr(snap, "interrupts", ()) or ()
+    if pend:
+        yield ("ticket_preview", {**dict(pend[0].value),
+                                  "conversation_id": conversation_id})
+        return
     answer = final.get("answer_text") or ""
     if answer and not streamed:      # 固定话术出口:无流式 token 时整段补发
         yield ("token", answer)

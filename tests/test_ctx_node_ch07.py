@@ -23,7 +23,10 @@ DEMO = dict(model_context_window=18000, max_output_tokens=2000, max_user_input_t
             chunk_size=500, retrieval_low_conf_threshold=0.161,
             react_token_budget=8000,
             tool_timeout_seconds=5.0, tool_max_retries=0, history_token_budget=4000,
-            intent_confidence_threshold=0.6, demo_user_id="u_demo")
+            intent_confidence_threshold=0.6, demo_user_id="u_demo",
+            # ch08 T7:agent_node 现调 snapshot_tools,死端口桩=恒降级内置面
+            mcp_logistics_url="http://127.0.0.1:9599/mcp",
+            mcp_aftersale_url="http://127.0.0.1:9598/mcp")
 
 
 def _settings(**over):
@@ -183,7 +186,8 @@ async def test_legacy_assembly_still_grounds_evidence(monkeypatch):
     必入模型输入(System 旧形已按段5 作废,形可变、有无不可变)。"""
     captured = {}
 
-    async def fake_react(state, settings, model, persister=None):
+    async def fake_react(state, settings, model, persister=None, specs=None):
+        # ch08 T7:agent_node 新增 specs kwarg(快照全集),替身同签名
         captured["msgs"] = list(state["messages"])
         yield ("token", "好")
         yield ("done", {"steps": 1, "suggestions": []})
@@ -206,7 +210,8 @@ async def test_agent_receives_five_segment_with_injection(monkeypatch, caplog):
     store = FakeStore(rows, ("第一段梗概", 0, 1))   # 层2=id1,层1=id2..3
     captured = {}
 
-    async def fake_react(state, settings, model, persister=None):
+    async def fake_react(state, settings, model, persister=None, specs=None):
+        # ch08 T7:agent_node 新增 specs kwarg(快照全集),替身同签名
         captured["msgs"] = list(state["messages"])
         captured["state"] = state
         yield ("token", "好")

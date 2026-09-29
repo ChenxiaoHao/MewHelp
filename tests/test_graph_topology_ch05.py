@@ -50,7 +50,10 @@ def fake_settings():
     return SimpleNamespace(tool_timeout_seconds=5.0, tool_max_retries=0,
                            retrieval_low_conf_threshold=0.161,
                            max_agent_steps=6, react_token_budget=8000,
-                           history_token_budget=4000)
+                           history_token_budget=4000,
+                           # ch08 T7:agent_node 现调 snapshot_tools,死端口桩=恒降级内置面
+                           mcp_logistics_url="http://127.0.0.1:9599/mcp",
+                           mcp_aftersale_url="http://127.0.0.1:9598/mcp")
 
 
 @pytest.fixture

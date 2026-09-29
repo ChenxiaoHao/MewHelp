@@ -95,7 +95,7 @@ async def create_ticket(
     ticket_type: Literal["售后", "投诉", "咨询"],
     config: RunnableConfig,
 ) -> dict:
-    """创建人工客服工单（转人工）。仅当用户明确要求转人工，或问题超出工具与 FAQ 能力、需要人工跟进时使用。description: 用一句话概括用户的问题与诉求; ticket_type: 工单类型，售后/投诉/咨询三选一。"""
+    """创建人工客服工单。客户明确要求建工单时调用；description 必填且须来自客户原话、不得编造，信息不足先追问。调用后不会直接写单——由客户在预览卡片确认后系统才真正创建（ch08 确认流，需求7）。description: 用一句话概括客户的问题与诉求; ticket_type: 工单类型，售后/投诉/咨询三选一。"""
     conversation_id = (config.get("configurable") or {}).get("conversation_id")
     async with get_session_factory()() as session:
         ticket = await crud_create_ticket(

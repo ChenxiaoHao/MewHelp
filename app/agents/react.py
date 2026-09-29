@@ -12,9 +12,11 @@ ch07 T8 改形：证据/订单注入=装配段5（build_model_context）之责�
 读 state.evidence/order_data 做任何 System 前置；轮数上限=settings.
 max_agent_steps（P3 接管）；token 计数与预算层同源（CJK 估算器 estimate_msg）。
 
-事件元组与 ch04 ToolEvent 逐键对齐，done 为 T6 帧序新增：
+事件元组与 ch04 ToolEvent 逐键对齐，done 为 T6 帧序新增；ticket_request
+为 ch08 T7 内部事件（仅 agent_node 捕获转确认流，不进 writer 外发白名单）：
 ("token", str) | ("tool_call", {id,name,args})
 | ("tool_result", {id,name,ok,summary[,citations]})
+| ("ticket_request", {"tool_call_id", "args"})
 | ("done", {"steps": int, "suggestions": list})
 """
 
@@ -28,7 +30,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.context.budget import estimate_msg
 from app.tools.executor import ToolContext, audit_denied, execute_tool, make_summary
-from app.tools.registry import BUILTIN_SPECS, get_tools
+from app.tools.registry import BUILTIN_SPECS
 from app.workflows.state import TRANSFER_HUMAN
 
 logger = logging.getLogger(__name__)
@@ -43,7 +45,8 @@ def _serialize_tool_calls(tool_calls: list) -> list:
 
 
 async def react_agent_stream(
-    state: dict, settings: Any, model: Any, *, persister: Any = None
+    state: dict, settings: Any, model: Any, *, persister: Any = None,
+    specs: dict | None = None,
 ) -> AsyncIterator[tuple]:
     """state 需含 messages；可选 evidence(知识路证据)、conversation_id(落库/超时上下文)。
 
@@ -64,12 +67,11 @@ async def react_agent_stream(
     # ch07 T8:证据/订单不再 System 前置——段5 装配(build_model_context)已把
     # 「知识库证据」/「订单数据」合注入当前句之后一条 Human;此处读 state 会双份注入。
     # 退化面(无 store→legacy trim)见 Ruling:本轮 gate 仍拦弱证据,仅少文本注入。
-    # D2「Agent 自动建单方案作废」+ 需求 8 红线:建单唯一入口=前端按钮→
-    # POST /api/tickets。绑定集剔除 create_ticket(registry 保留件供执行器层复用,
-    # 模型侧不可自触;终审修复批)。
-    bound = model.bind_tools(
-        [t for t in get_tools() if t.name != "create_ticket"]
-    )
+    # ch08 T7:bind 快照全集(含 create_ticket,需求7)。留史:ch05 终审 F 批的 D2
+    # 硬闸(绑定剔除+执行层拦截,原 :109-117)由确认流取代——模型可提案建单,
+    # 权限闸(无凭证→awaiting_confirmation)拦下,客户在预览卡片确认后才真正写单。
+    specs = specs if specs is not None else BUILTIN_SPECS
+    bound = model.bind_tools([s.tool for s in specs.values()])
     ctx = ToolContext(
         conversation_id=state.get("conversation_id"),
         timeout_seconds=settings.tool_timeout_seconds,
@@ -106,28 +108,25 @@ async def react_agent_stream(
         for tc in tool_calls:                                    # 同轮并行调用逐个执行(R5)
             yield ("tool_call", {"id": tc["id"], "name": tc["name"],
                                  "args": tc.get("args") or {}})
-            if tc["name"] == "create_ticket":
-                # 执行闸(D2/需求 8):建单唯一入口=前端按钮→POST /api/tickets;
-                # 模型幻调即便过了 bind_tools 也绝不让触到执行器,回 ok=False。
+            # ch08 T7:ch05 D2 执行硬闸退役(git 史 556832f 前),create_ticket 与
+            # 全体工具统一走查表+执行器——写闸拦截由 executor 权限闸承担。
+            spec = specs.get(tc["name"])
+            if spec is None:
+                # 幻觉未登记调用=未授权:拒绝回灌 + 审计「权限拒绝」(Review Focus 6)
+                await audit_denied(ctx, tc["name"], tc["id"], tc.get("args") or {})
+                _err = f"未注册的工具: {tc['name']}"
                 outcome = SimpleNamespace(
                     tool_call_id=tc["id"], name=tc["name"], ok=False,
-                    summary="建工单仅可由页面「建工单」按钮触发，模型不可自调",
-                    citations=None,
-                    result={"error": "create_ticket is frontend-button-only"},
+                    summary=make_summary(tc["name"], {"error": _err}),
+                    citations=None, result={"error": _err},
                 )
             else:
-                spec = BUILTIN_SPECS.get(tc["name"])
-                if spec is None:
-                    # 幻觉未登记调用=未授权:拒绝回灌 + 审计「权限拒绝」(Review Focus 6)
-                    await audit_denied(ctx, tc["name"], tc["id"], tc.get("args") or {})
-                    _err = f"未注册的工具: {tc['name']}"
-                    outcome = SimpleNamespace(
-                        tool_call_id=tc["id"], name=tc["name"], ok=False,
-                        summary=make_summary(tc["name"], {"error": _err}),
-                        citations=None, result={"error": _err},
-                    )
-                else:
-                    outcome = await execute_tool(spec, tc.get("args") or {}, tc["id"], ctx)
+                outcome = await execute_tool(spec, tc.get("args") or {}, tc["id"], ctx)
+            if getattr(outcome, "awaiting_confirmation", False):
+                # 需求7:写提案无凭证被闸拦下=中间态 → 转确认流事件(agent_node 捕获,
+                # 不外发);tool_result 帧照发,模型见「等待客户确认」自收敛收尾。
+                yield ("ticket_request", {"tool_call_id": tc["id"],
+                                          "args": tc.get("args") or {}})
             payload = {"id": outcome.tool_call_id, "name": outcome.name,
                        "ok": outcome.ok, "summary": outcome.summary}
             if outcome.citations:                                # 与 ch04 逐字符同形(仅命中才加键)

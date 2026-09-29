@@ -917,7 +917,7 @@ async def query_return_progress(order_id: str) -> dict:
 - Consumes: T5 executor 全链;`ToolContext.ticket_confirmed`
 - Produces: state 键 `ticket_preview: dict`;react 事件 `("ticket_request", {"tool_call_id", "args"})`(仅 agent_node 消费,不出 writer 白名单);图节点 `ticket_confirm`;`stream_graph_turn(..., resume_value=None)` 新 kwarg;帧 `("ticket_preview", {tool_call_id, ticket_type, description, conversation_id})`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```python
 """ch08 T7:建单确认流图侧(spec 确认流节)。"""
@@ -965,7 +965,7 @@ async def test_interrupt_replay_side_effect_free(reset_graph_state, recorder):
     断 confirm 路径审计恰一条、crud 建单恰一次(计数 monkeypatch)。"""
 ```
 
-- [ ] **Step 2: react.py 改**
+- [x] **Step 2: react.py 改**
 
 bind 行(T7 起接快照,agent_node 传入):
 
@@ -988,7 +988,7 @@ async def react_agent_stream(state, settings, model, *, persister=None, specs=No
 
 (`tool_result` 帧照发——ok=False+summary「等待客户确认」,模型见错误自收敛收尾。)
 
-- [ ] **Step 3: nodes.py**:`make_agent_node` 内 `specs = await snapshot_tools(settings)`(per 轮一次)传 react;捕获 `ticket_request`(不 writer 外发)→ `upd["ticket_preview"] = {"tool_call_id":..., "ticket_type": args.get("ticket_type", "咨询"), "description": args.get("description", "")}`;coref reset dict(:131)加 `"ticket_preview": {}`。新节点:
+- [x] **Step 3: nodes.py**:`make_agent_node` 内 `specs = await snapshot_tools(settings)`(per 轮一次)传 react;捕获 `ticket_request`(不 writer 外发)→ `upd["ticket_preview"] = {"tool_call_id":..., "ticket_type": args.get("ticket_type", "咨询"), "description": args.get("description", "")}`;coref reset dict(:131)加 `"ticket_preview": {}`。新节点:
 
 ```python
 async def ticket_confirm_node(state, config):
@@ -1020,7 +1020,7 @@ async def ticket_confirm_node(state, config):
 
 (`settings_default_timeout()`:节点拿不到 settings——从 `config.configurable.settings_ref` 取,agent_node 注入 settings 进 cfg;或模块级 get_settings()。择:节点级 `get_settings()`,ledger 记 Ruling。)
 
-- [ ] **Step 4: graph.py**:
+- [x] **Step 4: graph.py**:
 
 ```python
 g.add_node("ticket_confirm", N.ticket_confirm_node)
@@ -1050,7 +1050,7 @@ g.add_edge("ticket_confirm", "logging")
         return                                      # 暂停轮:无 suggestions/fix 语义
 ```
 
-- [ ] **Step 5: 全绿+提交** `"feat(ch08-t7): 建单确认流图侧——preview 捕获/ticket_confirm(interrupt 重放零副作用)/隐式 cancel drain/ticket_preview 帧;ch05 D2 硬闸退役 …"`
+- [x] **Step 5: 全绿+提交** `"feat(ch08-t7): 建单确认流图侧——preview 捕获/ticket_confirm(interrupt 重放零副作用)/隐式 cancel drain/ticket_preview 帧;ch05 D2 硬闸退役 …"`
 
 ### Task 8: POST /api/tickets/confirm(resume 端点 + 409 + 帧复用)
 

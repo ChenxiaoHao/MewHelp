@@ -13,9 +13,11 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.config import get_stream_writer
+from langgraph.types import interrupt
 
 from app.agents.react import react_agent_stream
 from app.context.budget import compute_budgets, estimate_items
+from app.core.config import get_settings
 from app.context.layers import (
     _build_injection,
     build_history_view,
@@ -33,6 +35,8 @@ from app.rag import retriever
 from app.services import refusals          # 经模块属性调用,pool 可被测试替换
 from app.services.chat_service import get_model, trim_history
 from app.tools.definitions import _make_order, list_user_orders
+from app.tools.executor import ToolContext, audit_denied, execute_tool
+from app.tools.registry import BUILTIN_SPECS
 from app.workflows.routing import (
     chitchat_fast_path,
     extract_order_id,
@@ -131,7 +135,8 @@ def make_coref_node(model, settings=None):
         reset = {"log": {"nodes": ["coref"]}, "evidence": [], "suggestions": [],
                  "answer_text": "", "gate_pass": False, "pending_flow": "",
                  "slot_order_id": "", "order_data": {}, "expanded_queries": [],
-                 "orders_payload": [], "intent_confidence": 0.0}
+                 "orders_payload": [], "intent_confidence": 0.0,
+                 "ticket_preview": {}}   # ch08 T7:轮级复位,残卡不许跨轮路由
         if resume_oid:
             reset["log"].update(coref="resume", resume=True)
             return {**reset, "slot_order_id": resume_oid,
@@ -322,18 +327,28 @@ def make_agent_node(model, settings):
                 msgs = [*msgs, inj]
         parts: list[str] = []
         done: dict = {"steps": 0, "suggestions": []}
+        ticket_preview: dict | None = None
         react_input = {**state, "messages": msgs, "conversation_id": cid}
         if five_seg:
             # 段5 已把证据/订单合注入一条 Human(react System 旧路 T8 已废),
             # 清空入参防下游再读——防双份注入的保险丝。
             react_input.update(evidence=[], order_data={})
+        # ch08 需求1/6:每轮现拿快照(内置 ∪ MCP),撞名内置存活、连不上只降级。
+        from app.tools.registry import snapshot_tools
+        specs = await snapshot_tools(settings)
         async for ev in react_agent_stream(
-                react_input, settings, model, persister=conf.get("persister")):
+                react_input, settings, model, persister=conf.get("persister"),
+                specs=specs):
             kind, data = ev
             if kind in ("token", "tool_call", "tool_result"):
-                writer(ev)
+                writer(ev)                       # ticket_request 不在白名单=不外发
             if kind == "token":
                 parts.append(data)
+            elif kind == "ticket_request":
+                args = data.get("args") or {}
+                ticket_preview = {"tool_call_id": data.get("tool_call_id"),
+                                  "ticket_type": args.get("ticket_type", "咨询"),
+                                  "description": args.get("description", "")}
             elif kind == "done":
                 done = data
         answer = "".join(parts)
@@ -341,6 +356,8 @@ def make_agent_node(model, settings):
         log["agent_steps"] = done["steps"]
         upd = {"answer_text": answer, "log": log,
                "messages": [AIMessage(content=answer)]}
+        if ticket_preview:
+            upd["ticket_preview"] = ticket_preview   # 交图条件边路由到 ticket_confirm
         if done["suggestions"]:
             upd["suggestions"] = done["suggestions"]   # 预算/轮数熔断转人工不被覆盖
         elif state.get("route") == "refund":
@@ -421,6 +438,36 @@ def chitchat_node(state: dict) -> dict:
     log = _note(state, "chitchat")
     return {"answer_text": CHITCHAT_FIXED,
             "messages": [AIMessage(content=CHITCHAT_FIXED)], "log": log}
+
+
+async def ticket_confirm_node(state: dict, config: RunnableConfig) -> dict:
+    """ch08 确认节点(需求7,spec 确认流节):interrupt 前置零副作用——
+    langgraph 恢复语义=本节点从头重放(T7 探针实证 count 1→2),
+    execute/审计只在 interrupt() 返回之后(P6)。"""
+    preview = state.get("ticket_preview") or {}
+    decision = interrupt(dict(preview))          # 第一行动:此前不得有任何副作用
+    conf = (config or {}).get("configurable") or {}
+    cid = conf.get("conversation_id")
+    log = _note(state, "ticket_confirm")
+    args = {"description": preview.get("description", ""),
+            "ticket_type": preview.get("ticket_type", "咨询")}
+    if decision == "confirm":
+        ctx = ToolContext(conversation_id=cid,
+                          timeout_seconds=get_settings().tool_timeout_seconds,
+                          ticket_confirmed=True)
+        outcome = await execute_tool(BUILTIN_SPECS["create_ticket"], args,
+                                     preview.get("tool_call_id") or "confirm", ctx)
+        ans = (f"已为您创建工单 {outcome.result['ticket_no']}，处理进度会另行通知。"
+               if outcome.ok else
+               f"工单创建失败：{outcome.summary}，请稍后再试或使用页面下方「建工单」按钮。")
+    else:
+        # 终局取消才落账(T4 裁决延伸):中间态拒绝不发审计,这条=权限拒绝终局
+        await audit_denied(ToolContext(conversation_id=cid), "create_ticket",
+                           preview.get("tool_call_id") or "cancel", args,
+                           reason="客户在预览卡片取消，未执行")
+        ans = "好的，已取消本次建单。"
+    return {"answer_text": ans, "log": log,
+            "messages": [AIMessage(content=ans)], "ticket_preview": {}}
 
 
 def logging_node(state: dict) -> dict:
