@@ -43,6 +43,7 @@ async def test_snapshot_merges_mcp_and_drops_name_clash():
     assert "query_waimai" in specs and "query_warranty" in specs
     assert specs["query_waimai"].source == "mcp"
     assert specs["query_waimai"].mcp_server == "logistics"
+    assert specs["query_waimai"].permission == "readonly"   # M1-F2/P5:MCP 恒只读钉死
     assert specs["query_order"].source == "builtin"      # 撞名:内置存活
 
 

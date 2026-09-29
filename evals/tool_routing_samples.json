@@ -1,5 +1,5 @@
 [
-  {"id": 1, "question": "订单 DD20260901001 的物流到哪了", "expected_tools": ["query_logistics"], "remark": "验收 1 同款"},
+  {"id": 1, "question": "订单 DD20260901001 的物流到哪了", "expected_tools": ["query_order"], "remark": "ch08 T2 内置 query_logistics 下线(物流轨迹改 MCP 面);本评估 bind 内置快照,物流问法落订单查询为期望(M1-F4)"},
   {"id": 2, "question": "帮我查一下订单 1001 买了什么", "expected_tools": ["query_order"], "remark": ""},
   {"id": 3, "question": "商品 2001 多少钱", "expected_tools": ["query_product"], "remark": "与工具签名对齐（product_id 必填）；「商品名→编号」检索留给后续章节"},
   {"id": 4, "question": "退货政策是什么", "expected_tools": ["query_faq"], "remark": "验收 2，应命中种子 #1"},

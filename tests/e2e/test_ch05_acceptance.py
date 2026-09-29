@@ -147,9 +147,12 @@ async def test_a5a_spec_wording_two_tools(db):
     frames = await _one_turn(
         [_msg("帮我先查一下订单 1001 买了什么，再看看物流到哪了")])
     calls = [p for k, p in frames if k == "tool_call"]
-    assert len(calls) >= 2, f"工具调用数不足: {len(calls)}(验收5)"
+    # ch08 T2 下线内置 query_logistics 后,该 spec 句在内置面只余 query_order 一个
+    # 合法出口(真实模型单发即正确);计数红线撤销,多步强钉归 a5b(规4 随批翻)。
+    assert len(calls) >= 1, f"工具调用数为零(验收5): {len(calls)}"
     names = {c["name"] for c in calls}
-    assert "query_order" in names, names  # ch08:双工具钉改单名+两调用(A5a 本意=ReAct 多步;物流 MCP 双腿验收在 ch08 T11)
+    assert "query_order" in names, names
+    assert "query_logistics" not in names, "内置物流工具已下线,不许出现幻觉调用"
     assert _joined_tokens(frames).strip()
 
 

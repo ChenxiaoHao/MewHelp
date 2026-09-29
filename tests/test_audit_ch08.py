@@ -30,9 +30,13 @@ def test_model_columns_match_ddl():
     assert cols["status"].type.enums == ["成功", "失败", "超时", "校验拦下", "权限拒绝"]
 
 
-async def test_db_sink_engine_unavailable_warns(caplog):
-    # 引擎未初始化:get_session_factory() RuntimeError → WARN 丢行,绝不 raise
+async def test_db_sink_engine_unavailable_warns(caplog, monkeypatch):
+    # 引擎不可用:get_session_factory 抛 → WARN 丢行,绝不 raise
     # (需求5:审计失败不许反过来拦工具执行)
+    # M1-F3:前提显式钉死(raiser 桩),否则同进程引擎已初始化时本测会向活库插脏行
+    def boom():
+        raise RuntimeError("engine not configured")
+    monkeypatch.setattr(audit, "get_session_factory", boom)
     await audit.db_audit_sink(_record())
     assert any("audit" in r.getMessage().lower() for r in caplog.records)
 
@@ -43,16 +47,19 @@ async def test_seam_insert_roundtrip_live_db():
     from sqlalchemy import select
 
     from app.core.config import get_settings
-    from app.db.engine import get_session_factory, init_engine
+    from app.db.engine import dispose_engine, get_session_factory, init_engine
     from app.db.models import ToolAuditLog
     init_engine(get_settings())          # ch07 集成同法:测试自举引擎
-    async with get_session_factory()() as session:
-        await crud.insert_tool_audit(session, **asdict(_record(
-            tool_call_id="seam-t1", status="校验拦下")))
-        row = (await session.execute(select(ToolAuditLog).where(
-            ToolAuditLog.tool_call_id == "seam-t1"))).scalar_one()
-        assert row.status == "校验拦下"
-        assert row.arguments == {"order_id": "1001"}
-        assert row.id > 0
-        await session.delete(row)
-        await session.commit()
+    try:  # M1-F1:不 dispose 会毒死同进程后续活库测(ch07 fixture 同法收口)
+        async with get_session_factory()() as session:
+            await crud.insert_tool_audit(session, **asdict(_record(
+                tool_call_id="seam-t1", status="校验拦下")))
+            row = (await session.execute(select(ToolAuditLog).where(
+                ToolAuditLog.tool_call_id == "seam-t1"))).scalar_one()
+            assert row.status == "校验拦下"
+            assert row.arguments == {"order_id": "1001"}
+            assert row.id > 0
+            await session.delete(row)
+            await session.commit()
+    finally:
+        await dispose_engine()
