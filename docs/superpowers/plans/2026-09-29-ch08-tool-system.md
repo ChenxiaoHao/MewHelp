@@ -48,7 +48,7 @@
 - Consumes: 无(基座任务)
 - Produces: `audit.AuditRecord`(字段=DDL 列名 snake_case)、`audit.db_audit_sink(record)`、`crud.insert_tool_audit(session, **record_fields) -> None`、模型 `ToolAuditLog`
 
-- [ ] **Step 1: 装依赖 + 恒文件处置**
+- [x] **Step 1: 装依赖 + 恒文件处置**
 
 ```bash
 uv add mcp langchain-mcp-adapters jsonschema
@@ -57,7 +57,7 @@ git checkout -- app/rag/retriever.py app/tools/executor.py   # P1:调试 print �
 
 Expected: `uv.lock` 三包入列(记解析到的版本到 dev-notes);`git status` 只剩 self_check.py 一个 M。
 
-- [ ] **Step 2: DDL 落盘 + dev 活库建表**
+- [x] **Step 2: DDL 落盘 + dev 活库建表**
 
 `db/init/08_ch08_tool_audit.sql` ← spec 附录二逐字。活库(docker mysql 3307)应用:
 
@@ -67,7 +67,7 @@ docker exec -i $(docker ps -q --filter expose=3306) mysql -uroot -pmewhelp_dev m
 
 Expected: 无报错;`SHOW COLUMNS FROM tool_audit_logs` 13 列、status ENUM 中文值原样(乱码即 charset 事故,回读 spec DDL 注释)。
 
-- [ ] **Step 3: 写失败测试** `tests/test_audit_ch08.py`
+- [x] **Step 3: 写失败测试** `tests/test_audit_ch08.py`
 
 ```python
 """ch08 T1:审计行形状 + sink 降级语义(引擎未初始化不拦执行)。"""
@@ -104,7 +104,7 @@ async def test_db_sink_engine_unavailable_warns(caplog):
 
 Run: `pytest tests/test_audit_ch08.py -v` → FAIL(ImportError: audit 模块不存在)。
 
-- [ ] **Step 4: 实现**
+- [x] **Step 4: 实现**
 
 `app/tools/audit.py`:
 
@@ -181,7 +181,7 @@ class ToolAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 ```
 
-- [ ] **Step 5: 集成接缝测**(活库真插真读) `tests/test_audit_ch08.py` 追加:
+- [x] **Step 5: 集成接缝测**(活库真插真读) `tests/test_audit_ch08.py` 追加:
 
 ```python
 import pytest
@@ -203,7 +203,7 @@ async def test_seam_insert_roundtrip_live_db():
 
 Run: `pytest tests/test_audit_ch08.py -m integration -v` → PASS(输出落 UTF-8 文件读,GBK 红线)。
 
-- [ ] **Step 6: 全量单测 + 提交**
+- [x] **Step 6: 全量单测 + 提交**
 
 `pytest -q` 预期:仅既有 403±1(新审计测)。提交:
 
