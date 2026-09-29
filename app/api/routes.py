@@ -28,7 +28,7 @@ from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
-from app.workflows.graph import build_graph, stream_graph_turn
+from app.workflows.graph import build_graph, stream_graph_turn, thread_lock
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -103,15 +103,18 @@ async def dep_confirm_pending(
     cfg = {"configurable": {"thread_id": f"conv-{req.conversation_id}",
                             "conversation_id": req.conversation_id,
                             "persister": None, "ctx_store": None}}
-    snap = await graph.aget_state(cfg)
-    if not (getattr(snap, "interrupts", ()) or ()):
-        raise HTTPException(status_code=409, detail="确认已过期,请重新发起建单")
-    now = time.monotonic()
-    async with _confirm_guard:
-        started = _confirm_inflight.get(req.conversation_id)
-        if started is not None and now - started < _CONFIRM_INFLIGHT_TTL:
-            raise HTTPException(status_code=409, detail="已有确认在处理中，请稍候")
-        _confirm_inflight[req.conversation_id] = now
+    # 终审 I-1:「查 pending+标 inflight」与新消息轮的「查 pending+drain」共持
+    # per-thread 锁(锁只跨检查段,resume 头段锁在 stream_graph_turn 内接力)。
+    async with thread_lock(cfg["configurable"]["thread_id"]):
+        snap = await graph.aget_state(cfg)
+        if not (getattr(snap, "interrupts", ()) or ()):
+            raise HTTPException(status_code=409, detail="确认已过期,请重新发起建单")
+        now = time.monotonic()
+        async with _confirm_guard:
+            started = _confirm_inflight.get(req.conversation_id)
+            if started is not None and now - started < _CONFIRM_INFLIGHT_TTL:
+                raise HTTPException(status_code=409, detail="已有确认在处理中，请稍候")
+            _confirm_inflight[req.conversation_id] = now
     return session
 
 

@@ -238,3 +238,41 @@ async def test_concurrent_double_confirm_creates_once(env, post_model, recorder,
                     json={"conversation_id": 7, "decision": "confirm"}))
     assert sorted([r1.status_code, r2.status_code]) == [200, 409]
     assert len(fake_ticket) == 1, "唯一 write 的执行闸必须防重(需求4)"
+
+
+async def test_confirm_race_new_message_single_terminal(env, post_model, recorder,
+                                                        fake_ticket, client, monkeypatch):
+    """终审 I-1:M2-I3 自述场景的另一半——点「确认」后秒发新消息(或双标签页):
+    drain("cancel") 与 confirm resume 并发重放同线程 ticket_confirm → 双建单+
+    「成功」「权限拒绝」终局并存(审计/历史自相矛盾)。per-thread 锁必须把
+    「查 pending+drain」与「查 pending+resume」串进同一临界区:恰一个终局。"""
+    import asyncio
+    await _reach_preview(client, post_model)
+    app.dependency_overrides[routes_mod.dep_chat_model] = lambda: ScriptModel()
+
+    # 触窗放大:confirm 侧重放建单挂 0.3s——drain 必然在单未落时读到 pending
+    # (慢包裹在 fake_ticket 录制替身外层,调用照常入 calls 清单)
+    rec_create = defs.crud_create_ticket
+
+    async def slow_create(session, **kw):
+        await asyncio.sleep(0.3)
+        return await rec_create(session, **kw)
+    monkeypatch.setattr(defs, "crud_create_ticket", slow_create)
+
+    r_confirm, r_chat = await asyncio.gather(
+        client.post("/api/tickets/confirm",
+                    json={"conversation_id": 7, "decision": "confirm"}),
+        client.post("/api/chat/stream",
+                    json={"messages": [{"role": "user", "content": "顺便问下退货地址"}],
+                          "conversation_id": 7}))
+    assert r_confirm.status_code == 200 and r_chat.status_code == 200
+    assert "event:error" not in r_chat.text, "RF1:新消息轮不得带 error 帧"
+    assert len(fake_ticket) <= 1, "并发竞态不得双建单(需求4 唯一 write 闸)"
+    statuses = [r.status for r in recorder if r.tool_name == "create_ticket"]
+    assert statuses in ([], ["成功"], ["权限拒绝"]), \
+        f"同 interrupt 只许一个终局审计,得 {statuses}"
+    rows = [content for (_cid, role, content, _tc, _tcid) in env.messages
+            if role == "assistant"]
+    assert not any("已取消本次建单" in (c or "") for c in rows) or \
+        TICKET_NO not in "".join(c or "" for c in rows), \
+        "messages 表同线程既落取消又落工单号=自相矛盾终局(I2 回填面取证)"

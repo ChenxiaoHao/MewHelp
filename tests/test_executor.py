@@ -1,7 +1,7 @@
 """ch08 T3 起:execute_tool 收 ToolSpec(查找职责在调用方),FakeTool 直传包 spec。
 
 旧 monkeypatch get_tool 模式作废;「未注册的工具」分支随之外移
-(react 幻觉拒绝测在 test_react_node_ch05,legacy 面在 service/naive 各自测)。
+(audit_denied 形状测在 test_validation_ch08;react 环内接线暂无环测——终审 Minor-1 挂账)。
 """
 
 import asyncio

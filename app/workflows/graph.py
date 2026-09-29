@@ -8,6 +8,8 @@ T6 起本模块另负责 `stream_graph_turn` 适配层：图流(custom 模式透
 事件 + 终态) → routes 直接消费的 ToolEvent 形状帧流。
 """
 
+import asyncio
+import contextlib
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -32,6 +34,31 @@ def reset_checkpointer() -> None:
     """清空全部线程态（测试隔离用；生产无调用点）。"""
     global _checkpointer
     _checkpointer = InMemorySaver()
+    _thread_locks.clear()
+
+
+# 终审 I-1:同线程并发 graph run 竞态——confirm resume(A)与新消息轮隐式
+# cancel drain(B)各自「查 pending→重放 interrupt 点」,A/B 交错=同一点双建单
+# +「成功」「权限拒绝」终局并存(M2-I3 只封了 confirm↔confirm 方向)。
+# 修法:per-thread 锁把「查 pending+drain」「查 pending+resume 头段」串进
+# 同一临界区;锁在首批帧 yield 前释放(pending 判定完成后无并发危险面),
+# 慢客户端消费不持锁。
+_thread_locks: dict[str, asyncio.Lock] = {}
+
+
+def thread_lock(thread_key: str) -> asyncio.Lock:
+    """测试隔离经 reset_checkpointer 清空;残留未用锁在事件循环关闭后
+    acquire 会 RuntimeError(resume 调用方抛错=卡片可重试语义,无害)。"""
+    lock = _thread_locks.get(thread_key)
+    if lock is None:
+        lock = _thread_locks.setdefault(thread_key, asyncio.Lock())
+    return lock
+
+
+async def _empty_aiter() -> AsyncIterator:
+    """resume 复查扑空面的零帧流。"""
+    return
+    yield  # pragma: no cover
 
 
 def build_graph(settings, model, checkpointer=None):
@@ -145,23 +172,36 @@ async def stream_graph_turn(
     else:
         cfg["configurable"]["thread_id"] = f"anon-{uuid.uuid4()}"
 
+    _tl = thread_lock(cfg["configurable"]["thread_id"]) if conversation_id is not None else None
     if resume_value is not None:
+        # 终审 I-1:A 持锁跨过「查 pending(端点 dep)→resume 消费 interrupt→
+        # 写 checkpoint」;首批帧 yield 前释放,B 的 drain 到锁时 pending 已灭。
         graph_input = Command(resume=resume_value)   # 确认流续跑,不重建输入
+        if _tl is not None:
+            await _tl.acquire()
+            # 终审 I-1 反向:dep 检查与拿锁之间该 interrupt 可能已被新消息轮
+            # drain 取消(客户秒发)——复查 pending,已灭则空续播(不重放节点、
+            # 不双写取消话术入 messages,仅回显终局)。
+            _snap_r = await graph.aget_state(cfg)
+            if not (getattr(_snap_r, "interrupts", ()) or ()):
+                graph_input = None
     else:
         current = chat_messages[-1].content
         # 隐式 cancel(卡片未处置就来新消息):先按取消 drain 旧单,本轮正常答,不 500。
-        snap0 = await graph.aget_state(cfg)
-        if getattr(snap0, "interrupts", ()):
-            drained = await graph.ainvoke(Command(resume="cancel"), config=cfg)
-            # M2-I2:取消说明必须落库——drain 无流帧,不落=DB 权威回填面(重启/
-            # 切换)只见建单不见取消,历史回放缺终局。
-            cancel_note = (drained or {}).get("answer_text") or ""
-            if cancel_note and persister is not None:
-                try:
-                    await persister.on_final_answer(conversation_id, cancel_note)
-                except Exception:  # noqa: BLE001 —— 落库失败只降级,不挡新轮
-                    logger.warning("persist cancel note failed cid=%s",
-                                   conversation_id, exc_info=True)
+        _drain_cm = _tl if _tl is not None else contextlib.nullcontext()
+        async with _drain_cm:
+            snap0 = await graph.aget_state(cfg)
+            if getattr(snap0, "interrupts", ()):
+                drained = await graph.ainvoke(Command(resume="cancel"), config=cfg)
+                # M2-I2:取消说明必须落库——drain 无流帧,不落=DB 权威回填面(重启/
+                # 切换)只见建单不见取消,历史回放缺终局。
+                cancel_note = (drained or {}).get("answer_text") or ""
+                if cancel_note and persister is not None:
+                    try:
+                        await persister.on_final_answer(conversation_id, cancel_note)
+                    except Exception:  # noqa: BLE001 —— 落库失败只降级,不挡新轮
+                        logger.warning("persist cancel note failed cid=%s",
+                                       conversation_id, exc_info=True)
         input_msgs = [HumanMessage(content=current)]
         if conversation_id is not None and ctx_store is not None:
             # 终审 I2:回填=第四处 store 消费面,漏在 T7「store 面异常全吞」兜底
@@ -178,16 +218,24 @@ async def stream_graph_turn(
 
     streamed = False
     final: dict = {}
-    async for mode, chunk in graph.astream(
-            graph_input, config=cfg, stream_mode=["custom", "values"]):
-        if mode == "custom":
-            kind = chunk[0]
-            if kind == "token":
-                streamed = True
-            if kind in ("token", "tool_call", "tool_result"):
-                yield chunk          # done 等内部事件不外发
-        elif mode == "values":
-            final = chunk
+    # graph_input=None=resume 复查扑空(见上「反向」注)——不重放图,只走终态回显。
+    _frames = (graph.astream(graph_input, config=cfg, stream_mode=["custom", "values"])
+               if graph_input is not None else _empty_aiter())
+    try:
+        async for mode, chunk in _frames:
+            if mode == "custom":
+                kind = chunk[0]
+                if kind == "token":
+                    streamed = True
+                if kind in ("token", "tool_call", "tool_result"):
+                    yield chunk          # done 等内部事件不外发
+            elif mode == "values":
+                final = chunk
+    finally:
+        # 终审 I-1:A 的 checkpoint 已定稿(interrupt 已消耗)才交锁;循环内
+        # 抛错/生成器被关也走此释放,不卡死该线程后续轮。
+        if resume_value is not None and _tl is not None and _tl.locked():
+            _tl.release()
     # 暂停轮检测:interrupt 挂起 → 发 preview 帧即关流(无 suggestions/落库补发)
     snap = await graph.aget_state(cfg)
     pend = getattr(snap, "interrupts", ()) or ()
