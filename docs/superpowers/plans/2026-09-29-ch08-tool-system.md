@@ -1153,9 +1153,9 @@ async def ticket_confirm(req: TicketConfirmRequest,
 
 **Interfaces:** Consumes 全部;Produces: 验收 4/5/6 自动化钉 + 1/2/3 演示脚本口径(P9)。
 
-- [ ] **Step 1: 写 e2e**——C4(confirm→tickets 表 FakeCrud 计数+工单号 token)、C5(cancel→审计「权限拒绝」+不建单)、C6(超时:timeout=0.01+max_retries=2 → 审计 retry_count=2/状态「超时」/duration_ms 非空;write 超时恒 0)、C2 近似(快照含 mcp 源件被 bind)、C1/C3 手工脚本在 README 钉步骤。
-- [ ] **Step 2: 全量回归** `pytest -q`(单元全绿)+ `pytest -m integration`(含 T6;输出落文件)。
-- [ ] **Step 3: README ch08 节 + dev-notes 完结段(四样)+ 提交**,随后 executing-plans 终审批段(批评审 M 批 + fresh 终审 + fix pass)按 skill 走;finishing 菜单必停等人拍板(规约:merge/finishing 留人)。
+- [x] **Step 1: 写 e2e**——C4(confirm→tickets 表 FakeCrud 计数+工单号 token)、C5(cancel→审计「权限拒绝」+不建单)、C6(超时:timeout=0.01+max_retries=2 → 审计 retry_count=2/状态「超时」/duration_ms 非空;write 超时恒 0)、C2 近似(快照含 mcp 源件被 bind)、C1/C3 手工脚本在 README 钉步骤。(落 `tests/e2e/test_ch08_acceptance.py` 5 钉,单元级 Fake 面无 @integration 标记→计入常规 `pytest -q`;首跑 NameError=AIMessage 漏导入,修后 5 passed 9.54s。)
+- [x] **Step 2: 全量回归** `pytest -q`(单元全绿)+ `pytest -m integration`(含 T6;输出落文件)。(单元 440 passed, 35 deselected;integration 首跑 32/35——a2/a5a 假红定性=残留后台 MCP Server 占 8101/8102 污染内置面(规4 波及收口:ch05/06 e2e `_one_turn` 钉死死端口)+ model_smoke 共跑 loop 残雷;清场+修复后干净重跑 **35 passed** 13:28,全章 integration 无一挂账。)
+- [x] **Step 3: README ch08 节 + dev-notes 完结段(四样)+ 提交**,随后 executing-plans 终审批段(批评审 M 批 + fresh 终审 + fix pass)按 skill 走;finishing 菜单必停等人拍板(规约:merge/finishing 留人)。
 
 ---
 

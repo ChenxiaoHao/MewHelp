@@ -43,7 +43,10 @@ def _fresh_threads():
 
 
 async def _one_turn(messages, conversation_id=None):
-    settings = get_settings()
+    # ch08(T11 波及收口):同 ch05 e2e——钉死 MCP 死端口保内置面确定性
+    settings = get_settings().model_copy(update={
+        "mcp_logistics_url": "http://127.0.0.1:9599/mcp",
+        "mcp_aftersale_url": "http://127.0.0.1:9598/mcp"})
     model = get_model(settings)
     frames = []
     try:

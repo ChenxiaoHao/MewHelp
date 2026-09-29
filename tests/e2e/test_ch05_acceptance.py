@@ -51,7 +51,12 @@ def _fresh_threads():
 
 
 async def _one_turn(messages, persister=None, conversation_id=None):
-    settings = get_settings()
+    # ch08(T11 波及收口):钉死 MCP 死端口=内置面确定性——本机若恰好起著
+    # 8101/8102,快照会带 mcp 版 query_logistics,a2/a5a 的「内置面」守卫被环境
+    # 污染出假红(2026-09-30 共跑实证);本章验收语义本就是 ch05 内置工具面。
+    settings = get_settings().model_copy(update={
+        "mcp_logistics_url": "http://127.0.0.1:9599/mcp",
+        "mcp_aftersale_url": "http://127.0.0.1:9598/mcp"})
     model = get_model(settings)
     frames = []
     try:
