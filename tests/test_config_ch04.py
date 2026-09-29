@@ -45,4 +45,4 @@ def test_ch01_to_ch03_still_untouched(env):
     s = Settings(_env_file=None, openai_base_url="http://fake/v1",
                  openai_api_key="fake-key", model_name="fake-model")
     assert s.rag_score_threshold == 0.3 and s.milvus_collection == "knowledge"
-    assert s.history_token_budget == 4000 and s.tool_timeout_seconds == 5.0
+    assert s.history_token_budget == 4000 and s.tool_timeout_seconds == 10.0  # ch08 T5 改基准

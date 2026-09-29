@@ -68,9 +68,10 @@ async def test_timeout_retries_then_error(ctx):
 
 
 async def test_transient_error_then_success(ctx):
+    # ch08 T5 分诊:暂时性=白名单(ConnectionError 族),原 RuntimeError 不再重试
     async def flaky(call, args):
         if call == 1:
-            raise RuntimeError("boom")
+            raise ConnectionError("boom")
         return {"keyword": "x", "hits": []}
 
     fake = FakeTool("query_faq", flaky)
@@ -79,13 +80,14 @@ async def test_transient_error_then_success(ctx):
     assert out.summary == "未命中"
 
 
-async def test_permanent_error_exhausts_retries(ctx):
+async def test_permanent_error_not_retried(ctx):
+    # ch08 T5 三类分诊:业务硬错(ValueError 不在白名单)单试即收,不烧重试
     async def always_fail(call, args):
         raise ValueError("bad args")
 
     fake = FakeTool("query_faq", always_fail)
     out = await execute_tool(_spec(fake), {}, "call_1", ctx)
-    assert out.ok is False and fake.calls == 2
+    assert out.ok is False and fake.calls == 1
     assert "bad args" in out.result["error"]
 
 

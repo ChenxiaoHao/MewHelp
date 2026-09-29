@@ -632,7 +632,7 @@ Run → FAIL。
 - Consumes: T3 `_emit/_record`;T4 `awaiting_confirmation`
 - Produces: `TRANSIENT_ERRORS = (TimeoutError, ConnectionError, OSError)`;`executor.STATUS_LABELS: dict[str, str]`;`format_result(spec, result) -> dict`;审计终局全量:成功/失败/超时(retry_count/duration_ms 实录)
 
-- [ ] **Step 1: 写失败测试**(节选,三文件合成一个行为一步)
+- [x] **Step 1: 写失败测试**(节选,三文件合成一个行为一步)
 
 ```python
 """ch08 T5:重试只给暂时性故障;write 恒单试;三类分诊;MCP 投影+枚举翻话(spec 执行引擎节)。"""
@@ -698,7 +698,7 @@ def test_format_projection_and_labels():
 
 (`STATUS_LABELS = {"COLLECTED": "已揽收", "TRANSPORT": "运输中", "DELIVERING": "派送中", "SIGNED": "已签收", "APPROVED": "审核通过", "RECEIVING": "收到退货中", "REFUNDING": "退款处理中", "CLOSED": "已关闭"}` 在测试以 `executor.STATUS_LABELS[...]` 引用,不复制字面。)
 
-- [ ] **Step 2: 实现**——执行循环替换为:
+- [x] **Step 2: 实现**——执行循环替换为:
 
 ```python
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError, OSError)
@@ -761,7 +761,7 @@ async def execute_tool(spec, args, tool_call_id, ctx):
 
 settings 默认 10.0;`tests/test_executor.py` 原「超时重试」断言按新分诊校准(规4)。
 
-- [ ] **Step 3: 全绿+提交** `"feat(ch08-t5): 重试白名单+write 恒单试+三类分诊全量审计+MCP 投影枚举翻话,超时默认 10s …"`
+- [x] **Step 3: 全绿+提交** `"feat(ch08-t5): 重试白名单+write 恒单试+三类分诊全量审计+MCP 投影枚举翻话,超时默认 10s …"`
 
 ### Task 6: 双 MCP Server + 集成链路
 

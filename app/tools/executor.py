@@ -10,6 +10,7 @@ jsonschema Draft202012Validator 拦下不抛异常——错误文本包成 ok=Fa
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -118,6 +119,31 @@ def make_summary(name: str, result: Any) -> str:
     return text[:80]
 
 
+# 暂时性故障白名单(spec 执行引擎节):只有这三类才重试——业务空结果/硬错
+# 重试只是拖时间;OSError 覆盖网络族(含 socket 层),TimeoutError 本就子类。
+TRANSIENT_ERRORS = (TimeoutError, ConnectionError, OSError)
+
+STATUS_LABELS = {
+    "COLLECTED": "已揽收", "TRANSPORT": "运输中", "DELIVERING": "派送中",
+    "SIGNED": "已签收", "APPROVED": "审核通过", "RECEIVING": "收到退货中",
+    "REFUNDING": "退款处理中", "CLOSED": "已关闭",
+}
+
+
+def format_result(spec, result):
+    """MCP 结果投影(需求4「挑字段/枚举翻人话」):下划线私有键剔除、
+    nodes 只留最近 5 条、状态枚举翻中文。内置工具形状一概不动(现状兼容红线)。"""
+    if spec.source != "mcp" or not isinstance(result, dict):
+        return result
+    out = {k: v for k, v in result.items() if not str(k).startswith("_")}
+    if isinstance(out.get("nodes"), list):
+        out["nodes"] = out["nodes"][-5:]
+    for key in ("current_status", "status"):
+        if out.get(key) in STATUS_LABELS:
+            out[key] = STATUS_LABELS[out[key]]
+    return out
+
+
 async def execute_tool(
     spec, args: dict, tool_call_id: str, context: ToolContext
 ) -> ToolOutcome:
@@ -137,35 +163,53 @@ async def execute_tool(
         return ToolOutcome(name, tool_call_id, False, {"error": err},
                            "等待客户确认", awaiting_confirmation=True)
 
-    tool = spec.tool
+    t0 = time.monotonic()
     config = {"configurable": {"conversation_id": context.conversation_id}}
-    attempts = max(1, context.max_retries + 1)
-    last_err = "未知错误"
+    # 需求4:写默认不自动重试(重复执行比失败更糟);读按白名单重试
+    attempts = 1 if spec.permission == "write" else max(1, context.max_retries + 1)
+    status, retries_used, last_err, result = "失败", 0, "未知错误", None
     for i in range(attempts):
+        retries_used = i
         try:
             result = await asyncio.wait_for(
-                tool.ainvoke(args, config=config), timeout=context.timeout_seconds
+                spec.tool.ainvoke(args, config=config), timeout=context.timeout_seconds
             )
-            if isinstance(result, str):
-                # 部分 LangChain 版本会把 dict 返回值转成 str，兜底还原
-                # （本地 langchain_core 1.6.3 实测 dict 原样透传，此分支纯属防御）
-                try:
-                    result = json.loads(result)
-                except json.JSONDecodeError:
-                    result = {"text": result}
-            citations = None
-            if name == "query_faq" and isinstance(result, dict):
-                citations = build_citations(result.get("hits", [])) or None
-            summary = make_summary(name, result)
-            await _emit(context, _record(context, spec, tool_call_id, args,
-                                         "成功", summary))
-            return ToolOutcome(name, tool_call_id, True, result,
-                               summary, citations=citations)
+            status = "成功"
+            break
         except TimeoutError:
-            last_err = f"执行超时(>{context.timeout_seconds}s)"
+            status, last_err = "超时", f"执行超时(>{context.timeout_seconds}s)"
             logger.warning("tool %s timeout (attempt %d/%d)", name, i + 1, attempts)
-        except Exception as exc:  # noqa: BLE001 —— 兜底包装是设计目标
-            last_err = f"{type(exc).__name__}: {exc}"
-            logger.warning("tool %s failed (attempt %d/%d): %s", name, i + 1, attempts, exc)
+        except TRANSIENT_ERRORS as exc:
+            status, last_err = "失败", f"{type(exc).__name__}: {exc}"
+            logger.warning("tool %s transient fail (attempt %d/%d): %s",
+                           name, i + 1, attempts, exc)
+        except Exception as exc:  # noqa: BLE001 —— 非暂时性:业务硬错,重试无意义
+            status, last_err = "失败", f"{type(exc).__name__}: {exc}"
+            break
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    if status == "成功":
+        if isinstance(result, str):
+            # 部分 LangChain 版本会把 dict 返回值转成 str，兜底还原
+            # （本地 langchain_core 1.6.3 实测 dict 原样透传，此分支纯属防御;
+            #  MCP 工具返 str 同样走这里——Review Focus 3）
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                result = {"text": result}
+        result = format_result(spec, result)
+        citations = (build_citations(result.get("hits", [])) or None
+                     if name == "query_faq" and isinstance(result, dict) else None)
+        summary = make_summary(name, result)
+        await _emit(context, _record(context, spec, tool_call_id, args, "成功",
+                                     summary, retries=retries_used,
+                                     duration_ms=duration_ms))
+        return ToolOutcome(name, tool_call_id, True, result, summary,
+                           citations=citations)
+    if status == "超时" and spec.permission == "write":
+        last_err += "(写操作超时未自动重试,请人工核实是否已执行)"
     err_result = {"error": f"工具执行失败: {last_err}"}
-    return ToolOutcome(name, tool_call_id, False, err_result, make_summary(name, err_result))
+    await _emit(context, _record(context, spec, tool_call_id, args, status,
+                                 make_summary(name, err_result), last_err,
+                                 retries=retries_used, duration_ms=duration_ms))
+    return ToolOutcome(name, tool_call_id, False, err_result,
+                       make_summary(name, err_result))
