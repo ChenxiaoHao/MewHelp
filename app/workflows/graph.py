@@ -152,7 +152,16 @@ async def stream_graph_turn(
         # 隐式 cancel(卡片未处置就来新消息):先按取消 drain 旧单,本轮正常答,不 500。
         snap0 = await graph.aget_state(cfg)
         if getattr(snap0, "interrupts", ()):
-            await graph.ainvoke(Command(resume="cancel"), config=cfg)
+            drained = await graph.ainvoke(Command(resume="cancel"), config=cfg)
+            # M2-I2:取消说明必须落库——drain 无流帧,不落=DB 权威回填面(重启/
+            # 切换)只见建单不见取消,历史回放缺终局。
+            cancel_note = (drained or {}).get("answer_text") or ""
+            if cancel_note and persister is not None:
+                try:
+                    await persister.on_final_answer(conversation_id, cancel_note)
+                except Exception:  # noqa: BLE001 —— 落库失败只降级,不挡新轮
+                    logger.warning("persist cancel note failed cid=%s",
+                                   conversation_id, exc_info=True)
         input_msgs = [HumanMessage(content=current)]
         if conversation_id is not None and ctx_store is not None:
             # 终审 I2:回填=第四处 store 消费面,漏在 T7「store 面异常全吞」兜底
@@ -189,7 +198,12 @@ async def stream_graph_turn(
     answer = final.get("answer_text") or ""
     if answer and not streamed:      # 固定话术出口:无流式 token 时整段补发
         yield ("token", answer)
-    if answer and "agent" not in (final.get("log") or {}).get("nodes", []):
+    # M2-I2:resume 轮 log.nodes 从 checkpoint 继承必含上轮 "agent",单判据
+    # 「非 agent 出口」永不误触→T8 端点传入的 persister 成死线(工单号答复不落
+    # messages,刷新即丢)。resume 轮图形=confirm→logging 恒不经 react 自落面,
+    # 以 resume_value 为第二触发条件补发,无双写风险。
+    if answer and (resume_value is not None
+                   or "agent" not in (final.get("log") or {}).get("nodes", [])):
         try:
             if persister is not None:
                 await persister.on_final_answer(conversation_id, answer)

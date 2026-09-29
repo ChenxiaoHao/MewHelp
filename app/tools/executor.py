@@ -42,9 +42,6 @@ class ToolOutcome:
     awaiting_confirmation: bool = False  # ch08 T4:写闸拒绝→T7 react 捕获转确认流
 
 
-_SCHEMA_CACHE: dict[int, dict] = {}
-
-
 def tool_json_schema(tool) -> dict:
     """模型可见参数面 schema;tool_call_schema 是 langchain 剔除注入参数
     (config/RunnableConfig)后的调用形状——校验必须用它,不然 config 会被当必填。"""
@@ -58,11 +55,21 @@ def tool_json_schema(tool) -> dict:
 
 
 def validate_args(spec, args: dict) -> str | None:
-    """校验闸:返回 None=放行;否则中文错误文本(≤512,直接回灌+落审计)。"""
-    key = id(spec.tool)
-    schema = _SCHEMA_CACHE.setdefault(key, tool_json_schema(spec.tool))
-    errs = sorted(Draft202012Validator(schema).iter_errors(args),
-                  key=lambda e: list(e.path))
+    """校验闸:返回 None=放行;否则中文错误文本(≤512,直接回灌+落审计)。
+
+    无跨调用缓存(M2-M1 升 Important 修复):P4 每轮现拿下 MCP 件轮末即 GC,
+    id() 键会被 CPython 地址复用挂到别的工具的 schema 上;model_json_schema
+    每工具每轮一次的开销不在热路径,不构成缓存理由。外部工具自带畸形 schema
+    (坏 $ref 等)视作无可校验形状放行+WARN——不可信外部声明不许把异常开出
+    单漏斗(M2-I1,「绝不向上抛」契约)。"""
+    schema = tool_json_schema(spec.tool)
+    try:
+        errs = sorted(Draft202012Validator(schema).iter_errors(args),
+                      key=lambda e: list(e.path))
+    except Exception:  # noqa: BLE001 —— 畸形 schema 面:放行,工具自身入参兜底
+        logger.warning("tool %s malformed schema; validation skipped", spec.name,
+                       exc_info=True)
+        return None
     if not errs:
         return None
     e = errs[0]
@@ -139,8 +146,11 @@ def format_result(spec, result):
     if isinstance(out.get("nodes"), list):
         out["nodes"] = out["nodes"][-5:]
     for key in ("current_status", "status"):
-        if out.get(key) in STATUS_LABELS:
-            out[key] = STATUS_LABELS[out[key]]
+        v = out.get(key)
+        # M2-I1:list/dict 等不可哈希形状在 `in` 查找即 TypeError——只翻 str 枚举,
+        # 异形值原样透传(单漏斗「绝不向上抛」;内置面不经过此函数,形状零影响)。
+        if isinstance(v, str) and v in STATUS_LABELS:
+            out[key] = STATUS_LABELS[v]
     return out
 
 

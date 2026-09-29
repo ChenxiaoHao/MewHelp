@@ -43,3 +43,25 @@ def test_builtin_shape_untouched():
 def test_non_dict_mcp_result_passthrough():
     spec = ToolSpec(_mcp_fake(), "readonly", "mcp", "logistics")
     assert format_result(spec, "纯文本") == "纯文本"    # Review Focus 3 面
+
+
+class _ListStatusTool:
+    """M2-I1 探针件:MCP server 回 list 形 status(不可哈希)。"""
+    name = "query_waimai"; description = ""; args = {}
+
+    async def ainvoke(self, args, config=None, **kw):
+        return {"current_status": ["TRANSPORT"], "carrier": "中通"}
+
+
+async def test_mcp_list_status_does_not_escape():
+    """单漏斗「绝不向上抛」契约:格式化出口的 `in` 查找遇不可哈希值不得
+    TypeError 穿透——降级为原样透传,outcome 正常返回。"""
+    from app.tools.executor import ToolContext, execute_tool
+    recs = []
+
+    async def sink(r):
+        recs.append(r)
+
+    out = await execute_tool(ToolSpec(_ListStatusTool(), "readonly", "mcp", "logistics"),
+                             {}, "f1", ToolContext(timeout_seconds=1, audit_sink=sink))
+    assert out.ok and out.result["current_status"] == ["TRANSPORT"]

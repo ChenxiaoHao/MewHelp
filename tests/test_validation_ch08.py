@@ -62,3 +62,51 @@ async def test_audit_denied_shape():
     assert rec.status == "权限拒绝" and rec.tool_source == "builtin"
     assert rec.tool_name == "query_weather" and rec.mcp_server is None
     assert rec.conversation_id == 9 and rec.error_message
+
+
+async def test_malformed_external_schema_degrades_to_pass(caplog):
+    """M2-I1:校验闸对外部 MCP 自带畸形 JSON Schema(非法 type 字面量)不逃逸——
+    视作无可校验形状放行+WARN,让工具自身入参兜底(不可信外部声明面)。"""
+    import logging
+    caplog.set_level(logging.WARNING)
+
+    class Bad:
+        name = "bad"; description = ""
+        # args 进 fallback 拼装(tool_call_schema 非 type 类时被忽略);非法 type
+        # 字面量放进实例触达的属性上——jsonschema 惰性绑定,iter 即 UnknownType
+        args = {"whatever": {"type": "not-a-type"}}
+
+        async def ainvoke(self, args, config=None, **kw):
+            return {"ok": True}
+
+    out = await execute_tool(ToolSpec(Bad(), "readonly", "mcp", "srv"),
+                             {"whatever": 1}, "v-b1", ToolContext(audit_sink=_sink))
+    assert out.ok, out.result
+    assert any("schema" in r.getMessage().lower() for r in caplog.records)
+
+
+async def test_no_cross_call_schema_state():
+    """M2-M1 升 I:_SCHEMA_CACHE 按 id() 键在 P4 每轮现拿形制下必炸——MCP 件
+    轮末 GC、CPython 地址复用挂错 schema。校验闸必须无跨调用状态(删缓存)。"""
+    from pydantic import BaseModel
+
+    class M1(BaseModel):
+        a: str
+
+    class M2(BaseModel):
+        b: str
+
+    class Mut:
+        name = "mut"; description = ""; args = {}
+
+        async def ainvoke(self, args, config=None, **kw):
+            return {"ok": True}
+
+    t = Mut()
+    t.tool_call_schema = M1   # isinstance(sc, type) 才走 model_json_schema 面
+    spec = ToolSpec(t, "readonly", "builtin")
+    out1 = await execute_tool(spec, {"a": "x"}, "v-m1", ToolContext(audit_sink=_sink))
+    assert out1.ok
+    t.tool_call_schema = M2
+    out2 = await execute_tool(spec, {"b": "y"}, "v-m2", ToolContext(audit_sink=_sink))
+    assert out2.ok, "schema 变更后校验须用新 schema(旧 id 缓存=错杀)"

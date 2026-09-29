@@ -101,8 +101,10 @@ class FakeCrud:
 @pytest.fixture(autouse=True)
 def fresh_checkpointer():
     graph_mod.reset_checkpointer()
+    routes_mod._confirm_inflight.clear()   # M2-I3 单入口面防测间残留
     yield
     graph_mod.reset_checkpointer()
+    routes_mod._confirm_inflight.clear()
 
 
 @pytest.fixture
@@ -208,3 +210,31 @@ async def test_unknown_decision_422_does_not_consume_interrupt(
                            json={"conversation_id": 7, "decision": "confirm"})
     assert ok.status_code == 200
     assert TICKET_NO in _token_text(ok.text)
+
+
+async def test_confirm_resume_assistant_row_saved(env, post_model, recorder,
+                                                  fake_ticket, client):
+    """M2-I2 端点面:confirm 续播答复须进 messages 表(刷新/重启回填后工单号可见)。"""
+    await _reach_preview(client, post_model)
+    post_model(ScriptModel())
+    resp = await client.post("/api/tickets/confirm",
+                             json={"conversation_id": 7, "decision": "confirm"})
+    assert resp.status_code == 200
+    assert any(role == "assistant" and TICKET_NO in (content or "")
+               for (_cid, role, content, _tc, _tcid) in env.messages), env.messages
+
+
+async def test_concurrent_double_confirm_creates_once(env, post_model, recorder,
+                                                      fake_ticket, client):
+    """M2-I3:409 预检+resume 非原子——卡片双击并发两发 confirm,写路径防重:
+    恰一发进 resume(200+建单恰一次),另一发被挡(409)。"""
+    import asyncio
+    await _reach_preview(client, post_model)
+    post_model(ScriptModel())
+    r1, r2 = await asyncio.gather(
+        client.post("/api/tickets/confirm",
+                    json={"conversation_id": 7, "decision": "confirm"}),
+        client.post("/api/tickets/confirm",
+                    json={"conversation_id": 7, "decision": "confirm"}))
+    assert sorted([r1.status_code, r2.status_code]) == [200, 409]
+    assert len(fake_ticket) == 1, "唯一 write 的执行闸必须防重(需求4)"

@@ -177,3 +177,41 @@ async def test_interrupt_replay_side_effect_free(reset_graph_state, recorder,
     assert len(fake_ticket) == 1
     assert [r.status for r in recorder if r.status == "成功"] == ["成功"]
     assert not any(r.status == "权限拒绝" for r in recorder)
+
+
+class RecPersister:
+    """M2-I2 录制件:只实现 on_final_answer 也安全(react 三挂点 getattr 失败被
+    try 吞成 WARN,react.py:59-64)。"""
+
+    def __init__(self):
+        self.rows = []
+
+    async def on_final_answer(self, conversation_id, content):
+        self.rows.append((conversation_id, content))
+
+
+async def test_resume_confirm_persists_final_answer(reset_graph_state, recorder,
+                                                    fake_ticket):
+    """M2-I2:resume 轮 log.nodes 继承含 "agent",落库闸永不误触→续播话术不落
+    DB(刷新即丢工单号)。resume 轮必须以 resume_value 为第二触发条件补发。"""
+    await _reach_preview()
+    p = RecPersister()
+    frames = [f async for f in stream_graph_turn(
+        None, _settings(), ScriptModel(), conversation_id=7,
+        persister=p, resume_value="confirm")]
+    text = "".join(t for k, t in frames if k == "token")
+    assert TICKET_NO in text
+    assert p.rows and p.rows[-1] == (7, text), p.rows
+
+
+async def test_implicit_cancel_drain_persists_note(reset_graph_state, recorder,
+                                                   fake_ticket):
+    """M2-I2 同面:隐式 cancel drain 走裸 ainvoke,"「已取消」文案既无流帧也不
+    落库——drain 后须补一条 assistant 行,否则历史回放只见建单未见取消。"""
+    await _reach_preview()
+    p = RecPersister()
+    m2 = ScriptModel(turns=[[AIMessageChunk(content="好的，发货地是江苏。")]])
+    [f async for f in stream_graph_turn(
+        [SimpleNamespace(content="算了，先问下发货地")], _settings(), m2,
+        conversation_id=7, persister=p, ctx_store=None)]
+    assert any("取消" in c for _, c in p.rows), p.rows
