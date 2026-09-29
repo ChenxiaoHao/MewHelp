@@ -104,9 +104,9 @@ async def test_tool_frames_order_and_shape(fake_settings, monkeypatch):
     from app.services.tool_chat_service import stream_chat_with_tools
     from app.tools.executor import ToolOutcome
 
-    async def fake_execute(name, args, tcid, ctx):
+    async def fake_execute(spec, args, tcid, ctx):
         assert ctx.conversation_id == 7  # 会话 id 已注入工具上下文
-        return ToolOutcome(name, tcid, True, {"keyword": "退货政策", "hits": [{"question": "退货政策是什么？"}]}, "命中 1 条")
+        return ToolOutcome(spec.name, tcid, True, {"keyword": "退货政策", "hits": [{"question": "退货政策是什么？"}]}, "命中 1 条")
 
     monkeypatch.setattr(svc, "execute_tool", fake_execute)
 
@@ -131,8 +131,8 @@ async def test_tool_result_frame_carries_citations(fake_settings, monkeypatch):
 
     cites = [{"n": 1, "chunk_id": 7, "section_path": "手册 > 节1", "question": "q", "answer": "a"}]
 
-    async def fake_execute(name, args, tcid, ctx):
-        return ToolOutcome(name, tcid, True, {"keyword": "k", "hits": [{"n": 1}], "refused": False, "note": ""},
+    async def fake_execute(spec, args, tcid, ctx):
+        return ToolOutcome(spec.name, tcid, True, {"keyword": "k", "hits": [{"n": 1}], "refused": False, "note": ""},
                            "命中 1 条", citations=cites)
 
     monkeypatch.setattr(svc, "execute_tool", fake_execute)

@@ -1,9 +1,10 @@
-"""工具执行基础设施：查找注册表、Schema 由 LangChain @tool 声明式校验、
-asyncio.wait_for 超时、有限重试、异常→错误结果包装、摘要生成。
+"""统一执行引擎(spec 五道闸节)单点漏斗:ToolSpec 入,ToolOutcome 出。
 
-失败兜底原则（spec §9）：execute_tool 绝不向上抛——任何失败都变成
-ok=False 的 ToolOutcome，其 result["error"] 作为 ToolMessage 回灌给模型，
-让模型向用户礼貌收敛，而不是打断 SSE 流。
+T3 起签名收 ToolSpec(查找职责移到调用方),校验闸在最先:
+jsonschema Draft202012Validator 拦下不抛异常——错误文本包成 ok=False
+结果回灌模型,让它礼貌追问,而不是炸 SSE 流。
+失败兜底原则(ch02 起沿用)：execute_tool 绝不向上抛。
+审计:校验拦下/权限拒绝即时落(T3),成功/失败/超时全漏斗在 T5 接线。
 """
 
 import asyncio
@@ -12,8 +13,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from jsonschema import Draft202012Validator
+
 from app.rag.hit_format import build_citations
-from app.tools.registry import get_tool
+from app.tools.audit import AuditRecord, db_audit_sink
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,8 @@ class ToolContext:
     conversation_id: int | None = None
     timeout_seconds: float = 5.0
     max_retries: int = 1
+    audit_sink: Any = None            # None=db_audit_sink(T1 默认落库面)
+    ticket_confirmed: bool = False    # T4 权限闸:T7 确认流恢复轮凭证
 
 
 @dataclass
@@ -33,6 +38,63 @@ class ToolOutcome:
     result: Any  # dict：成功=工具返回；失败={"error": "..."}
     summary: str  # ≤80 字符：前端徽章文案 / tool 消息落库 content
     citations: list | None = None  # ch04: query_faq 命中集引用(前端弹窗数据);其余工具恒 None
+
+
+_SCHEMA_CACHE: dict[int, dict] = {}
+
+
+def tool_json_schema(tool) -> dict:
+    """模型可见参数面 schema;tool_call_schema 是 langchain 剔除注入参数
+    (config/RunnableConfig)后的调用形状——校验必须用它,不然 config 会被当必填。"""
+    sc = getattr(tool, "tool_call_schema", None)
+    if isinstance(sc, type):
+        try:
+            return sc.model_json_schema()
+        except AttributeError:
+            pass
+    return {"type": "object", "properties": tool.args or {}}   # 兜底拼装
+
+
+def validate_args(spec, args: dict) -> str | None:
+    """校验闸:返回 None=放行;否则中文错误文本(≤512,直接回灌+落审计)。"""
+    key = id(spec.tool)
+    schema = _SCHEMA_CACHE.setdefault(key, tool_json_schema(spec.tool))
+    errs = sorted(Draft202012Validator(schema).iter_errors(args),
+                  key=lambda e: list(e.path))
+    if not errs:
+        return None
+    e = errs[0]
+    loc = "/".join(str(p) for p in e.path) or "(root)"
+    return f"参数不合法: {loc} {e.message}"[:512]
+
+
+async def _emit(ctx: ToolContext, record: AuditRecord) -> None:
+    sink = ctx.audit_sink if ctx.audit_sink is not None else db_audit_sink
+    try:
+        await sink(record)
+    except Exception:  # noqa: BLE001 —— 审计永不反拦执行(需求5)
+        logger.warning("audit emit failed name=%s", record.tool_name, exc_info=True)
+
+
+def _record(ctx, spec, tool_call_id, args, status, summary, error=None,
+            retries=0, duration_ms=0) -> AuditRecord:
+    return AuditRecord(conversation_id=ctx.conversation_id, tool_call_id=tool_call_id,
+                       tool_name=spec.name, tool_source=spec.source,
+                       mcp_server=spec.mcp_server, arguments=args,
+                       result_summary=summary[:500], status=status,
+                       error_message=error[:512] if error else None,
+                       retry_count=retries, duration_ms=duration_ms)
+
+
+async def audit_denied(ctx: ToolContext, name: str, tool_call_id: str,
+                       args: dict, reason: str = "工具未登记，拒绝执行") -> None:
+    """幻觉未登记调用/权限闸拒绝共用审计面(Review Focus 6):
+    tool_source 恒 builtin——查无此件时来源无从谈起,按我方命名空间拒绝记。"""
+    rec = AuditRecord(conversation_id=ctx.conversation_id, tool_call_id=tool_call_id,
+                      tool_name=name, tool_source="builtin", mcp_server=None,
+                      arguments=args, result_summary=reason[:500], status="权限拒绝",
+                      error_message=reason[:512], retry_count=0, duration_ms=0)
+    await _emit(ctx, rec)
 
 
 def make_summary(name: str, result: Any) -> str:
@@ -56,14 +118,17 @@ def make_summary(name: str, result: Any) -> str:
 
 
 async def execute_tool(
-    name: str, args: dict, tool_call_id: str, context: ToolContext
+    spec, args: dict, tool_call_id: str, context: ToolContext
 ) -> ToolOutcome:
-    tool = get_tool(name)
-    if tool is None:
-        err = f"未注册的工具: {name}"
-        logger.warning("tool lookup failed: %s", name)
-        return ToolOutcome(name, tool_call_id, False, {"error": err}, make_summary(name, {"error": err}))
+    name = spec.name
+    err = validate_args(spec, args)
+    if err:
+        await _emit(context, _record(context, spec, tool_call_id, args,
+                                     "校验拦下", err, err))
+        return ToolOutcome(name, tool_call_id, False, {"error": err},
+                           make_summary(name, {"error": err}))
 
+    tool = spec.tool
     config = {"configurable": {"conversation_id": context.conversation_id}}
     attempts = max(1, context.max_retries + 1)
     last_err = "未知错误"

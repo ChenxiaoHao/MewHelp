@@ -190,9 +190,9 @@ async def test_data_route_tool_frames_order_and_persistence(client, db_env, monk
     from app.agents import react as react_mod
     from app.tools.executor import ToolOutcome
 
-    async def fake_execute(name, args, tcid, ctx):
+    async def fake_execute(spec, args, tcid, ctx):
         assert ctx.conversation_id == 7  # 会话 id 经 config 注入工具上下文
-        return ToolOutcome(name, tcid, True, {"order_id": "1001"}, "运输中")
+        return ToolOutcome(spec.name, tcid, True, {"order_id": "1001"}, "运输中")
     monkeypatch.setattr(react_mod, "execute_tool", fake_execute)
 
     model = GraphFakeModel(intent="物流", turns=[

@@ -1,13 +1,14 @@
 """ch05 Task 1: 裸 Agent 循环教学对照（祛魅热身）。
 
-fake model 脚本化 AIMessage；execute_tool 走真实执行器，仅 monkeypatch
-get_tool 注入假工具（对齐 tests/test_executor.py 的既有模式）。
+fake model 脚本化 AIMessage；execute_tool 走真实执行器，ch08 T3 起
+monkeypatch 本模块消费面的 BUILTIN_SPECS 注入假 ToolSpec。
 """
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.tools import executor as ex
 from app.tools.executor import ToolContext
+from app.tools.registry import ToolSpec
+from app.workflows import naive_agent_loop as nl
 from app.workflows.naive_agent_loop import naive_agent_turn
 
 
@@ -29,8 +30,11 @@ class ScriptedModel:
 
 
 class FakeTool:
-    def __init__(self, payload):
+    def __init__(self, payload, name=""):
         self.payload = payload
+        self.name = name
+        self.description = ""
+        self.args = {}
         self.calls = 0
 
     async def ainvoke(self, args, config=None, **kwargs):
@@ -44,10 +48,11 @@ def _tc(name, args, id_):
 
 def _install_fake_tools(monkeypatch):
     fakes = {
-        "query_order": FakeTool({"order_id": "1001", "status": "运输中"}),
-        "query_product": FakeTool({"product_id": "2001", "name": "冻干鸡肉猫粮 2kg"}),
+        "query_order": FakeTool({"order_id": "1001", "status": "运输中"}, name="query_order"),
+        "query_product": FakeTool({"product_id": "2001", "name": "冻干鸡肉猫粮 2kg"}, name="query_product"),
     }
-    monkeypatch.setattr(ex, "get_tool", lambda name: fakes.get(name))
+    specs = {n: ToolSpec(t, "readonly", "builtin") for n, t in fakes.items()}
+    monkeypatch.setattr(nl, "BUILTIN_SPECS", specs)
     return fakes
 
 

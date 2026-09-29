@@ -3,8 +3,8 @@
 AgentEvent 元组形状逐字符对齐 ch04 ToolEvent(routes 层零改动复用,T6):
 ("token", str) | ("tool_call", {id,name,args}) | ("tool_result", {id,name,ok,summary})
 新增 ("done", {"steps": int, "suggestions": list})。
-模型用真 AIMessageChunk 脚本化(ch04 同款 + 累加聚合路径),工具执行按仓内
-既有模式 monkeypatch executor.get_tool。
+模型用真 AIMessageChunk 脚本化(ch04 同款 + 累加聚合路径),工具执行 ch08 T3 起
+monkeypatch react 模块的 BUILTIN_SPECS(ToolSpec 直传执行器,假件补 name/args 属性)。
 """
 
 import json
@@ -12,15 +12,19 @@ from types import SimpleNamespace
 
 from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage
 
+import app.agents.react as react_mod
 from app.agents.react import react_agent_stream
 from app.core.config import Settings
-from app.tools import executor as ex
+from app.tools.registry import ToolSpec
 from app.workflows.nodes import TRANSFER_HUMAN
 
 
 class FakeTool:
-    def __init__(self, payload):
+    def __init__(self, payload, name=""):
         self.payload = payload
+        self.name = name
+        self.description = ""
+        self.args = {}
         self.calls = 0
 
     async def ainvoke(self, args, config=None, **kwargs):
@@ -30,9 +34,10 @@ class FakeTool:
 
 def _install_fake_tools(monkeypatch):
     fakes = {
-        "query_order": FakeTool({"order_id": "1001", "status": "运输中"}),
+        "query_order": FakeTool({"order_id": "1001", "status": "运输中"}, name="query_order"),
     }
-    monkeypatch.setattr(ex, "get_tool", lambda name: fakes.get(name))
+    specs = {n: ToolSpec(t, "readonly", "builtin") for n, t in fakes.items()}
+    monkeypatch.setattr(react_mod, "BUILTIN_SPECS", specs)
     return fakes
 
 

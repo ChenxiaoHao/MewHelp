@@ -27,8 +27,8 @@ from typing import Any
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.context.budget import estimate_msg
-from app.tools.executor import ToolContext, execute_tool
-from app.tools.registry import get_tools
+from app.tools.executor import ToolContext, audit_denied, execute_tool, make_summary
+from app.tools.registry import BUILTIN_SPECS, get_tools
 from app.workflows.state import TRANSFER_HUMAN
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,18 @@ async def react_agent_stream(
                     result={"error": "create_ticket is frontend-button-only"},
                 )
             else:
-                outcome = await execute_tool(tc["name"], tc.get("args") or {}, tc["id"], ctx)
+                spec = BUILTIN_SPECS.get(tc["name"])
+                if spec is None:
+                    # 幻觉未登记调用=未授权:拒绝回灌 + 审计「权限拒绝」(Review Focus 6)
+                    await audit_denied(ctx, tc["name"], tc["id"], tc.get("args") or {})
+                    _err = f"未注册的工具: {tc['name']}"
+                    outcome = SimpleNamespace(
+                        tool_call_id=tc["id"], name=tc["name"], ok=False,
+                        summary=make_summary(tc["name"], {"error": _err}),
+                        citations=None, result={"error": _err},
+                    )
+                else:
+                    outcome = await execute_tool(spec, tc.get("args") or {}, tc["id"], ctx)
             payload = {"id": outcome.tool_call_id, "name": outcome.name,
                        "ok": outcome.ok, "summary": outcome.summary}
             if outcome.citations:                                # 与 ch04 逐字符同形(仅命中才加键)

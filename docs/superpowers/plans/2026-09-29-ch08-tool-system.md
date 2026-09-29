@@ -414,7 +414,7 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: T2 `BUILTIN_SPECS/ToolSpec`;T1 `AuditRecord/db_audit_sink`
 - Produces: `execute_tool(spec: ToolSpec, args: dict, tool_call_id: str, ctx: ToolContext) -> ToolOutcome`(旧 name-lookup 签名作废);`ToolContext(+audit_sink=None 键,None=用 db_audit_sink 默认)`;`executor.validate_args(spec, args) -> str | None`(中文错误文本或 None);`executor.audit_denied(ctx, spec_name, tool_call_id, args, reason)`(幻觉面共用)
 
-- [ ] **Step 1: 写失败测试** `tests/test_validation_ch08.py`
+- [x] **Step 1: 写失败测试** `tests/test_validation_ch08.py`
 
 ```python
 """ch08 T3:JSON Schema 校验闸(spec 校验闸节)——拦下不抛异常,错误回灌+审计。"""
@@ -472,7 +472,7 @@ async def test_literal_enum_out_of_range_blocked():
 
 Run → FAIL(execute_tool 现签名无 spec)。
 
-- [ ] **Step 2: executor 重构(第一步)**
+- [x] **Step 2: executor 重构(第一步)**
 
 `ToolContext` 加 `audit_sink=None`、`ticket_confirmed=False`(T4 用,一次进齐)。核心改动:
 
@@ -535,7 +535,7 @@ async def execute_tool(spec, args, tool_call_id, ctx):
 
 原「未注册的工具」分支整段删除(lookup 职责移到调用方)。
 
-- [ ] **Step 3: 调用方适配**
+- [x] **Step 3: 调用方适配**
 
 react.py 执行点(T7 才接 MCP 快照,本任务先用内置视图):
 
@@ -554,7 +554,7 @@ else:
 
 `audit_denied(ctx, name, tool_call_id, args)` 落在 executor(构造合成 spec 字段:tool_source="builtin"、status="权限拒绝",直发 `_emit`)。tool_chat_service/naive_agent_loop:先 `spec = BUILTIN_SPECS.get(name)` → None 则原错误形状,否则新签名调用。
 
-- [ ] **Step 4: `tests/test_executor.py` 全数迁新签名**(FakeTool 包 `ToolSpec(FakeTool(...), "readonly", "builtin")` 直传;`_install_fake_tools` monkeypatch 模式作废),跑绿全量提交。
+- [x] **Step 4: `tests/test_executor.py` 全数迁新签名**(FakeTool 包 `ToolSpec(FakeTool(...), "readonly", "builtin")` 直传;`_install_fake_tools` monkeypatch 模式作废),跑绿全量提交。
 
 ```bash
 git commit -m "feat(ch08-t3): execute_tool 收 ToolSpec+jsonschema 校验闸(拦下回灌不抛异常)+幻觉未登记拒绝审计

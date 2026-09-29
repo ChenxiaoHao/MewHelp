@@ -1,15 +1,25 @@
+"""ch08 T3 起:execute_tool 收 ToolSpec(查找职责在调用方),FakeTool 直传包 spec。
+
+旧 monkeypatch get_tool 模式作废;「未注册的工具」分支随之外移
+(react 幻觉拒绝测在 test_react_node_ch05,legacy 面在 service/naive 各自测)。
+"""
+
 import asyncio
 
 import pytest
 
 from app.tools import executor as ex
 from app.tools.executor import ToolContext, execute_tool
+from app.tools.registry import ToolSpec
 
 
 class FakeTool:
     """替身：行为由注入的 async 函数决定，记录调用次数与 config。"""
 
-    def __init__(self, behavior):
+    def __init__(self, name, behavior):
+        self.name = name
+        self.description = ""
+        self.args = {}
         self.behavior = behavior
         self.calls = 0
         self.seen_config = None
@@ -22,18 +32,21 @@ class FakeTool:
         return await self.behavior(self.calls, args)
 
 
+def _spec(fake):
+    return ToolSpec(fake, "readonly", "builtin")
+
+
 @pytest.fixture
 def ctx():
     return ToolContext(conversation_id=42, timeout_seconds=0.05, max_retries=1)
 
 
-async def test_success_passes_configurable(monkeypatch, ctx):
+async def test_success_passes_configurable(ctx):
     async def ok(call, args):
         return {"order_id": args["order_id"], "status": "运输中", "amount": 99.0}
 
-    fake = FakeTool(ok)
-    monkeypatch.setattr(ex, "get_tool", lambda name: fake)
-    out = await execute_tool("query_order", {"order_id": "1001"}, "call_1", ctx)
+    fake = FakeTool("query_order", ok)
+    out = await execute_tool(_spec(fake), {"order_id": "1001"}, "call_1", ctx)
     assert out.ok is True
     assert out.name == "query_order" and out.tool_call_id == "call_1"
     assert out.result["status"] == "运输中"
@@ -42,57 +55,47 @@ async def test_success_passes_configurable(monkeypatch, ctx):
     assert "运输中" in out.summary
 
 
-async def test_timeout_retries_then_error(monkeypatch, ctx):
+async def test_timeout_retries_then_error(ctx):
     async def slow(call, args):
         await asyncio.sleep(1)
         return {}
 
-    fake = FakeTool(slow)
-    monkeypatch.setattr(ex, "get_tool", lambda name: fake)
-    out = await execute_tool("query_order", {}, "call_1", ctx)
+    fake = FakeTool("query_order", slow)
+    out = await execute_tool(_spec(fake), {}, "call_1", ctx)
     assert out.ok is False
     assert fake.calls == 2  # 首次 + 重试 1 次
     assert "超时" in out.result["error"]
 
 
-async def test_transient_error_then_success(monkeypatch, ctx):
+async def test_transient_error_then_success(ctx):
     async def flaky(call, args):
         if call == 1:
             raise RuntimeError("boom")
         return {"keyword": "x", "hits": []}
 
-    fake = FakeTool(flaky)
-    monkeypatch.setattr(ex, "get_tool", lambda name: fake)
-    out = await execute_tool("query_faq", {"keyword": "x"}, "call_1", ctx)
+    fake = FakeTool("query_faq", flaky)
+    out = await execute_tool(_spec(fake), {"keyword": "x"}, "call_1", ctx)
     assert out.ok is True and fake.calls == 2
     assert out.summary == "未命中"
 
 
-async def test_permanent_error_exhausts_retries(monkeypatch, ctx):
+async def test_permanent_error_exhausts_retries(ctx):
     async def always_fail(call, args):
         raise ValueError("bad args")
 
-    fake = FakeTool(always_fail)
-    monkeypatch.setattr(ex, "get_tool", lambda name: fake)
-    out = await execute_tool("query_faq", {}, "call_1", ctx)
+    fake = FakeTool("query_faq", always_fail)
+    out = await execute_tool(_spec(fake), {}, "call_1", ctx)
     assert out.ok is False and fake.calls == 2
     assert "bad args" in out.result["error"]
 
 
-async def test_unknown_tool_returns_error_outcome(ctx):
-    out = await execute_tool("no_such_tool", {}, "call_1", ctx)
-    assert out.ok is False
-    assert "未注册" in out.result["error"]
-
-
-async def test_string_result_coerced(monkeypatch, ctx):
+async def test_string_result_coerced(ctx):
     """工具若返回字符串（部分 LangChain 版本对 dict 会转 str），executor 兜底还原。"""
     async def returns_str(call, args):
         return '{"hits": [], "keyword": "y"}'
 
-    fake = FakeTool(returns_str)
-    monkeypatch.setattr(ex, "get_tool", lambda name: fake)
-    out = await execute_tool("query_faq", {}, "call_1", ctx)
+    fake = FakeTool("query_faq", returns_str)
+    out = await execute_tool(_spec(fake), {}, "call_1", ctx)
     assert out.ok and out.result == {"hits": [], "keyword": "y"}
 
 
