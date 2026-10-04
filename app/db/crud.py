@@ -296,10 +296,15 @@ async def clear_staging(session) -> int:
 
 async def add_low_confidence_question(session, *, conversation_id: int | None,
                                       raw_question: str, source: str,
-                                      reason: str | None) -> None:
-    """低置信问题池;conversation_id 可空(评估 runner 无会话)。"""
+                                      reason: str | None,
+                                      retrieved_chunks: list | None = None) -> None:
+    """低置信问题池;conversation_id 可空(评估 runner 无会话)。
+
+    ch09 T4:retrieved_chunks=当轮召回片段快照(审核页详情数据源,T6 👎 回捞同款)。
+    """
     session.add(LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
-                                      source=source, reason=reason))
+                                      source=source, reason=reason,
+                                      retrieved_chunks=retrieved_chunks))
     await session.commit()
 
 

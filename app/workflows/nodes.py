@@ -31,7 +31,7 @@ from app.prompts.coref import COREF_PROMPT
 from app.prompts.customer_service import CUSTOMER_SERVICE_PROMPT
 from app.prompts.intent import INTENT_PROMPT
 from app.prompts.query_expand import EXPAND_PROMPT
-from app.rag import retriever
+from app.rag import confidence, retriever
 from app.services import refusals          # 经模块属性调用,pool 可被测试替换
 from app.services.chat_service import get_model, trim_history
 from app.tools.definitions import _make_order, list_user_orders
@@ -231,36 +231,41 @@ def make_knowledge_retrieve_node(settings):
     return knowledge_retrieve_node
 
 
-def evidence_gate_verdict(items, threshold: float) -> tuple[bool, float]:
-    """纯判定:evidence(score 取自 dict 或 ScoredRow)最高分是否达阈值。
-
-    阈值复用 ch04 闸1 终值 settings.retrieval_low_conf_threshold(P1,不新造键)。
-    """
-    scores = [i["score"] if isinstance(i, dict) else i.score for i in items]
-    best = max(scores) if scores else 0.0
-    return bool(scores) and best >= threshold, best
-
-
 # M1-I3 降级带:ch04 闸1 保证非降级非空证据 top1≥阈值(0.161),故低于 RRF 双路
 # 理论上限(rrf_k=60 → ≈0.033)留裕度到 0.04 的分只可能来自重排降级路径——
 # 对齐闸1「降级跳过」决定:该带内非空证据旁路过闸进 Agent,不落池。
+# ch09 T4 判定核换 evidence_confidence 后此旁路语义原样保留(Review Focus 3)。
 RRF_DEGRADED_MAX = 0.04
+
+
+def _evidence_snapshot(evidence, settings) -> list[dict]:
+    """LCQ.retrieved_chunks 快照形制: [{chunk_id, score, text截断}](T6 回捞同款)。"""
+    cap = int(getattr(settings, "retrieval_snapshot_text_max", 600) or 600)
+    snap = []
+    for e in evidence:
+        cid = e["chunk_id"] if isinstance(e, dict) else e.chunk_id
+        score = e["score"] if isinstance(e, dict) else e.score
+        text = (e.get("text") if isinstance(e, dict) else getattr(e, "text", None)) or ""
+        snap.append({"chunk_id": cid, "score": score, "text": text[:cap]})
+    return snap
 
 
 def make_confidence_gate_node(settings, source: str = "ch05_gate",
                               name: str = "gate"):
     async def confidence_gate_node(state: dict, config: RunnableConfig) -> dict:
-        """Task 4 阈值版(P1):弱证据 → 兜底话术 + 落低置信池(source=ch05_gate)。
+        """ch09 T4 判定核:evidence_confidence(top1/n_eff/gap,校准定值)。
 
-        ch06 T4:source 参数化——refund_gate 实例传 "ch06_refund_gate" 分池归因;
-        默认参不动 ch05 行为。池写失败由 refusals.pool_low_confidence 内部吞掉,
-        不阻断兜底(Review Focus 5)。
+        位置与行为不变(spec 钉死):拦下 → 兜底话术+转人工建议+落池(带召回
+        快照,reason=三信号复盘串)+fail 路由;source 参数化保留 ch06 分池归因;
+        RRF 降级带旁路语义原样(过闸不落池,gate_scale="rrf_degraded");
+        池写失败由 refusals 内部吞掉,不阻断兜底(Review Focus 5)。
         """
         evidence = state.get("evidence") or []
-        ok, best = evidence_gate_verdict(evidence, settings.retrieval_low_conf_threshold)
-        degraded = (not ok) and bool(evidence) and best <= RRF_DEGRADED_MAX
-        if degraded:
-            ok = True
+        verdict = confidence.evaluate(evidence, settings)
+        scores = [e["score"] if isinstance(e, dict) else e.score for e in evidence]
+        best = max(scores) if scores else 0.0
+        degraded = (not verdict.ok) and bool(evidence) and best <= RRF_DEGRADED_MAX
+        ok = verdict.ok or degraded
         log = _note(state, name)
         log["gate_pass"] = ok
         log["gate_best_score"] = round(best, 4)
@@ -270,8 +275,8 @@ def make_confidence_gate_node(settings, source: str = "ch05_gate",
             query = state.get("resolved_query") or state.get("user_query", "")
             cid = (config.get("configurable") or {}).get("conversation_id")
             await refusals.pool_low_confidence(
-                cid, query, source,
-                f"best={best:.4f}<{settings.retrieval_low_conf_threshold}")
+                cid, query, source, verdict.detail,
+                retrieved_chunks=_evidence_snapshot(evidence, settings))
             return {"gate_pass": False, "answer_text": refusals.REFUSAL_ANSWER,
                     "suggestions": [TRANSFER_HUMAN],
                     "messages": [AIMessage(content=refusals.REFUSAL_ANSWER)], "log": log}

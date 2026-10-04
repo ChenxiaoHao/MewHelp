@@ -3,6 +3,8 @@
 阈值复用 ch04 闸1 终值 retrieval_low_conf_threshold(0.161,不新造配置键);
 落池唯一写方=本闸(知识类预检索不经 query_faq 工具,与闸1 无重叠)。
 Review Focus 5:池写失败只 WARN,兜底话术照常。
+ch09 T4 改钉:判定核换 evidence_confidence(spec 定一道)——夹具无 evidence_conf_*
+键时回落旧阈值 rule 形,本文件断言语义逐例等值(阈值面零漂移即改钉的证明)。
 """
 
 import json
@@ -11,11 +13,19 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
+from app.rag import confidence
 from app.rag import retriever as retriever_mod
 from app.rag.retriever import RetrieveResult, ScoredRow
 from app.services import refusals
 from app.workflows.graph import build_graph
-from app.workflows.nodes import evidence_gate_verdict
+
+
+def evidence_gate_verdict(items, threshold: float):
+    """旧核外形保留:rule 形单阈值 ≡ confidence.evaluate + 回落 cfg。"""
+    v = confidence.evaluate(items, SimpleNamespace(
+        retrieval_low_conf_threshold=threshold))
+    return v.ok, max((i["score"] if isinstance(i, dict) else i.score
+                      for i in items), default=0.0)
 
 
 class ScriptModel:
@@ -78,7 +88,8 @@ def gate_env(monkeypatch):
         monkeypatch.setattr(retriever_mod, "retrieve", fake_retrieve)
         calls = []
         if not real_pool:
-            async def fake_pool(conversation_id, raw_question, source, reason):
+            async def fake_pool(conversation_id, raw_question, source, reason,
+                                retrieved_chunks=None):
                 calls.append({"cid": conversation_id, "q": raw_question, "src": source})
             monkeypatch.setattr(refusals, "pool_low_confidence", fake_pool)
         model = ScriptModel(script)

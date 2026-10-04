@@ -63,9 +63,9 @@
 ### Task 4:evidence_confidence 闸升级(含校准)
 **Files:** Create `app/rag/confidence.py`、`evals/calibrate_confidence.py`;Modify `app/workflows/nodes.py`(gate 判定核替换,两实例共用)、`app/core/config.py`(定值键组)。
 **Interfaces:** Produces `confidence.signals_from_evidence(evidence) -> (top1,n_eff,gap)`、`confidence.evaluate(evidence, cfg) -> EvidenceVerdict(ok, conf, detail:str)`;config `evidence_conf_*` 组(floor_eff/θ/组合参,校准回填前以现 0.161 等效占位)。判定式形态(规则式 vs 加式和)由校准脚本扫参择优,报告 UTF-8 落 `evals/reports/`。
-- [ ] Step1 RED:`test_confidence_signals`(空证据/单证据 gap=top1/n_eff 计数)、`test_gate_uses_confidence`(gate 节点 mock:拦下→REFUSAL+落池带快照参+fail;RRF≤0.04 旁路过闸不落池)、ch05/06 既有闸测同步改钉新语义(断言随本 commit 改,不另起订正回合)。
-- [ ] Step2 校准:脚本跑 300 题 CSV(D 桶 60=应拦面,余=应放面;embed/rewrite 缓存复用),定线=D 漏放≤5% 且非 D 误拦≤6.2%,冲突优先误拦不恶化;定值回填 config+记报告路径。
-- [ ] Step3 GREEN + integration 抽验闸活链 + commit `feat(ch09-t4): evidence_confidence 正式闸——三信号+300题校准定值,gate/refund_gate 双实例`。
+- [x] Step1 RED:`test_confidence_signals`(空证据/单证据 gap=top1/n_eff 计数)、`test_gate_uses_confidence`(gate 节点 mock:拦下→REFUSAL+落池带快照参+fail;RRF≤0.04 旁路过闸不落池)、ch05/06 既有闸测同步改钉新语义(断言随本 commit 改,不另起订正回合)。
+- [x] Step2 校准:脚本跑 300 题 CSV(D 桶 60=应拦面,余=应放面;embed/rewrite 缓存复用),定线=D 漏放≤5% 且非 D 误拦≤6.2%,冲突优先误拦不恶化;定值回填 config+记报告路径。实跑结果:sum 形 w=(0.9,0.05,0.05) θ=0.168 floor=0.1,漏放 5.000%/误拦 4.167%,报告 `evals/reports/ch09_confidence_calibration.md`。
+- [x] Step3 GREEN + integration 抽验闸活链 + commit `feat(ch09-t4): evidence_confidence 正式闸——三信号+300题校准定值,gate/refund_gate 双实例`。(活链测选题取侧车两端裕量 A36/D24,单 loop 跑通)
 
 ### Task 5:当轮召回快照随 assistant 行落库
 **Files:** Modify assistant 消息落库处(`app/services/persistence.py` / logging 节点,实施时定位唯一写点)、`app/db/crud.py`;Create `tests/test_snapshot_ch09.py`。

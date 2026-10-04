@@ -167,7 +167,7 @@ async def test_gate_refusal_turn_streams_refusal_and_pools(client, db_env, monke
         return RetrieveResult(chunks=[ScoredRow(chunk_id=1, score=0.05, row=row)])
     monkeypatch.setattr(retriever_mod, "retrieve", fake_retrieve)
     pools = []
-    async def rec_pool(cid, q, src, reason):
+    async def rec_pool(cid, q, src, reason, retrieved_chunks=None):
         pools.append({"cid": cid, "q": q, "src": src})
     monkeypatch.setattr(refusals, "pool_low_confidence", rec_pool)
 

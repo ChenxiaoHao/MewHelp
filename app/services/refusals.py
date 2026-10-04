@@ -16,12 +16,13 @@ REFUSAL_ANSWER = (
 
 
 async def pool_low_confidence(conversation_id: int | None, raw_question: str,
-                              source: str, reason: str) -> None:
+                              source: str, reason: str,
+                              retrieved_chunks: list | None = None) -> None:
     try:
         async with get_session_factory()() as session:
             await crud.add_low_confidence_question(
                 session, conversation_id=conversation_id, raw_question=raw_question,
-                source=source, reason=reason,
+                source=source, reason=reason, retrieved_chunks=retrieved_chunks,
             )
     except Exception:  # noqa: BLE001 —— 池是复盘材料,丢一行不配打断用户
         logger.warning("低置信池写入失败(不阻断拒答): %s", raw_question, exc_info=True)

@@ -79,6 +79,19 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
 
+    # --- ch09 T4: evidence_confidence 闸定值(300 题校准择优:
+    #     evals/reports/ch09_confidence_calibration.md —— sum 形,D 漏放 5.000%
+    #     ≤5% · 非 D 误拦 4.167% ≤6.2% 且优于基线;改任一值须重跑校准) ---
+    evidence_conf_form: str = "sum"           # rule | sum(校准脚本二选一)
+    evidence_conf_floor_eff: float = 0.1      # n_eff 计数阈(标定 sum 候选所用 floor)
+    evidence_conf_threshold: float = 0.168    # θ:rule=top1 下限 / sum=合分下限
+    evidence_conf_n_eff_min: int = 1          # rule:有效证据条数下限(sum 形不参与)
+    evidence_conf_gap_min: float = 0.0        # rule:top1-top2 间隙下限(sum 形不参与)
+    evidence_conf_w_top1: float = 0.9         # sum:权重(0.9/0.05/0.05,θ=0.168)
+    evidence_conf_w_n: float = 0.05
+    evidence_conf_w_gap: float = 0.05
+    retrieval_snapshot_text_max: int = 600    # 快照 text 截断(拍板 1A)
+
     @property
     def database_url(self) -> str:
         return (
