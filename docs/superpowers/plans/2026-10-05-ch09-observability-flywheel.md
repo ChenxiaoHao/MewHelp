@@ -56,9 +56,9 @@
 ### Task 3:DDL 09/10 + ORM + 接缝测试
 **Files:** Create `db/init/09_ch09_flywheel.sql`(附录一逐字+头注)、`db/init/10_ch09_messages_snapshot.sql`(附录二)、`tests/test_db_init_seam_ch09.py`;Modify `app/db/models.py`(ReviewQueue/EvalRuns + LCQ 两列 + Message.retrieval_snapshot)。
 **Interfaces:** Produces ORM:`ReviewQueue(id,normalized_question,ai_suggested_answer,occurrence_count,review_status,approved_answer,created_at,updated_at)`、`EvalRuns(id,triggered_by,dataset_size,metrics,created_at)`、`LowConfidenceQuestion.retrieved_chunks(JSON)/matched_review_id(FK SET NULL)`、`Message.retrieval_snapshot(JSON)`。
-- [ ] Step1 RED seam:ch06 式中文 ENUM 并集(review_status 三值/triggered_by 二值)+ ch07 式列名并集(新表列 ⊇ ORM;LCQ/messages 新列经 ALTER 在位)+ 摘 09 文件即红双证记 dev-notes。
-- [ ] Step2 活库应用两文件(integration:逐列往返+中文不乱码;LCQ ALTER 后旧写方仍可写)。
-- [ ] Step3 GREEN + commit `feat(ch09-t3): 飞轮数据底座——09/10 DDL+ORM+三件套接缝`。
+- [x] Step1 RED seam:ch06 式中文 ENUM 并集(review_status 三值/triggered_by 二值)+ ch07 式列名并集(新表列 ⊇ ORM;LCQ/messages 新列经 ALTER 在位)+ 摘 09 文件即红双证记 dev-notes。
+- [x] Step2 活库应用两文件(integration:逐列往返+中文不乱码;LCQ ALTER 后旧写方仍可写;活库对账文件 `tests/test_db_ch09_roundtrip.py`,ch04 列序断言随本 commit 改钉)。
+- [x] Step3 GREEN + commit `feat(ch09-t3): 飞轮数据底座——09/10 DDL+ORM+三件套接缝`。
 
 ### Task 4:evidence_confidence 闸升级(含校准)
 **Files:** Create `app/rag/confidence.py`、`evals/calibrate_confidence.py`;Modify `app/workflows/nodes.py`(gate 判定核替换,两实例共用)、`app/core/config.py`(定值键组)。

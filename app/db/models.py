@@ -59,6 +59,8 @@ class Message(Base):
         Enum("user", "assistant", "tool", name="message_role"), nullable=False
     )
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ch09 T5/拍板 1A:当轮召回快照,👎 事后回捞数据源;无检索轮 NULL(DDL=10_ 用户原文)
+    retrieval_snapshot: Mapped[list | None] = mapped_column(JSON, nullable=True)
     tool_calls: Mapped[list | None] = mapped_column(JSON, nullable=True)
     tool_call_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -175,6 +177,13 @@ class LowConfidenceQuestion(Base):
         nullable=False,
     )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ch09 飞轮两列(DDL=09_ ALTER 用户原文):快照供审核页;归并落点 FK 删则置 NULL
+    retrieved_chunks: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    matched_review_id: Mapped[int | None] = mapped_column(
+        BIGINT(unsigned=True),
+        ForeignKey("review_queue.id", ondelete="SET NULL", name="fk_lcq_review"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), index=True
     )
@@ -250,3 +259,44 @@ class ToolAuditLog(Base):
     retry_count: Mapped[int] = mapped_column(TINYINT(unsigned=True), nullable=False, server_default="0")
     duration_ms: Mapped[int | None] = mapped_column(INTEGER(unsigned=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class ReviewQueue(Base):
+    """ch09 飞轮待审队列:一行=一个去重后的知识缺口;DDL=db/init/09_ 用户原文逐字。"""
+
+    __tablename__ = "review_queue"
+
+    id: Mapped[int] = _pk()
+    normalized_question: Mapped[str] = mapped_column(String(512), nullable=False)
+    ai_suggested_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurrence_count: Mapped[int] = mapped_column(
+        INTEGER(unsigned=True), nullable=False, server_default=text("1")
+    )
+    review_status: Mapped[str] = mapped_column(
+        Enum("待审", "通过", "驳回", name="review_status"),
+        nullable=False, server_default="待审", index=True,
+    )
+    approved_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class EvalRuns(Base):
+    """评估流水线一轮一行,指标收 metrics JSON;DDL=db/init/09_ 用户原文逐字。"""
+
+    __tablename__ = "eval_runs"
+
+    id: Mapped[int] = _pk()
+    triggered_by: Mapped[str] = mapped_column(
+        Enum("定时", "手动", name="eval_trigger"),
+        nullable=False, server_default="定时",
+    )
+    dataset_size: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False)
+    metrics: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), index=True
+    )

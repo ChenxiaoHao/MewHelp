@@ -9,10 +9,14 @@ def test_low_confidence_question_columns():
     t = LowConfidenceQuestion.__table__
     assert t.name == "low_confidence_questions"
     assert [c.name for c in t.columns] == [
-        "id", "conversation_id", "raw_question", "source", "reason", "created_at",
+        "id", "conversation_id", "raw_question", "source", "reason",
+        # ch09 T3 飞轮两列(09_ ALTER 用户原文),列序与 ORM/DDL 一致
+        "retrieved_chunks", "matched_review_id", "created_at",
     ]
     cols = t.columns
     assert cols["conversation_id"].nullable is True
+    assert cols["retrieved_chunks"].nullable is True
+    assert {fk.target_fullname for fk in cols["matched_review_id"].foreign_keys} == {"review_queue.id"}
     assert {fk.target_fullname for fk in cols["conversation_id"].foreign_keys} == {"conversations.id"}
     assert set(cols["source"].type.enums) == {
             "retrieval_low_conf", "self_check", "user_feedback",
