@@ -39,17 +39,17 @@
 ### Task 1:Langfuse 挂接与观测基座
 **Files:** Modify `pyproject.toml`(加 langfuse)、`app/core/config.py`(langfuse 三键读 env 判定)、Create `app/services/observability.py`、Modify `app/workflows/graph.py`(build_graph compile 处 + stream_graph_turn cfg)、`docker-compose.yml`(langfuse-web 3001/worker/clickhouse/langfuse-postgres/langfuse-redis,S3 指既有 minio 桶 `langfuse`)、Create `tests/test_observability_ch09.py`;README 部署段(建桶+env 样例)留 T12 统一写,本任务先 `dev-notes` 记命令。
 **Interfaces:** Produces `observability.build_handler() -> CallbackHandler|None`(env 任一键缺→None);`observability.enabled() -> bool`。
-- [ ] Step1 RED:`test_factory_returns_none_without_env`(monkeypatch 三键缺→None;有键→handler)、`test_build_graph_mounts_handler_once`(env 有键时 compiled graph 的 config 含该 handler;缺键时 cfg 与基线逐项相等——钉 ch08 终态形状)。
-- [ ] Step2 实现:工厂 + `build_graph` 末尾 `with_config` 单点挂;`stream_graph_turn`/confirm 预检 cfg 补 `metadata.langfuse_session_id=conv-{id}|anon-{uuid}`、`run_name="chat_turn"`(仅 enabled 时)。
-- [ ] Step3 compose v3 栈落盘,`docker compose up -d` 实起(langfuse-web 宿主端口避开 3000/3307/9000/19530/8101/8102,取 3001);.env 样例三键进 README 素材。
-- [ ] Step4 GREEN + 全量单元回归(基线 448 原绿) + commit `feat(ch09-t1): Langfuse v3 观测基座——编译处单挂+env 缺键短路+compose 栈`。
+- [x] Step1 RED:`test_factory_returns_none_without_env`(monkeypatch 三键缺→None;有键→handler)、`test_build_graph_mounts_handler_once`(env 有键时 compiled graph 的 config 含该 handler;缺键时 cfg 与基线逐项相等——钉 ch08 终态形状)。
+- [x] Step2 实现:工厂 + `build_graph` 末尾 `with_config` 单点挂;`stream_graph_turn`/confirm 预检 cfg 补 `metadata.langfuse_session_id=conv-{id}|anon-{uuid}`、`run_name="chat_turn"`(仅 enabled 时)。
+- [x] Step3 compose v3 栈落盘,`docker compose up -d` 实起(langfuse-web 宿主端口避开 3000/3307/9000/19530/8101/8102,取 3001);.env 样例三键进 README 素材。
+- [x] Step4 GREEN + 全量单元回归(基线 448 原绿) + commit(并入 `feat(ch09-m1)`,理由见 T2 Step3)。
 
 ### Task 2:意图归因进 trace
 **Files:** Modify `app/workflows/nodes.py`(intent 节点尾)、`app/services/observability.py`(归因函数)、Create `tests/test_trace_intent.py`。
 **Interfaces:** Produces `observability.record_intent_to_trace(intent: str, confidence: float)` → tag `intent:<X>` + metadata `{intent,intent_confidence}`;主道 `update_current_trace`,实测 contextvar 在 LangGraph 节点内不透传则切实spec 备道(底层 `api.trace.update`+routes 末拿 trace_id),定一道删另一道,不留双路。
-- [ ] Step1 实现+真跑一轮(活 langfuse+真模型,integration 标):拉 Langfuse API 断言该 trace 含 `intent:*` tag(测试可脚本化验 UI 面另记)。
-- [ ] Step2 GREEN + 单元面:enabled=False 时归因函数 no-op 不抛。
-- [ ] Step3 commit `feat(ch09-t2): intent→trace tag/metadata 归因(定一道)`;M1 批评审(fresh reviewer 审 t1–t2 diff)→ 修复进同里程碑。
+- [x] Step1 实现+真跑一轮:活 langfuse 零真模型(闲聊快路)整轮 → Langfuse API 轮询断言 trace 带 `intent:*` tag(真模型面并入 T12 e2e)。
+- [x] Step2 GREEN + 单元面:enabled=False/无 tid/无 intent 三前提均静默 no-op 不抛。
+- [x] Step3 commit(与 T1 合并为一笔 `feat(ch09-m1)`:T1 提交凭据重构后未落,T2 代码已长在同文件,拆 hunks 风险大于收益,ledger 记裁决);M1 批评审(fresh reviewer 审 t1–t2 diff)→ 修复进同里程碑。
 
 ## M2 数据底座 + 闸升级 + 落池
 

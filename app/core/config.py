@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     query_rewrite_enabled: bool = True         # 查询理解开关
     faith_judge_model: str = ""                # 空=model_name
 
+    # --- ch09: Langfuse 观测(三键任一缺=观测链整体短路,行为=ch08 终态) ---
+    langfuse_host: str = ""
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+
     @property
     def database_url(self) -> str:
         return (

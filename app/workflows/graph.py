@@ -19,6 +19,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import Command
 
+from app.services import observability
 from app.services.chat_service import to_langchain_messages
 from app.workflows import nodes as N
 from app.workflows.state import ChatState
@@ -61,7 +62,7 @@ async def _empty_aiter() -> AsyncIterator:
     yield  # pragma: no cover
 
 
-def build_graph(settings, model, checkpointer=None):
+def build_graph(settings, model, checkpointer=None, trace_id=None):
     g = StateGraph(ChatState)
     g.add_node("ctx", N.make_ctx_node(settings, model))          # ch07 入口:边界决策
     g.add_node("coref", N.make_coref_node(model, settings))
@@ -111,7 +112,12 @@ def build_graph(settings, model, checkpointer=None):
     g.add_edge("complaint", "logging")
     g.add_edge("chitchat", "logging")
     g.add_edge("logging", END)
-    return g.compile(checkpointer=checkpointer or _checkpointer)
+    compiled = g.compile(checkpointer=checkpointer or _checkpointer)
+    # ch09 T1 编译处单挂:env 缺键=不挂,返回形状与 ch08 终态逐字一致
+    handler = observability.build_handler(settings, trace_id=trace_id)
+    if handler is None:
+        return compiled
+    return compiled.with_config({"callbacks": [handler]})
 
 
 def _dispatch(state):
@@ -164,13 +170,17 @@ async def stream_graph_turn(
     落库挂点:Agent 出口由 react 内部三挂点自落(ch04 同源);其余出口在此
     补 on_final_answer——user 行始终归 routes bootstrap。
     """
-    graph = build_graph(settings, model)
+    # ch09 T2:逐轮预生成 trace_id——整轮 span 落进该 trace,流末 intent
+    # 归因按同一 id 写回 tags/metadata(定一道,见 observability)。
+    tid = observability.turn_trace_id(settings)
+    graph = build_graph(settings, model, trace_id=tid)
     cfg = {"configurable": {"thread_id": None, "conversation_id": conversation_id,
                             "persister": persister, "ctx_store": ctx_store}}
     if conversation_id is not None:
         cfg["configurable"]["thread_id"] = f"conv-{conversation_id}"
     else:
         cfg["configurable"]["thread_id"] = f"anon-{uuid.uuid4()}"
+    observability.augment_turn_cfg(cfg, settings)  # ch09:enabled 时补 session/run_name,缺键零变化
 
     _tl = thread_lock(cfg["configurable"]["thread_id"]) if conversation_id is not None else None
     if resume_value is not None:
@@ -236,6 +246,10 @@ async def stream_graph_turn(
         # 抛错/生成器被关也走此释放,不卡死该线程后续轮。
         if resume_value is not None and _tl is not None and _tl.locked():
             _tl.release()
+    # ch09 T2:归因写回(观测面全吞,不毁轮);interrupt 暂停轮同样带 intent 落 tag
+    await observability.attach_trace_intent(
+        tid, settings, final.get("intent"),
+        float(final.get("intent_confidence") or 0.0))
     # 暂停轮检测:interrupt 挂起 → 发 preview 帧即关流(无 suggestions/落库补发)
     snap = await graph.aget_state(cfg)
     pend = getattr(snap, "interrupts", ()) or ()
