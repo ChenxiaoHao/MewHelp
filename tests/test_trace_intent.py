@@ -12,8 +12,8 @@ from app.core.config import Settings
 from app.services import observability
 
 _LF = dict(langfuse_host="http://127.0.0.1:3001",
-           langfuse_public_key="pk-lf-REDACTED",
-           langfuse_secret_key="sk-lf-REDACTED")
+           langfuse_public_key="pk-lf-test",  # 假键:单元面不触网(真值只在 .env)
+           langfuse_secret_key="sk-lf-test")
 
 
 def _st(**kw):
@@ -56,20 +56,26 @@ def test_attach_disabled_is_silent(monkeypatch):
 
 @pytest.mark.integration
 def test_chitchat_turn_tags_trace_on_live_langfuse(monkeypatch):
-    """活栈端到端:闲聊快路整轮(零真模型调用)→ trace 面带 intent tag。"""
+    """活栈端到端:闲聊快路整轮(零真模型调用)→ trace 带 intent tag 且有 observation。
+
+    M1 评审批修(C1/I2):密钥只从 gitignored .env 的 Settings 读,零字面真值;
+    缺键 skip;tid 逐跑随机 seed → 永不复用旧 trace(轮询断言只对当轮生效);
+    observations 非空把「handler 真挂了、span 真进了定向 trace」也钉住。
+    """
     import time
+    import uuid
     from types import SimpleNamespace
 
     import httpx
-
+    from app.core.config import get_settings
     from app.workflows.graph import stream_graph_turn
 
-    tid = observability.turn_trace_id(_st(**_LF), seed="t2-live")
+    st = get_settings()
+    if not observability.enabled(st):
+        pytest.skip("live langfuse keys absent in .env — integration 面跳过")
+    tid = observability.turn_trace_id(st, seed=f"t2-live-{uuid.uuid4().hex[:8]}")
     monkeypatch.setattr(observability, "turn_trace_id",
-                        lambda st, seed=None: tid)
-    monkeypatch.setenv("LANGFUSE_HOST", _LF["langfuse_host"])
-    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", _LF["langfuse_public_key"])
-    monkeypatch.setenv("LANGFUSE_SECRET_KEY", _LF["langfuse_secret_key"])
+                        lambda s, seed=None: tid)
 
     class _M:  # 快路不触 model;ctx/coref 触达时给空串走各自降级形
         async def ainvoke(self, msgs, **kw):
@@ -78,22 +84,26 @@ def test_chitchat_turn_tags_trace_on_live_langfuse(monkeypatch):
     async def _run():
         msg = SimpleNamespace(role="user", content="你好")
         return [f async for f in stream_graph_turn(
-            [msg], _st(**_LF), _M(), conversation_id=None)]
+            [msg], st, _M(), conversation_id=None)]
 
     frames = asyncio.run(_run())
     assert frames  # 跑通即有帧(兜底/答案)
-    auth = (_LF["langfuse_public_key"], _LF["langfuse_secret_key"])
-    tags = []
+    auth = (st.langfuse_public_key, st.langfuse_secret_key)
+    doc = {}
     seen = False
     for _ in range(15):  # SDK flush + ingestion 队列→worker→ClickHouse 秒级延迟
-        r = httpx.get(f"{_LF['langfuse_host']}/api/public/traces/{tid}",
+        r = httpx.get(f"{st.langfuse_host}/api/public/traces/{tid}",
                       auth=auth, timeout=5)
         if r.status_code == 200:
             seen = True
-            tags = r.json().get("tags") or []
-            if any(t.startswith("intent:") for t in tags):
+            doc = r.json()
+            tags = doc.get("tags") or []
+            if any(t.startswith("intent:") for t in tags) and doc.get("observations"):
                 break
         time.sleep(1.0)
     assert seen, f"trace {tid} 未落 Langfuse(检查挂接/flush)"
+    tags = doc.get("tags") or []
     assert any(t.startswith("intent:") for t in tags), \
         f"验收面:trace 须带 intent tag,实际 tags={tags}"
+    assert doc.get("observations"), \
+        "定向 trace 里必须真有 span/observation(挂接面非空证)"

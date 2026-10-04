@@ -50,29 +50,42 @@ def build_handler(settings, trace_id=None):
     SDK v4 事实:CallbackHandler 按 public_key 找已注册客户端,未先建
     Langfuse() 则静默丢 span——工厂必须先实例化客户端再挂 handler。
     trace_id 非空=整轮 span 落进预生成 trace(归因写回的定向通道,T2)。
+
+    M1 评审批修 I1:构造异常(env 旁键解析/kwarg 漂移等)→ WARN + None,
+    本轮精确退化为「未配置 langfuse」的 ch08 形状——观测面不毁轮,
+    把不变量从条件式变成结构性。
     """
     if not enabled(settings):
         return None
-    for k in _KEYS:
-        os.environ[_ENV[k]] = getattr(settings, k)
-    _bypass_proxy(settings.langfuse_host)
-    from langfuse import Langfuse  # 惰性:无键环境不触 SDK
-    from langfuse.langchain import CallbackHandler
-    Langfuse(public_key=settings.langfuse_public_key,
-             secret_key=settings.langfuse_secret_key,
-             host=settings.langfuse_host)
-    if trace_id:
-        return CallbackHandler(public_key=settings.langfuse_public_key,
-                               trace_context={"trace_id": trace_id})
-    return CallbackHandler(public_key=settings.langfuse_public_key)
+    try:
+        for k in _KEYS:
+            os.environ[_ENV[k]] = getattr(settings, k)
+        _bypass_proxy(settings.langfuse_host)
+        from langfuse import Langfuse  # 惰性:无键环境不触 SDK
+        from langfuse.langchain import CallbackHandler
+        Langfuse(public_key=settings.langfuse_public_key,
+                 secret_key=settings.langfuse_secret_key,
+                 host=settings.langfuse_host)
+        if trace_id:
+            return CallbackHandler(public_key=settings.langfuse_public_key,
+                                   trace_context={"trace_id": trace_id})
+        return CallbackHandler(public_key=settings.langfuse_public_key)
+    except Exception:  # noqa: BLE001 —— 建不来就不挂,退化为零漂移
+        logger.warning("langfuse handler construction failed; turn runs "
+                       "without observability", exc_info=True)
+        return None
 
 
 def turn_trace_id(settings, seed=None):
     """逐轮预生成 trace_id;缺键=None(观测短路,与零漂移语义一致)。"""
     if not enabled(settings):
         return None
-    from langfuse import Langfuse
-    return Langfuse.create_trace_id(seed=seed)
+    try:
+        from langfuse import Langfuse
+        return Langfuse.create_trace_id(seed=seed)
+    except Exception:  # noqa: BLE001 —— 同 I1:归因通道缺失不毁轮(该轮无 intent tag)
+        logger.warning("langfuse trace_id generation failed", exc_info=True)
+        return None
 
 
 async def attach_trace_intent(trace_id, settings, intent, confidence):
@@ -84,8 +97,12 @@ async def attach_trace_intent(trace_id, settings, intent, confidence):
     if not (enabled(settings) and trace_id and intent):
         return
     try:
-        await asyncio.to_thread(_update_trace_tags, trace_id, intent, confidence)
-    except Exception:  # noqa: BLE001 —— 归因失败不毁整轮(观测面全吞)
+        # M1 评审批修:封顶 2s——host 挂起(SDK 默认 5s 超时)不得拖尾帧;
+        # ingestion 本就服务端异步合并,await 只为常规路径保序,超时=放弃该轮归因。
+        await asyncio.wait_for(
+            asyncio.to_thread(_update_trace_tags, trace_id, intent, confidence),
+            timeout=2.0)
+    except Exception:  # noqa: BLE001 —— 归因失败不毁整轮(观测面全吞,含 TimeoutError)
         logger.warning("trace intent attach failed tid=%s intent=%s",
                        trace_id, intent, exc_info=True)
 
