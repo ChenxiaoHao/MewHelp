@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import AsyncIterable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from app.core.config import get_settings
@@ -13,6 +13,7 @@ from app.db.engine import get_session_factory
 from app.schemas.chat import (
     ChatRequest,
     ConversationEvent,
+    FeedbackRequest,
     HealthResponse,
     OrdersEvent,
     SuggestionsEvent,
@@ -251,6 +252,25 @@ async def health(settings=Depends(dep_settings)):
         model=settings.model_name,
         history_token_budget=settings.history_token_budget,
     )
+
+
+@router.post("/api/feedback")
+async def cast_feedback(req: FeedbackRequest, session=Depends(dep_db_session)):
+    """ch09 T6 👎 后端化:反查当轮→带快照落池(source=user_feedback,重复👎允许);
+    👍=204 记账面留给评估链。假件期不吞错——同步请求失败必须可见(裁决见 ledger)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    if req.vote == "up":
+        return Response(status_code=204)
+    anchor, raw_question = await crud.find_feedback_anchor(
+        session, req.conversation_id, req.seq)
+    if anchor is None:
+        raise HTTPException(status_code=404, detail="找不到该轮(会话不存在或 seq 越界)")
+    await crud.add_low_confidence_question(
+        session, conversation_id=req.conversation_id, raw_question=raw_question,
+        source="user_feedback", reason=f"seq={req.seq}",
+        retrieved_chunks=anchor.retrieval_snapshot)
+    return {"pooled": True}
 
 
 @router.get("/api/chunks/{chunk_id}", response_model=ChunkOut)

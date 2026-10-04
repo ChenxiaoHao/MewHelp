@@ -60,6 +60,30 @@ async def add_message(
     return msg
 
 
+async def find_feedback_anchor(session, conversation_id: int, seq: int):
+    """ch09 T6 👎 反查:第 seq(0 基)个 assistant 行 + 其前紧邻 user 文本。
+
+    仅数 assistant 行(Review Focus 4:前端 seq=助手轮序,tool/中间行不占号)。
+    会话缺/越界/锚点前无 user 行 → (None, None)=端点 404 面。
+    """
+    ids = (await session.execute(
+        select(Message.id)
+        .where(Message.conversation_id == conversation_id,
+               Message.role == "assistant")
+        .order_by(Message.id))).scalars().all()
+    if seq < 0 or seq >= len(ids):
+        return None, None
+    anchor = await session.get(Message, ids[seq])
+    q = (await session.execute(
+        select(Message.content)
+        .where(Message.conversation_id == conversation_id,
+               Message.role == "user", Message.id < anchor.id)
+        .order_by(Message.id.desc()).limit(1))).scalar_one_or_none()
+    if q is None:
+        return None, None
+    return anchor, q
+
+
 def build_faq_query(keyword: str, limit: int = 3) -> Select:
     like = f"%{keyword}%"
     return (
