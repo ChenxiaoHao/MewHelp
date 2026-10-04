@@ -28,9 +28,10 @@ class ChatRequest(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    """ch09 T6:👍/👎 投票;seq=会话内第 seq+1 个 assistant 轮(仅数 assistant)。"""
+    """ch09 T6:👍/👎 投票;seq=会话内第 seq 个可见 assistant 轮(1 基,仅数
+    content 非 NULL 的 assistant 行——与前端 assistantSeqFromHistory() 计数同律)。"""
     conversation_id: int = Field(ge=1)
-    seq: int = Field(ge=0)
+    seq: int = Field(ge=1)
     vote: Literal["up", "down"]
 
 

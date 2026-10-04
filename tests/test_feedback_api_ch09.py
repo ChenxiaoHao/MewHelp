@@ -1,8 +1,10 @@
 """ch09 T6:POST /api/feedback(👎 后端化落池+当轮回捞;👍 204 不落)。
 
-分支钉(brief Step1):up→204 零写入;down→反查第 seq+1 个 assistant 行
-(仅数 assistant,Review Focus 4)→ raw_question=前紧邻 user → 快照回捞
-(NULL=空着)→ 落池 source=user_feedback/reason 记 seq → 200 {pooled:true};
+分支钉(brief Step1):up→204 零写入;down→反查第 seq 个**可见** assistant 行
+(1 基;仅数 assistant 且 content 非 NULL——Review Focus 4 + M2-I1/M2-I2 改钉:
+on_tool_calls 落库的 NULL-content 行不占号,与前端 assistantSeqFromHistory()
+的 1 基计数及回载 `&& m.content` 过滤严格同律)→ raw_question=前紧邻 user →
+快照回捞(NULL=空着)→ 落池 source=user_feedback/reason 记 seq → 200 {pooled:true};
 会话缺/越界→404;重复👎允许重复落池。假 crud 同 ch05 流测套路;
 find_feedback_anchor 真 SQL 走活库 integration 例。
 """
@@ -54,7 +56,7 @@ def fake_routes_crud(monkeypatch):
 async def test_up_vote_204_and_no_pool(client, fake_routes_crud):
     fake = fake_routes_crud(_FakeCrud())
     r = await client.post("/api/feedback",
-                          json={"conversation_id": 7, "seq": 0, "vote": "up"})
+                          json={"conversation_id": 7, "seq": 1, "vote": "up"})
     assert r.status_code == 204
     assert fake.calls == []
 
@@ -75,7 +77,7 @@ async def test_down_snapshot_null_pools_empty_handed(client, fake_routes_crud):
     anchor = SimpleNamespace(id=12, retrieval_snapshot=None)  # 闲聊/旧行面
     fake = fake_routes_crud(_FakeCrud(anchor=anchor, raw_question="闲聊一句"))
     r = await client.post("/api/feedback",
-                          json={"conversation_id": 7, "seq": 0, "vote": "down"})
+                          json={"conversation_id": 7, "seq": 1, "vote": "down"})
     assert r.status_code == 200
     assert fake.calls[0]["snap"] is None, "回捞空着=快照 NULL 原样,不造假"
 
@@ -91,11 +93,14 @@ async def test_out_of_range_or_missing_conversation_404(client, fake_routes_crud
 async def test_bad_body_422(client, fake_routes_crud):
     fake_routes_crud(_FakeCrud())
     r = await client.post("/api/feedback",
-                          json={"conversation_id": 0, "seq": 0, "vote": "down"})
-    assert r.status_code == 422, "conversation_id≥1/seq≥0/vote 枚举由 schema 拦"
+                          json={"conversation_id": 0, "seq": 1, "vote": "down"})
+    assert r.status_code == 422, "conversation_id≥1/seq≥1(1 基)/vote 枚举由 schema 拦"
     r2 = await client.post("/api/feedback",
+                           json={"conversation_id": 7, "seq": 0, "vote": "down"})
+    assert r2.status_code == 422, "1 基同律:seq=0 是前端永远发不出的值,挡在 schema"
+    r3 = await client.post("/api/feedback",
                            json={"conversation_id": 7, "seq": -1, "vote": "meh"})
-    assert r2.status_code == 422
+    assert r3.status_code == 422
 
 
 # ---- 真 SQL 面(integration,活库) ----
@@ -112,7 +117,7 @@ async def session():
 
 
 @pytest.mark.integration
-async def test_find_feedback_anchor_only_counts_assistant(session):
+async def test_find_feedback_anchor_only_counts_visible_assistant(session):
     uid = f"it-ch09t6-{uuid.uuid4().hex[:10]}"
     conv = Conversation(user_id=uid)
     session.add(conv)
@@ -121,22 +126,50 @@ async def test_find_feedback_anchor_only_counts_assistant(session):
         ("user", "问题一"), ("assistant", "答一"),
         ("tool", "工具回显"), ("assistant", "答二(带快照)"),
     ]
-    ids = []
     for role, content in rows:
-        m = await crud.add_message(session, conv.id, role, content=content,
-                                   retrieval_snapshot=(
-                                       [{"chunk_id": 9, "score": 0.5, "text": "t"}]
-                                       if content.startswith("答二") else None))
-        ids.append(m.id)
-    a0, q0 = await crud.find_feedback_anchor(session, conv.id, 0)
-    assert a0.content == "答一" and q0 == "问题一"
-    a1, q1 = await crud.find_feedback_anchor(session, conv.id, 1)
-    assert a1.content == "答二(带快照)" and a1.retrieval_snapshot[0]["chunk_id"] == 9
-    assert q1 == "问题一", "前紧邻 user 行(tool 不算数)"
-    miss, mq = await crud.find_feedback_anchor(session, conv.id, 2)
+        await crud.add_message(session, conv.id, role, content=content,
+                               retrieval_snapshot=(
+                                   [{"chunk_id": 9, "score": 0.5, "text": "t"}]
+                                   if content.startswith("答二") else None))
+    a1, q1 = await crud.find_feedback_anchor(session, conv.id, 1)  # M2-I2:1 基
+    assert a1.content == "答一" and q1 == "问题一"
+    a2, q2 = await crud.find_feedback_anchor(session, conv.id, 2)
+    assert a2.content == "答二(带快照)" and a2.retrieval_snapshot[0]["chunk_id"] == 9
+    assert q2 == "问题一", "前紧邻 user 行(tool 不算数)"
+    miss, mq = await crud.find_feedback_anchor(session, conv.id, 3)
     assert miss is None and mq is None
-    gone, _ = await crud.find_feedback_anchor(session, 999999, 0)
+    gone, _ = await crud.find_feedback_anchor(session, 999999, 1)
     assert gone is None
+    await session.execute(delete(Message).where(Message.conversation_id == conv.id))
+    await session.execute(delete(Conversation).where(Conversation.id == conv.id))
+    await session.commit()
+
+
+@pytest.mark.integration
+async def test_anchor_skips_null_content_toolcall_rows(session):
+    """M2-I1:工具轮中间 assistant 行(on_tool_calls 无前言文本→content=NULL)不占号。
+
+    前端口径两证:live 流只 push 终答(index.html:601);回载 filter
+    `&& m.content` 丢 NULL 行(index.html:717)。反查计数必须同律,否则走过
+    工具的轮整体错位——👎 落池锚到 NULL 行,快照回捞恒空还回 200(静默错归因)。"""
+    uid = f"it-ch09t6b-{uuid.uuid4().hex[:10]}"
+    conv = Conversation(user_id=uid)
+    session.add(conv)
+    await session.commit()
+    await crud.add_message(session, conv.id, "user", content="帮我查订单")
+    await crud.add_message(session, conv.id, "assistant", content=None,
+                           tool_calls=[{"id": "c1", "name": "query_order", "args": {}}])
+    await crud.add_message(session, conv.id, "tool", content='{"order": 1}',
+                           tool_call_id="c1")
+    await crud.add_message(session, conv.id, "assistant", content="已发货喵",
+                           retrieval_snapshot=[{"chunk_id": 8, "score": 0.6, "text": "s"}])
+    anchor, q = await crud.find_feedback_anchor(session, conv.id, 1)
+    assert anchor is not None and anchor.content == "已发货喵", \
+        "NULL-content 行不得占号:第 1 个可见 assistant=终答行"
+    assert anchor.retrieval_snapshot[0]["chunk_id"] == 8
+    assert q == "帮我查订单"
+    miss, _ = await crud.find_feedback_anchor(session, conv.id, 2)
+    assert miss is None
     await session.execute(delete(Message).where(Message.conversation_id == conv.id))
     await session.execute(delete(Conversation).where(Conversation.id == conv.id))
     await session.commit()

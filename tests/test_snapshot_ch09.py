@@ -168,6 +168,45 @@ def test_knowledge_turn_final_call_carries_snapshot(monkeypatch):
     assert len(snap[0]["text"]) == 8, "vector_text 拼接体超 cap=8 → 截断"
 
 
+# ---- react 消费面:M2-C-1 显式键契约 ----
+
+def _react_state(**over):
+    st = {"messages": [SimpleNamespace(content="q")], "conversation_id": 1,
+          "evidence": [{"chunk_id": 1, "score": 0.9, "text": "片段"}]}
+    return {**st, **over}
+
+
+def _drive_react(state, persister):
+    from app.agents.react import react_agent_stream
+
+    class _M:
+        def bind_tools(self, tools, **kw):
+            return self
+
+        async def astream(self, msgs, **kw):
+            yield AIMessageChunk(content="答案喵。")
+
+    async def _run():
+        return [e async for e in react_agent_stream(
+            state, _st(), _M(), persister=persister)]
+    return asyncio.run(_run())
+
+
+def test_react_explicit_none_key_wins_over_evidence():
+    rec = _Rec()
+    _drive_react(_react_state(retrieval_snapshot=None), rec)
+    assert rec.final_calls[-1]["snap"] is None, \
+        "agent_node 显式交 None(五段保险丝形状)不得回退 evidence 现算"
+
+
+def test_react_legacy_fallback_computes_from_evidence():
+    rec = _Rec()
+    _drive_react(_react_state(), rec)
+    assert rec.final_calls[-1]["snap"] == [
+        {"chunk_id": 1, "score": 0.9, "text": "片段"}], \
+        "无显式键=旧直调面契约:从 evidence 现算(ch05/06 测形不变)"
+
+
 def test_chitchat_turn_snapshot_none(monkeypatch):
     async def boom_retrieve(*a, **kw):
         raise AssertionError("闲聊快路不该触检索")

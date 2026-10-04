@@ -55,8 +55,13 @@ async def react_agent_stream(
     一一对应（落库语义不动，P5），失败只 WARN 不中断流（spec §9）。
     """
     cid = state.get("conversation_id")
-    # ch09 T5:知识轮快照随终答行落库(👎 回捞源);无证据=None(闲聊/数据面)
-    _snap = confidence.evidence_snapshot(state.get("evidence"), settings) or None
+    # ch09 T5:知识轮快照随终答行落库(👎 回捞源);无证据=None(闲聊/数据面)。
+    # M2-C-1:agent_node 恒带显式键(其保险丝会清 evidence,键是唯一可靠下传通道);
+    # 键缺位=旧直调面(ch05/06 测形)契约不变——从 evidence 现算。
+    if "retrieval_snapshot" in state:
+        _snap = state["retrieval_snapshot"] or None
+    else:
+        _snap = confidence.evidence_snapshot(state.get("evidence"), settings) or None
 
     async def _p(hook: str, *args: Any, **kw: Any) -> None:
         if persister is None:

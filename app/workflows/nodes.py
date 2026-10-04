@@ -269,7 +269,8 @@ def make_confidence_gate_node(settings, source: str = "ch05_gate",
             cid = (config.get("configurable") or {}).get("conversation_id")
             await refusals.pool_low_confidence(
                 cid, query, source, verdict.detail,
-                retrieved_chunks=_evidence_snapshot(evidence, settings))
+                # M2-M-1:空快照归 NULL 与随行面同律(T5 裁决:空着与 [] 不两种表达)
+                retrieved_chunks=_evidence_snapshot(evidence, settings) or None)
             return {"gate_pass": False, "answer_text": refusals.REFUSAL_ANSWER,
                     "suggestions": [TRANSFER_HUMAN],
                     "messages": [AIMessage(content=refusals.REFUSAL_ANSWER)], "log": log}
@@ -326,7 +327,12 @@ def make_agent_node(model, settings):
         parts: list[str] = []
         done: dict = {"steps": 0, "suggestions": []}
         ticket_preview: dict | None = None
-        react_input = {**state, "messages": msgs, "conversation_id": cid}
+        # M2-C-1:快照必须在保险丝清 evidence **之前**算好经显式键下传——
+        # 生产形状(store 在位→five_seg)下 react 若仍从清空后的 evidence 现算,
+        # 知识轮终答行 retrieval_snapshot 恒 NULL,👎 回捞数据源整条蒸发且静默。
+        react_input = {**state, "messages": msgs, "conversation_id": cid,
+                       "retrieval_snapshot": _evidence_snapshot(
+                           state.get("evidence"), settings) or None}
         if five_seg:
             # 段5 已把证据/订单合注入一条 Human(react System 旧路 T8 已废),
             # 清空入参防下游再读——防双份注入的保险丝。

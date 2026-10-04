@@ -234,3 +234,31 @@ async def test_agent_receives_five_segment_with_injection(monkeypatch, caplog):
     assert inj is not cur and isinstance(inj, HumanMessage)
     assert "早前对话梗概" in inj.content and "条款X" in inj.content and "1001" in inj.content
     assert upd["answer_text"] == "好"
+
+
+async def test_five_seg_snapshot_survives_fuse(monkeypatch):
+    """M2-C-1:五段装配生产形状(store 在位)快照不随保险丝蒸发。
+
+    链:生产路由有 session 有 cid → ctx_store 非 None → five_seg=True →
+    react_input.evidence 清空。若 react 从清空后的 evidence 现算快照,知识轮
+    终答行 retrieval_snapshot 恒 NULL——T6 👎 回捞数据源在生产形状整条失效。
+    钉法:agent_node 进保险丝前算好 retrieval_snapshot 挂 react_input 显式键。"""
+    rows = [_row(1, "user", "偏远地区有附加费吗" + "费" * 100),
+            _row(2, "assistant", "有的" + "费" * 300)]
+    store = FakeStore(rows, ("第一段梗概", 0, 1))
+    captured = {}
+
+    async def fake_react(state, settings, model, persister=None, specs=None):
+        captured["state"] = dict(state)
+        yield ("token", "好")
+        yield ("done", {"steps": 1, "suggestions": []})
+    monkeypatch.setattr(N, "react_agent_stream", fake_react)
+    await make_agent_node(ScriptModel([]), _settings())(
+        {"messages": [HumanMessage("偏远地区有附加费吗")],
+         "user_query": "偏远地区有附加费吗", "route": "knowledge",
+         "evidence": [{"chunk_id": 41, "score": 0.93, "text": "附加费说明"}],
+         "order_data": {"order_id": "1001"}, "log": {}}, _cfg(store))
+    assert captured["state"]["evidence"] == []          # 保险丝语义不动
+    snap = captured["state"].get("retrieval_snapshot")
+    assert snap == [{"chunk_id": 41, "score": 0.93, "text": "附加费说明"}], \
+        "五段轮快照须经显式键随 react_input 交下去(👎 回捞生产形状)"

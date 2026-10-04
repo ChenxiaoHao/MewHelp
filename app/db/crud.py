@@ -61,19 +61,23 @@ async def add_message(
 
 
 async def find_feedback_anchor(session, conversation_id: int, seq: int):
-    """ch09 T6 👎 反查:第 seq(0 基)个 assistant 行 + 其前紧邻 user 文本。
+    """ch09 T6 👎 反查:第 seq(1 基)个**可见** assistant 行 + 其前紧邻 user 文本。
 
-    仅数 assistant 行(Review Focus 4:前端 seq=助手轮序,tool/中间行不占号)。
-    会话缺/越界/锚点前无 user 行 → (None, None)=端点 404 面。
+    M2-I1:仅数 content 非 NULL 的 assistant 行——on_tool_calls 落的无前言
+    工具行(content NULL)不占号,与前端回载 filter `&& m.content`(index.html)
+    及 assistantSeqFromHistory() 计数同律。M2-I2:1 基,与前端键 push 后
+    count 严格同律(spec「同律」钉)。
+    会话缺/越界(seq<1 或 > 可见行数)/锚点前无 user 行 → (None, None)=端点 404 面。
     """
     ids = (await session.execute(
         select(Message.id)
         .where(Message.conversation_id == conversation_id,
-               Message.role == "assistant")
+               Message.role == "assistant",
+               Message.content.isnot(None))
         .order_by(Message.id))).scalars().all()
-    if seq < 0 or seq >= len(ids):
+    if seq < 1 or seq > len(ids):
         return None, None
-    anchor = await session.get(Message, ids[seq])
+    anchor = await session.get(Message, ids[seq - 1])
     q = (await session.execute(
         select(Message.content)
         .where(Message.conversation_id == conversation_id,

@@ -131,6 +131,17 @@ async def test_gate_blocks_refusal_pool_with_snapshot(monkeypatch):
         "落池带召回片段快照(T6 👎 回捞同款形制)"
 
 
+async def test_gate_empty_evidence_pools_none_snapshot(monkeypatch):
+    """M2-M-1(升级入批):空快照归 NULL——T5 裁决「空着与 [] 不两种表达」。
+
+    闸1 清空的轮(缺无题主形态)落池快照若写 JSON [] ,T9 详情/T10 弹层须
+    同时处理 []/NULL 两种「空」;与随行面 react/graph 两出口的 `or None` 同律。"""
+    node = make_confidence_gate_node(_gate_settings())
+    out, calls = await _run_gate(node, [], monkeypatch)
+    assert out["gate_pass"] is False
+    assert calls[0]["snap"] is None, "空证据落池 retrieved_chunks=NULL,不落 []"
+
+
 async def test_gate_refund_instance_same_core(monkeypatch):
     node = make_confidence_gate_node(_gate_settings(), source="ch06_refund_gate",
                                      name="refund_gate")

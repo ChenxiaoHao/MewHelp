@@ -75,7 +75,7 @@
 
 ### Task 6:POST /api/feedback(👎 落池+回捞)
 **Files:** Modify `app/api/routes.py`、`app/schemas/chat.py`;Create `tests/test_feedback_api_ch09.py`;Modify `app/services/refusals.py`(签名扩 `retrieved_chunks=None`,写 LCQ 新列;触发钩子留 T7 接)。
-**Interfaces:** Consumes `Message.retrieval_snapshot`、`crud.add_low_confidence_question(+快照参)`;Produces `POST /api/feedback {conversation_id≥1, seq≥0, vote:'up'|'down'}` → down:反查该会话第 seq+1 个 `role='assistant'` 行(仅数 assistant,Review Focus 4)→ raw_question=其前紧邻 user 行 → 快照回捞(列 NULL=空着)→ 落池 source=`user_feedback`,reason 记 seq → 200 `{pooled:true}`;越界/会话缺→404;up→204 不落。重复👎允许重复落池。
+**Interfaces:** Consumes `Message.retrieval_snapshot`、`crud.add_low_confidence_question(+快照参)`;Produces `POST /api/feedback {conversation_id≥1, seq≥0, vote:'up'|'down'}` → down:反查该会话第 seq 个可见 assistant 行(1 基;content 非 NULL 的 assistant 才占号——M2 批评审 I-1/I-2 改钉,与前端 assistantSeqFromHistory 计数同律,Review Focus 4)→ raw_question=其前紧邻 user 行 → 快照回捞(列 NULL=空着)→ 落池 source=`user_feedback`,reason 记 seq → 200 `{pooled:true}`;越界/会话缺→404;up→204 不落。重复👎允许重复落池。
 - [x] Step1 RED:全分支(404/up 204/down 落池形态与回捞空/越界 seq)。
 - [x] Step2 实现 GREEN + commit `feat(ch09-t6): 👎 后端化——user_feedback 枚举空位启用+当轮回捞`;M2 批评审→修复批。
 
