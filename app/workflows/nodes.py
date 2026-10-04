@@ -239,15 +239,8 @@ RRF_DEGRADED_MAX = 0.04
 
 
 def _evidence_snapshot(evidence, settings) -> list[dict]:
-    """LCQ.retrieved_chunks 快照形制: [{chunk_id, score, text截断}](T6 回捞同款)。"""
-    cap = int(getattr(settings, "retrieval_snapshot_text_max", 600) or 600)
-    snap = []
-    for e in evidence:
-        cid = e["chunk_id"] if isinstance(e, dict) else e.chunk_id
-        score = e["score"] if isinstance(e, dict) else e.score
-        text = (e.get("text") if isinstance(e, dict) else getattr(e, "text", None)) or ""
-        snap.append({"chunk_id": cid, "score": score, "text": text[:cap]})
-    return snap
+    """快照形制收口 confidence.evidence_snapshot(T5 起 messages 行同源)。"""
+    return confidence.evidence_snapshot(evidence, settings)
 
 
 def make_confidence_gate_node(settings, source: str = "ch05_gate",

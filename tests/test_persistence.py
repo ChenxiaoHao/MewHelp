@@ -9,7 +9,8 @@ async def test_persister_maps_hooks_to_rows(monkeypatch):
     rows = []
 
     async def fake_add_message(
-        session, conversation_id, role, content=None, tool_calls=None, tool_call_id=None
+        session, conversation_id, role, content=None, tool_calls=None,
+        tool_call_id=None, retrieval_snapshot=None  # ch09 T5 加参改钉
     ):
         rows.append((conversation_id, role, content, tool_calls, tool_call_id))
 

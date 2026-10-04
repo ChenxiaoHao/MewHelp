@@ -19,6 +19,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import Command
 
+from app.rag import confidence
 from app.services import observability
 from app.services.chat_service import to_langchain_messages
 from app.workflows import nodes as N
@@ -268,7 +269,10 @@ async def stream_graph_turn(
                    or "agent" not in (final.get("log") or {}).get("nodes", [])):
         try:
             if persister is not None:
-                await persister.on_final_answer(conversation_id, answer)
+                await persister.on_final_answer(
+                    conversation_id, answer,
+                    retrieval_snapshot=confidence.evidence_snapshot(
+                        final.get("evidence"), settings) or None)
         except Exception:  # noqa: BLE001 —— 落库失败只降级,不挡关流(spec §9)
             logger.warning("persist final answer failed (graph turn)", exc_info=True)
     if final.get("orders_payload"):  # ch06 P7:选择器卡片帧,仅非空才发(防御空帧)

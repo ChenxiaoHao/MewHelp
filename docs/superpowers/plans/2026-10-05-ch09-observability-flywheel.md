@@ -70,8 +70,8 @@
 ### Task 5:当轮召回快照随 assistant 行落库
 **Files:** Modify assistant 消息落库处(`app/services/persistence.py` / logging 节点,实施时定位唯一写点)、`app/db/crud.py`;Create `tests/test_snapshot_ch09.py`。
 **Interfaces:** Produces 落库语义:进 agent 且有 evidence 的轮 → 该行 `retrieval_snapshot=[{chunk_id,score,text截600}…]`;闲聊/数据/工单轮 NULL。text 截断常量 config `retrieval_snapshot_text_max=600`。
-- [ ] Step1 RED:三形态测(knowledge 轮含快照/闲聊轮 NULL/text 超限截断)。
-- [ ] Step2 实现 GREEN + commit `feat(ch09-t5): retrieval_snapshot 随行落库(👎 回捞数据源)`。
+- [x] Step1 RED:三形态测(knowledge 轮含快照/闲聊轮 NULL/text 超限截断)。
+- [x] Step2 实现 GREEN + commit `feat(ch09-t5): retrieval_snapshot 随行落库(👎 回捞数据源)`。(写点定位:终答行两处=react 自落三处+graph 固定话术出口;builder 收口 confidence.evidence_snapshot 与 T4 落池同源;ch08 confirm 录制件同笔改钉新 kw)
 
 ### Task 6:POST /api/feedback(👎 落池+回捞)
 **Files:** Modify `app/api/routes.py`、`app/schemas/chat.py`;Create `tests/test_feedback_api_ch09.py`;Modify `app/services/refusals.py`(签名扩 `retrieved_chunks=None`,写 LCQ 新列;触发钩子留 T7 接)。

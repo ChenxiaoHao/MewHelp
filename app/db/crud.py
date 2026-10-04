@@ -45,6 +45,7 @@ async def add_message(
     content: str | None = None,
     tool_calls: list | None = None,
     tool_call_id: str | None = None,
+    retrieval_snapshot: list | None = None,
 ) -> Message:
     msg = Message(
         conversation_id=conversation_id,
@@ -52,6 +53,7 @@ async def add_message(
         content=content,
         tool_calls=tool_calls,
         tool_call_id=tool_call_id,
+        retrieval_snapshot=retrieval_snapshot,
     )
     session.add(msg)
     await session.commit()

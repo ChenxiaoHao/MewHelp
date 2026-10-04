@@ -37,7 +37,8 @@ class ChatPersister(Protocol):
 
     async def on_tool_result(self, conversation_id: int, outcome: ToolOutcome) -> None: ...
 
-    async def on_final_answer(self, conversation_id: int, content: str) -> None: ...
+    async def on_final_answer(self, conversation_id: int, content: str,
+                              retrieval_snapshot: list | None = None) -> None: ...
 
 
 def _text_of(msg: Any) -> str:

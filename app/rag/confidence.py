@@ -51,6 +51,19 @@ def _k(cfg, name: str, fallback):
     return fallback if v is None else v
 
 
+def evidence_snapshot(evidence, cfg) -> list[dict]:
+    """ch09 快照形制唯一出处: [{chunk_id,score,text≤cap}](LCQ 落池与
+    messages.retrieval_snapshot 两处同源;cap=retrieval_snapshot_text_max)。"""
+    cap = int(getattr(cfg, "retrieval_snapshot_text_max", 600))
+    out = []
+    for item in evidence or []:
+        g = item.get if isinstance(item, dict) else (
+            lambda k, it=item: getattr(it, k, None))
+        out.append({"chunk_id": g("chunk_id"), "score": g("score"),
+                    "text": (g("text") or "")[:cap]})
+    return out
+
+
 def evaluate(evidence, cfg) -> EvidenceVerdict:
     """f(top1,n_eff,gap) → 过闸判定;cfg=Settings(或任意含键对象)。
 
