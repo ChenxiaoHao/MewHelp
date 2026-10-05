@@ -112,8 +112,8 @@
 
 ### Task 12:e2e 验收 + README + 完结
 **Files:** Create `tests/test_e2e_ch09.py`(验收 2/3/4/5/6 DB 面钉;验收 1 UI 手测步 README 记)、README ch09 节(部署含 Langfuse 栈+建桶、演示命令、验收话术 P 步骤)、dev-notes 完结段。
-- [ ] Step1 e2e:知识库没有的问题→兜底+队列出现+详情原话/快照;审核通过→同问再答对(真模型,标注非回归硬基线);👎 链→队列;eval_runs ≥2 行 trend 出;report 文件成。
-- [ ] Step2 全量:unit 回归 + `-m integration` + e2e;commit `test(ch09-t12): 验收 e2e+README ch09 节+完结段`。
+- [x] Step1 e2e:知识库没有的问题→兜底+队列出现+详情原话/快照;审核通过→同问再答对(真模型,标注非回归硬基线);👎 链→队列;eval_runs ≥2 行 trend 出;report 文件成。(tests/e2e/test_ch09_acceptance.py 6 钉 GREEN;真模型面=T10 手测 chunk53 资产+README P3)
+- [x] Step2 全量:unit 回归 + `-m integration` + e2e;commit(unit 528 绿;integration 50/50——1 测试假件修正+1 上游 flake 复核,详见 dev-notes 阶段十七) `test(ch09-t12): 验收 e2e+README ch09 节+完结段`。
 - [ ] Step3 终审批(fresh reviewer 全分支 diff)→ C/I 一次修复批,Minor deferred 入最终汇报;finishing-a-development-branch 三菜单交用户。
 
 ## 自审记录(成文后跑)

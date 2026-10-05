@@ -279,7 +279,8 @@ async def test_pipeline_live_queue_create_accumulate_idempotent(session):
         return SimpleNamespace(normalized_question=norm_q, suggested_answer="可以。")
 
     async def _dedup(raw, norm, cands, settings):
-        return cands[0][0] if cands else None
+        # 内容命中(非盲取窗首)——活库队列有存量待审行时假设不成立,M3 后修
+        return next((cid for cid, q in cands if q == norm_q), None)
 
     row1 = await crud.add_low_confidence_question(
         session, conversation_id=None, raw_question="甲说法", source="ch05_gate",
