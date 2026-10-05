@@ -153,6 +153,7 @@ class _RecSession:
 
     async def execute(self, stmt):
         self.execs.append(stmt)
+        return SimpleNamespace(rowcount=1)  # 条件更新走正常路(guard 失败面=活库例钉)
 
     async def commit(self):
         self.commits += 1
@@ -309,4 +310,29 @@ async def test_pipeline_live_queue_create_accumulate_idempotent(session):
     await session.execute(delete(ReviewQueue)
                           .where(ReviewQueue.id == qrows[0].id))
     await session.execute(delete(Conversation).where(Conversation.user_id.like("it-ch09t7%")))
+    await session.commit()
+
+
+@pytest.mark.integration
+async def test_merge_concurrent_loser_noop_live(session):
+    """M3-I1:entry 检查后输家才走到 merge(CLI 补扫×在线触发并发)——
+    matched 写回条件更新挡双并:输家 no-op 回滚,不留孤儿队列行。"""
+    nq = f"it-ch09t7m 并发输家不双并 {uuid.uuid4().hex[:8]}"
+    row = await crud.add_low_confidence_question(
+        session, conversation_id=None, raw_question="原话", source="ch05_gate",
+        reason="r", retrieved_chunks=None)
+    await session.commit()
+    rq_a = await crud.merge_lcq_into_queue(session, row, matched_id=None,
+                                           normalized_question=nq, suggested_answer="答")
+    rq_b = await crud.merge_lcq_into_queue(session, row, matched_id=None,
+                                           normalized_question=nq, suggested_answer="答")
+    assert rq_b is None, "matched 已被赢家回填=本次 merge 整笔作废"
+    got = (await session.execute(
+        select(ReviewQueue).where(ReviewQueue.normalized_question == nq))).scalars().all()
+    assert [r.id for r in got] == [rq_a], "不双并:表里只有赢家的行"
+    lcq = await session.get(LowConfidenceQuestion, row)
+    assert lcq.matched_review_id == rq_a and got[0].occurrence_count == 1
+    await session.execute(delete(LowConfidenceQuestion)
+                          .where(LowConfidenceQuestion.id == row))
+    await session.execute(delete(ReviewQueue).where(ReviewQueue.id == rq_a))
     await session.commit()

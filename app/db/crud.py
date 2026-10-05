@@ -389,14 +389,26 @@ async def merge_lcq_into_queue(session, lcq_id: int, *, matched_id: int | None,
         await session.execute(
             update(ReviewQueue).where(ReviewQueue.id == matched_id)
             .values(occurrence_count=ReviewQueue.occurrence_count + 1))
-    await session.execute(
-        update(LowConfidenceQuestion).where(LowConfidenceQuestion.id == lcq_id)
+    res = await session.execute(
+        update(LowConfidenceQuestion)
+        .where(LowConfidenceQuestion.id == lcq_id,
+               LowConfidenceQuestion.matched_review_id.is_(None))
         .values(matched_review_id=queue_id))
+    if res.rowcount == 0:
+        # M3-I1:输家(callers entry 检查后赢家才回填)整笔回滚——
+        # 同事务的新行/累加一并撤销,不双并不留孤儿行。
+        await session.rollback()
+        return None
     await session.commit()
     return queue_id
 
 
 # ---------- ch09 T9: 审核队列读写 + 核准回写 ----------
+
+
+class ReviewConflict(Exception):
+    """M3-I2:目标行已非「待审」——并发处置抢先定态,迟到写手整笔作废。"""
+
 
 async def list_review_queue(session, *, status: str | None = None):
     stmt = select(ReviewQueue)
@@ -410,6 +422,13 @@ async def get_review_row(session, rq_id: int):
     return await session.get(ReviewQueue, rq_id)
 
 
+async def lock_review_row(session, rq_id: int):
+    """PATCH 专用锁读:行级 FOR UPDATE 压缩并发窗口(终拦仍靠条件更新)。"""
+    return (await session.execute(
+        select(ReviewQueue).where(ReviewQueue.id == rq_id)
+        .with_for_update())).scalars().first()
+
+
 async def review_sources(session, rq_id: int):
     """归并到该队列行的 LCQ 原话+快照列表(T10 详情弹层数据面),id 升序。"""
     stmt = (select(LowConfidenceQuestion)
@@ -419,7 +438,9 @@ async def review_sources(session, rq_id: int):
 
 
 async def find_chunk_by_qa(session, category: str, questions: str, answer: str):
-    """核准回写指纹位:三元精确匹配=chunk_fingerprint 同口径,免全表扫。"""
+    """核准回写指纹位:三元精确匹配=chunk_fingerprint 同口径,免全表扫。
+    注:MySQL ci/PAD 排序下大小写/尾空格变体视为等价——比 sha1 字节精确略松,
+    中文场景可忽略;将来若换哈希指纹勿假定两者等价(M-5)。"""
     stmt = select(KnowledgeChunk).where(
         KnowledgeChunk.category == category,
         KnowledgeChunk.questions == questions,
@@ -428,20 +449,28 @@ async def find_chunk_by_qa(session, category: str, questions: str, answer: str):
 
 
 async def reject_review(session, rq_id: int):
-    await session.execute(
-        update(ReviewQueue).where(ReviewQueue.id == rq_id)
+    res = await session.execute(
+        update(ReviewQueue)
+        .where(ReviewQueue.id == rq_id, ReviewQueue.review_status == "待审")
         .values(review_status="驳回"))
+    if res.rowcount == 0:
+        raise ReviewConflict(f"id={rq_id} 已非待审(并发处置)")
     await session.commit()
     return await session.get(ReviewQueue, rq_id)
 
 
 async def approve_review(session, rq_id: int, approved_answer: str,
                          chunk_id: int) -> None:
-    """Focus 5 收口:done 回填+置「通过」同一 commit——向量已写完才走到这里。"""
-    await mark_chunks_vectorized(session, [chunk_id])
-    await session.execute(
-        update(ReviewQueue).where(ReviewQueue.id == rq_id)
+    """Focus 5 收口:置「通过」条件更新先行(M3-I2),撞并发=ReviewConflict
+    整笔不落;过了才 done 回填。commit 实为两次(mark_chunks_vectorized 内部
+    自提,M-1 订正):失败方向安全——chunk done+行待审=pending 命中自愈。"""
+    res = await session.execute(
+        update(ReviewQueue)
+        .where(ReviewQueue.id == rq_id, ReviewQueue.review_status == "待审")
         .values(review_status="通过", approved_answer=approved_answer))
+    if res.rowcount == 0:
+        raise ReviewConflict(f"id={rq_id} 已非待审(并发处置)")
+    await mark_chunks_vectorized(session, [chunk_id])
     await session.commit()
 
 

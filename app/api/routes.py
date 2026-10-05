@@ -313,24 +313,30 @@ async def patch_review_queue(rq_id: int, req: ReviewPatch,
     KB 写失败 502 状态留待审(Focus 5——半成功不许存在)。"""
     if session is None:
         raise HTTPException(status_code=503, detail="数据库未初始化")
-    row = await crud.get_review_row(session, rq_id)
+    row = await crud.lock_review_row(session, rq_id)  # M3-I2:行锁读+终拦靠条件更新
     if row is None:
         raise HTTPException(status_code=404, detail="队列行不存在")
     if row.review_status != "待审":
         raise HTTPException(status_code=422,
                             detail=f"非法流转:{row.review_status}→{req.status}")
-    if req.status == "通过":
-        answer = (req.approved_answer or "").strip()
-        if not answer:
-            raise HTTPException(status_code=422, detail="通过必须带核准答案")
-        try:
-            chunk_id = await review.publish_approved(session, row, answer)
-        except Exception as exc:  # noqa: BLE001 —— 半成功闸:写不成就不置态,502 可见
-            logger.warning("review publish failed id=%s", rq_id, exc_info=True)
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        return ReviewOut(id=row.id, review_status="通过", chunk_id=chunk_id)
-    row = await crud.reject_review(session, rq_id)
-    return ReviewOut(id=row.id, review_status="驳回")
+    try:
+        if req.status == "通过":
+            answer = (req.approved_answer or "").strip()
+            if not answer:
+                raise HTTPException(status_code=422, detail="通过必须带核准答案")
+            try:
+                chunk_id = await review.publish_approved(session, row, answer)
+            except crud.ReviewConflict as exc:
+                raise HTTPException(status_code=422,
+                                    detail=f"非法流转:并发处置:{exc}") from exc
+            except Exception as exc:  # noqa: BLE001 —— 半成功闸:写不成就不置态,502 可见
+                logger.warning("review publish failed id=%s", rq_id, exc_info=True)
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            return ReviewOut(id=row.id, review_status="通过", chunk_id=chunk_id)
+        row = await crud.reject_review(session, rq_id)
+        return ReviewOut(id=row.id, review_status="驳回")
+    except crud.ReviewConflict as exc:
+        raise HTTPException(status_code=422, detail=f"非法流转:{exc}") from exc
 
 
 @router.get("/api/chunks/{chunk_id}", response_model=ChunkOut)

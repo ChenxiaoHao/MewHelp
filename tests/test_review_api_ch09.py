@@ -33,6 +33,8 @@ def _row(**kw):
 
 
 class _RC:
+    ReviewConflict = crud.ReviewConflict  # 路由面异常缝:fake 须暴露真异常类
+
     def __init__(self, rows=(), row=None, sources=()):
         self.rows, self.row, self.sources = list(rows), row, list(sources)
         self.list_calls, self.rejects, self.approves = [], [], []
@@ -42,6 +44,9 @@ class _RC:
         return self.rows
 
     async def get_review_row(self, session, rq_id):
+        return self.row if self.row and self.row.id == rq_id else None
+
+    async def lock_review_row(self, session, rq_id):  # M3-I2:PATCH 锁读位
         return self.row if self.row and self.row.id == rq_id else None
 
     async def review_sources(self, session, rq_id):
@@ -102,6 +107,28 @@ async def test_patch_reject_ok(client, fake_crud):
     r = await client.patch("/api/review_queue/1", json={"status": "驳回"})
     assert r.status_code == 200 and r.json()["review_status"] == "驳回"
     assert rc.rejects == [1]
+
+
+async def test_patch_reject_conflict_422(client, fake_crud):
+    """M3-I2:条件更新挡 TOCTOU——行已被并发处置定态,422 拒(文案同「非法流转」族)。"""
+    rc = fake_crud(_RC(row=_row(id=1)))
+
+    async def _boom(session, rq_id):
+        raise crud.ReviewConflict(f"id={rq_id} 已非待审")
+    rc.reject_review = _boom
+    r = await client.patch("/api/review_queue/1", json={"status": "驳回"})
+    assert r.status_code == 422 and "非法流转" in r.json()["detail"]
+
+
+async def test_patch_approve_conflict_422_not_502(client, fake_crud):
+    """M3-I2:publish 末步进 approve_review 才撞冲突=并发处置,422 状态机拒绝——
+    不得混进 502「KB 写失败可重试」面。"""
+    async def _pub(session, row, answer, **kw):
+        raise crud.ReviewConflict("并发处置")
+    fake_crud(_RC(row=_row(id=1)), publisher=_pub)
+    r = await client.patch("/api/review_queue/1",
+                           json={"status": "通过", "approved_answer": "答文"})
+    assert r.status_code == 422 and "并发处置" in r.json()["detail"]
 
 
 async def test_patch_approve_needs_answer(client, fake_crud):
@@ -287,4 +314,29 @@ async def test_approve_reject_live_state_machine(session):
     await session.execute(delete(ReviewQueue).where(
         ReviewQueue.id.in_([rq1.id, rq2.id, rq3.id])))
     await session.execute(delete(KnowledgeChunk).where(KnowledgeChunk.id == cid))
+    await session.commit()
+
+
+import uuid  # noqa: E402  (尾例专用)
+
+
+@pytest.mark.integration
+async def test_state_guards_reject_stale_writers_live(session):
+    """M3-I2 真 SQL 面:行定态后,迟到的 reject/approve 条件更新全数落空——
+    状态不被覆写(驳回-after-通过不得把已入库行拖回驳回;重复通过不得覆写)。"""
+    q = f"it-ch09t9g 并发覆写拦截 {uuid.uuid4().hex[:8]}"
+    rq = ReviewQueue(normalized_question=q, ai_suggested_answer="甲",
+                     occurrence_count=1, review_status="待审")
+    session.add(rq)
+    await session.commit()
+
+    await crud.reject_review(session, rq.id)          # 正常:待审→驳回
+    with pytest.raises(crud.ReviewConflict):
+        await crud.reject_review(session, rq.id)      # 迟到驳回
+    with pytest.raises(crud.ReviewConflict):
+        await crud.approve_review(session, rq.id, "答", 999_999)  # 驳回后迟到通过
+    await session.refresh(rq)
+    assert rq.review_status == "驳回" and rq.approved_answer is None, \
+        "迟到写手全被 WHERE 状态条件挡下,行形不动"
+    await session.execute(delete(ReviewQueue).where(ReviewQueue.id == rq.id))
     await session.commit()
