@@ -100,7 +100,7 @@
 
 ### Task 10:后台审核页 + 👎 接线(Vibe,豁免流程)
 **Files:** Create `static/review.html`(faith.html 形制:列表/状态筛选/通过·驳回/详情弹层含归并原话与召回片段/通过弹核准答案框预填 ai_suggested_answer);Modify `static/index.html`(顶栏入口;👎 点击同时 POST /api/feedback,👍 不发;锁钮与 localStorage 回显逻辑保持)。
-- [ ] Step1 实现+手测闭环(列表→详情→通过→再问);commit `feat(ch09-t10): 审核后台页+👎 接线(Vibe)`。
+- [x] Step1 实现+手测闭环(列表→详情→通过→再问);commit `feat(ch09-t10): 审核后台页+👎 接线(Vibe)`。(手测全过:真双落 chunk53+置态+422 面;再问即对钉在 T12 e2e,队列 11/chunk53 留作验收资产)
 
 ## M4 评估 + 收口
 

@@ -14,6 +14,7 @@ class ReviewQueueItem(BaseModel):
     ai_suggested_answer: str | None
     occurrence_count: int
     review_status: str
+    approved_answer: str | None = None  # T10 弹层预填:已定态行回显核准答案
     created_at: datetime
     updated_at: datetime
 
