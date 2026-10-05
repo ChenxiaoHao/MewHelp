@@ -26,6 +26,7 @@ from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
 from app.schemas.refund import RefundRequest
 from app.schemas.ticket import TicketConfirmRequest, TicketCreateRequest, TicketOut
 from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
+from app.services import flywheel
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
@@ -267,10 +268,11 @@ async def cast_feedback(req: FeedbackRequest, session=Depends(dep_db_session)):
         session, req.conversation_id, req.seq)
     if anchor is None:
         raise HTTPException(status_code=404, detail="找不到该轮(会话不存在或 seq 越界)")
-    await crud.add_low_confidence_question(
+    row_id = await crud.add_low_confidence_question(
         session, conversation_id=req.conversation_id, raw_question=raw_question,
         source="user_feedback", reason=f"seq={req.seq}",
         retrieved_chunks=anchor.retrieval_snapshot)
+    flywheel.spawn_process(row_id)  # T7 拍板 2A:👎 路落池成功即触发(不走吞错漏斗)
     return {"pooled": True}
 
 

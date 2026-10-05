@@ -16,6 +16,7 @@ from app.db.models import (
     LowConfidenceQuestion,
     Message,
     QaExtractionStaging,
+    ReviewQueue,
     Ticket,
     ToolAuditLog,
 )
@@ -327,15 +328,72 @@ async def clear_staging(session) -> int:
 async def add_low_confidence_question(session, *, conversation_id: int | None,
                                       raw_question: str, source: str,
                                       reason: str | None,
-                                      retrieved_chunks: list | None = None) -> None:
+                                      retrieved_chunks: list | None = None) -> int:
     """低置信问题池;conversation_id 可空(评估 runner 无会话)。
 
     ch09 T4:retrieved_chunks=当轮召回片段快照(审核页详情数据源,T6 👎 回捞同款)。
+    ch09 T7:返回行 id——落池成功触发流水线要用(expire_on_commit=False,id 可用)。
     """
-    session.add(LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
-                                      source=source, reason=reason,
-                                      retrieved_chunks=retrieved_chunks))
+    row = LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
+                                source=source, reason=reason,
+                                retrieved_chunks=retrieved_chunks)
+    session.add(row)
     await session.commit()
+    return row.id
+
+
+# ---- ch09 T7: 飞轮队列读写(spec「飞轮流水线」节) ----
+
+async def get_lcq_row(session, row_id: int):
+    return await session.get(LowConfidenceQuestion, row_id)
+
+
+async def unprocessed_lcq_ids(session, *, limit: int | None = None) -> list[int]:
+    """补扫边界=matched_review_id IS NULL(处理完即出集,幂等所在)。"""
+    stmt = (select(LowConfidenceQuestion.id)
+            .where(LowConfidenceQuestion.matched_review_id.is_(None))
+            .order_by(LowConfidenceQuestion.id))
+    if limit:
+        stmt = stmt.limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def pending_review_candidates(session, *, cap: int):
+    """查重候选=待审全量 ≤cap,超出按 updated_at 最新截(spec)。
+
+    返回 ([(id, normalized_question)…], total)——total>cap 时调用方记 WARN。"""
+    total = (await session.execute(
+        select(func.count()).select_from(ReviewQueue)
+        .where(ReviewQueue.review_status == "待审"))).scalar_one()
+    rows = (await session.execute(
+        select(ReviewQueue.id, ReviewQueue.normalized_question)
+        .where(ReviewQueue.review_status == "待审")
+        .order_by(ReviewQueue.updated_at.desc()).limit(cap))).all()
+    return [(r[0], r[1]) for r in rows], total
+
+
+async def merge_lcq_into_queue(session, lcq_id: int, *, matched_id: int | None,
+                               normalized_question: str,
+                               suggested_answer: str | None) -> int:
+    """Review Focus 6 封口:累加/新建与 matched 写回全落在同一次 commit 之前——
+    中途崩=两边都不存在,补扫重跑不双并(finalize_qa 单事务同律)。"""
+    if matched_id is None:
+        rq = ReviewQueue(normalized_question=normalized_question,
+                         ai_suggested_answer=suggested_answer,
+                         occurrence_count=1, review_status="待审")
+        session.add(rq)
+        await session.flush()  # 取自增 id(expire_on_commit=False,后续可读)
+        queue_id = rq.id
+    else:
+        queue_id = matched_id
+        await session.execute(
+            update(ReviewQueue).where(ReviewQueue.id == matched_id)
+            .values(occurrence_count=ReviewQueue.occurrence_count + 1))
+    await session.execute(
+        update(LowConfidenceQuestion).where(LowConfidenceQuestion.id == lcq_id)
+        .values(matched_review_id=queue_id))
+    await session.commit()
+    return queue_id
 
 
 # ---- ch04: 原文回查 + 忠实度台账 ----

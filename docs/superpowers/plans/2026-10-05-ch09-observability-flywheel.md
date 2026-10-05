@@ -84,8 +84,8 @@
 ### Task 7:flywheel 流水线服务 + 触发 + 补扫 CLI
 **Files:** Create `app/services/flywheel.py`、`app/prompts/flywheel.py`、`app/schemas/flywheel.py`、`app/jobs/flywheel.py`、`tests/test_flywheel_ch09.py`;Modify `app/services/refusals.py`(落池成功后 `asyncio.create_task(process_lcq_row(row_id))`,异常吞→WARN)、`app/db/crud.py`(队列读写/累加/matched 写回)。
 **Interfaces:** Produces `flywheel.process_lcq_row(row_id:int) -> None`(标准化 NormalizedQA{normalized_question,suggested_answer} → 查重 DedupMatch(matched_id|None),候选=待审全量≤50(超按 updated_at 截,WARN)→ 命中累加/新建行 → LCQ.matched_review_id 同事务写回);`crud.append_review_queue(...)`;CLI `uv run python -m app.jobs.flywheel [--limit N|--dry-run]`。LLM 走 `get_model` temperature=0 structured output。
-- [ ] Step1 RED(mock LLM):命中累加不新建/未命中新建且 matched 指新行/candidate 截断/LLM 抛异常行留 NULL 不外泄/新建行「同事务写回 matched」封口(Focus 6)/补扫只吃 NULL 行幂等。
-- [ ] Step2 实现 GREEN + commit `feat(ch09-t7): 飞轮流水线——标准化查重入队+异步触发+CLI 补扫`。
+- [x] Step1 RED(mock LLM):命中累加不新建/未命中新建且 matched 指新行/candidate 截断/LLM 抛异常行留 NULL 不外泄/新建行「同事务写回 matched」封口(Focus 6)/补扫只吃 NULL 行幂等。
+- [x] Step2 实现 GREEN + commit `feat(ch09-t7): 飞轮流水线——标准化查重入队+异步触发+CLI 补扫`。(增钉:候选集外幻觉 id 按未命中防污染他行/_BG 强引用防 GC/👎 端点自触发(拍板 2A 三入口齐平,不走吞错漏斗)/活库 create·accumulate·idempotent 1 例)
 
 ### Task 8:流水线 Prompt 评估(真模型)
 **Files:** Create `evals/flywheel_samples.jsonl`(标准化≥5:口语/错字/指代;查重≥5:同义命中/近义陷阱/新问不误并)、`evals/run_ch09_flywheel_eval.py`(run_ch08 形制:ASCII 控制台+UTF-8 JSON 明细+exit code)。

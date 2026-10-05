@@ -24,6 +24,7 @@ from app.db.models import Conversation, Message
 class _FakeCrud:
     def __init__(self, anchor=None, raw_question=None):
         self.calls = []
+        self.spawns = []   # T7:👎 路落池成功即触发流水线的记录面
         self._anchor = anchor
         self._rq = raw_question
 
@@ -38,13 +39,17 @@ class _FakeCrud:
         self.calls.append({"cid": conversation_id, "q": raw_question,
                            "src": source, "reason": reason,
                            "snap": retrieved_chunks})
+        return 77  # T7 起 crud 返回行 id,端点拿去触发
 
 
 @pytest.fixture
 def fake_routes_crud(monkeypatch):
     def _mk(fake):
         from app.api import routes as routes_mod
+        from app.services import flywheel as flywheel_mod
         monkeypatch.setattr(routes_mod, "crud", fake)
+        monkeypatch.setattr(flywheel_mod, "spawn_process",
+                            lambda rid: fake.spawns.append(rid))
         from app.main import app
         app.dependency_overrides[routes_mod.dep_db_session] = lambda: object()
         return fake
@@ -58,7 +63,7 @@ async def test_up_vote_204_and_no_pool(client, fake_routes_crud):
     r = await client.post("/api/feedback",
                           json={"conversation_id": 7, "seq": 1, "vote": "up"})
     assert r.status_code == 204
-    assert fake.calls == []
+    assert fake.calls == [] and fake.spawns == []
 
 
 async def test_down_vote_pools_with_snapshot_and_reason(client, fake_routes_crud):
@@ -71,6 +76,7 @@ async def test_down_vote_pools_with_snapshot_and_reason(client, fake_routes_crud
     assert fake.calls == [{"cid": 7, "q": "免运费能抵附加费吗",
                            "src": "user_feedback", "reason": "seq=2",
                            "snap": anchor.retrieval_snapshot}]
+    assert fake.spawns == [77], "T7 拍板 2A:👎 落池成功即触发流水线(行 id 下传)"
 
 
 async def test_down_snapshot_null_pools_empty_handed(client, fake_routes_crud):
