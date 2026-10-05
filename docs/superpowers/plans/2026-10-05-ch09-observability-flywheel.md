@@ -107,8 +107,8 @@
 ### Task 11:eval_cycle 评估流水线
 **Files:** Create `app/jobs/eval_cycle.py`、`tests/test_eval_cycle_ch09.py`;复用 `teacher_csv`/strategy_eval 缓存/faith 裁判核(必要时提函数不改原脚本行为)。
 **Interfaces:** Produces `--trigger 手动|定时 --limit N --skip-faith --trend --report`;一行 `eval_runs{metrics:{recall_at_3,recall_at_10,mrr_at_10,faithfulness},dataset_size=实跑条数}`;`--trend` UTF-8 对比表(环比差值);`--report` Langfuse trace API 按 intent tag 聚合 token/cost 打表(不可达明确报错,不拖主流程)。
-- [ ] Step1 RED:行落库形状/trend 排序/report 聚合纯函数(mock API 响应)。
-- [ ] Step2 真跑两轮(integration,满额或 --limit 同口径)出 trend + commit `feat(ch09-t11): eval_cycle——两指标段落库+trend+意图成本 report`。
+- [x] Step1 RED:行落库形状/trend 排序/report 聚合纯函数(mock API 响应)。(9 单测 GREEN+活库 limit=2 轮)
+- [x] Step2 真跑两轮(--limit 10 同口径:run5 手动含 faith / run6 定时 skip)出 trend rows=2 + report groups=4 + commit `feat(ch09-t11): eval_cycle——两指标段落库+trend+意图成本 report`。
 
 ### Task 12:e2e 验收 + README + 完结
 **Files:** Create `tests/test_e2e_ch09.py`(验收 2/3/4/5/6 DB 面钉;验收 1 UI 手测步 README 记)、README ch09 节(部署含 Langfuse 栈+建桶、演示命令、验收话术 P 步骤)、dev-notes 完结段。
