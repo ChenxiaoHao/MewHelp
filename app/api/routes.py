@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import AsyncIterable
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from app.core.config import get_settings
@@ -13,6 +13,7 @@ from app.db.engine import get_session_factory
 from app.schemas.chat import (
     ChatRequest,
     ConversationEvent,
+    FeedbackRequest,
     HealthResponse,
     OrdersEvent,
     SuggestionsEvent,
@@ -25,6 +26,14 @@ from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
 from app.schemas.refund import RefundRequest
 from app.schemas.ticket import TicketConfirmRequest, TicketCreateRequest, TicketOut
 from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
+from app.schemas.review import (
+    ReviewDetail,
+    ReviewOut,
+    ReviewPatch,
+    ReviewQueueItem,
+    ReviewSource,
+)
+from app.services import flywheel, review
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
@@ -251,6 +260,84 @@ async def health(settings=Depends(dep_settings)):
         model=settings.model_name,
         history_token_budget=settings.history_token_budget,
     )
+
+
+@router.post("/api/feedback")
+async def cast_feedback(req: FeedbackRequest, session=Depends(dep_db_session)):
+    """ch09 T6 👎 后端化:反查第 seq(1 基)个**有答的轮**(锚=轮内终答行,
+    无终答回退流过的预言行)→带快照落池(source=user_feedback,重复👎允许);
+    👍=204 记账面留给评估链。同步面不吞错——落池失败必须可见
+    (裁决见 ledger;M2-I1/I2 + 终I1 契约钉)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    if req.vote == "up":
+        return Response(status_code=204)
+    anchor, raw_question = await crud.find_feedback_anchor(
+        session, req.conversation_id, req.seq)
+    if anchor is None:
+        raise HTTPException(status_code=404, detail="找不到该轮(会话不存在或 seq 越界)")
+    row_id = await crud.add_low_confidence_question(
+        session, conversation_id=req.conversation_id, raw_question=raw_question,
+        source="user_feedback", reason=f"seq={req.seq}",
+        retrieved_chunks=anchor.retrieval_snapshot)
+    flywheel.spawn_process(row_id)  # T7 拍板 2A:👎 路落池成功即触发(不走吞错漏斗)
+    return {"pooled": True}
+
+
+@router.get("/api/review_queue", response_model=list[ReviewQueueItem])
+async def list_review_queue(status: str | None = None,
+                            session=Depends(dep_db_session)):
+    """审核队列列表(T9):occurrence desc,可按状态过滤。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    return await crud.list_review_queue(session, status=status)
+
+
+@router.get("/api/review_queue/{rq_id}/detail", response_model=ReviewDetail)
+async def get_review_detail(rq_id: int, session=Depends(dep_db_session)):
+    """详情(T10 弹层数据面):行 + 归并 LCQ 原话/当轮召回快照。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.get_review_row(session, rq_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="队列行不存在")
+    detail = ReviewDetail.model_validate(row)
+    detail.sources = [ReviewSource.model_validate(s)
+                      for s in await crud.review_sources(session, rq_id)]
+    return detail
+
+
+@router.patch("/api/review_queue/{rq_id}", response_model=ReviewOut)
+async def patch_review_queue(rq_id: int, req: ReviewPatch,
+                             session=Depends(dep_db_session)):
+    """状态机(T9):仅 待审→通过|驳回;通过=同请求内核准回写双落成功才置态,
+    KB 写失败 502 状态留待审(Focus 5——半成功不许存在)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.lock_review_row(session, rq_id)  # M3-I2:行锁读+终拦靠条件更新
+    if row is None:
+        raise HTTPException(status_code=404, detail="队列行不存在")
+    if row.review_status != "待审":
+        raise HTTPException(status_code=422,
+                            detail=f"非法流转:{row.review_status}→{req.status}")
+    try:
+        if req.status == "通过":
+            answer = (req.approved_answer or "").strip()
+            if not answer:
+                raise HTTPException(status_code=422, detail="通过必须带核准答案")
+            try:
+                chunk_id = await review.publish_approved(session, row, answer)
+            except crud.ReviewConflict as exc:
+                raise HTTPException(status_code=422,
+                                    detail=f"非法流转:并发处置:{exc}") from exc
+            except Exception as exc:  # noqa: BLE001 —— 半成功闸:写不成就不置态,502 可见
+                logger.warning("review publish failed id=%s", rq_id, exc_info=True)
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+            return ReviewOut(id=row.id, review_status="通过", chunk_id=chunk_id)
+        row = await crud.reject_review(session, rq_id)
+        return ReviewOut(id=row.id, review_status="驳回")
+    except crud.ReviewConflict as exc:
+        raise HTTPException(status_code=422, detail=f"非法流转:{exc}") from exc
 
 
 @router.get("/api/chunks/{chunk_id}", response_model=ChunkOut)

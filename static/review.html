@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#FF9B50">
+<title>缺口审核 · MewHelp</title>
+<style>
+  /* ===== 与 index/faith 同款复古像素调色板(ch09 T10,Vibe 豁免面,零新依赖) ===== */
+  :root {
+    --bg: #F6D89C; --win: #FFF8E8; --paper: #FFFDF5;
+    --orange: #FF9B50; --ink: #292929; --aux: #E8DCC5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: var(--ink); background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(41,41,41,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(41,41,41,.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 100vh; padding: 18px;
+  }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .sheet {
+    max-width: 1100px; margin: 0 auto;
+    background: var(--win); border: 3px solid var(--ink); border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink); overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--orange); border-bottom: 3px solid var(--ink);
+  }
+  header h1 { font-size: 16px; letter-spacing: 1px; flex: 1; min-width: 160px; }
+  .btn {
+    font: inherit; font-weight: 700; color: var(--ink);
+    background: var(--orange); border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 var(--ink); padding: 5px 12px; cursor: pointer;
+    display: inline-block; text-decoration: none; font-size: 13px;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(1.05); }
+  .btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .btn:disabled { background: var(--aux); color: #8a806c; cursor: not-allowed; }
+  .btn-sm { padding: 3px 8px; font-size: 12px; border-width: 2px; background: var(--win); box-shadow: 2px 2px 0 var(--ink); }
+  .btn-pass { background: #6FBF73; }
+  .btn-rej { background: #B9B4A6; }
+
+  .toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 12px; background: var(--aux); border-bottom: 3px solid var(--ink);
+    font-size: 13px;
+  }
+  .toolbar label { font-weight: 700; }
+  .toolbar select {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--paper); border: 2px solid var(--ink); border-radius: 3px; padding: 3px 6px;
+  }
+  #count { margin-left: auto; font-size: 11px; color: #8a7c60; }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 900px; font-size: 13px; }
+  th, td { border-bottom: 2px solid rgba(41,41,41,.25); padding: 7px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--aux); font-size: 12px; letter-spacing: 1px; position: sticky; top: 0; }
+  td.q { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.ai { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr:hover td { background: #FFF3D6; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border: 2px solid var(--ink); border-radius: 3px; }
+  .st-todo { background: #FF9B50; color: #292929; }   /* 待审=橙 */
+  .st-pass { background: #6FBF73; color: #292929; }   /* 通过=绿 */
+  .st-rej  { background: #B9B4A6; color: #292929; }   /* 驳回=灰 */
+  .occ-pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border: 2px solid var(--ink); border-radius: 3px; background: var(--win); }
+  .occ-pill.hot { background: #E86A5E; color: #FFF8E8; }  /* 出现≥3 次=热门缺口 */
+
+  #load-error { display: none; padding: 10px 12px; background: var(--ink); color: var(--win); font-size: 13px; }
+  #load-error.show { display: block; }
+
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; background: rgba(41,41,41,.55);
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    width: 640px; max-width: 100%; max-height: calc(100dvh - 32px);
+    background: var(--win); border: 3px solid var(--ink); border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 12px; background: var(--orange); border-bottom: 3px solid var(--ink);
+    font-weight: 700; font-size: 14px; letter-spacing: 1px;
+  }
+  .modal-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .modal-body label { font-size: 12px; font-weight: 700; }
+  .box {
+    padding: 8px 10px; background: var(--paper); border: 2px solid var(--ink); border-radius: 3px;
+    font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+    max-height: 180px; overflow-y: auto;
+  }
+  .src-item { padding: 4px 0; border-bottom: 1px dashed rgba(41,41,41,.25); }
+  .src-item:last-child { border-bottom: 0; }
+  .src-meta { font-size: 11px; color: #6b5f49; }
+  .snap-line { font-size: 11px; color: #6b5f49; margin-left: 14px; }
+  #d-answer {
+    width: 100%; min-height: 90px; resize: vertical;
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--paper);
+    border: 3px solid var(--ink); border-radius: 4px; outline: none; padding: 8px;
+  }
+  #patch-msg { min-height: 18px; font-size: 12px; font-weight: 700; }
+  #patch-msg.err { color: #C0392B; }
+  #patch-msg.ok { color: #2E7D32; }
+
+  @media (max-width: 640px) {
+    body { padding: 8px; }
+    header h1 { font-size: 14px; }
+    .modal { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <a class="btn btn-sm" href="/static/index.html">← 返回聊天</a>
+    <h1>🛠 review_queue 缺口审核</h1>
+    <button id="reload-btn" class="btn btn-sm">⟳ 重读</button>
+  </header>
+
+  <div class="toolbar">
+    <label for="f-status">状态</label>
+    <select id="f-status">
+      <option value="待审" selected>待审</option>
+      <option value="">全部</option>
+      <option value="通过">通过</option>
+      <option value="驳回">驳回</option>
+    </select>
+    <span id="count" class="mono"></span>
+  </div>
+
+  <div id="load-error" class="mono"></div>
+
+  <div class="table-wrap">
+    <table aria-label="review_queue 审核队列">
+      <thead>
+        <tr>
+          <th>id</th><th>标准问</th><th>AI 建议答案</th><th>出现次数</th>
+          <th>状态</th><th>更新</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 详情/处置弹层:归并原话+当轮召回快照;待审行给 通过(带核准答案)/驳回 -->
+<div class="overlay" id="patch-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <div class="modal-header">
+      <span id="d-title">🛠 队列个案</span>
+      <button id="d-close" class="btn btn-sm" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>标准问</label><div class="box" id="d-nq"></div>
+      <label>AI 建议答案</label><div class="box" id="d-ai"></div>
+      <label>归并原话(低置信池)</label><div class="box" id="d-srcs"></div>
+      <label for="d-answer">核准答案(通过时必填,将写入知识库)</label>
+      <textarea id="d-answer" placeholder="审核人定稿的 FAQ 答案"></textarea>
+      <div id="patch-msg" class="mono" role="status"></div>
+      <div id="d-ops">
+        <button id="d-pass" class="btn btn-pass">✓ 通过并回写知识库</button>
+        <button id="d-reject" class="btn btn-rej">✗ 驳回</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== ch09 T10:审核后台页(Vibe 豁免面;数据契约=T9 三路由) ===== */
+const rowsEl = document.getElementById('rows');
+const countEl = document.getElementById('count');
+const errBar = document.getElementById('load-error');
+const fStatus = document.getElementById('f-status');
+
+let loaded = [];
+let editing = null;
+
+const ST_CLS = { '待审': 'st-todo', '通过': 'st-pass', '驳回': 'st-rej' };
+
+async function load() {
+  errBar.classList.remove('show');
+  errBar.textContent = '';
+  try {
+    const p = new URLSearchParams();
+    if (fStatus.value) p.set('status', fStatus.value);
+    const qs = p.toString();
+    const resp = await fetch('/api/review_queue' + (qs ? '?' + qs : ''));
+    if (!resp.ok) {
+      let detail = 'HTTP ' + resp.status;
+      try { const b = await resp.json(); if (b && b.detail) detail = b.detail; } catch (e) {}
+      throw new Error(detail);
+    }
+    loaded = await resp.json();
+    renderRows();
+  } catch (err) {
+    loaded = [];
+    rowsEl.textContent = '';
+    countEl.textContent = '';
+    errBar.textContent = '⚠ 队列读取失败:' + err.message;
+    errBar.classList.add('show');
+  }
+}
+
+function fmtTime(iso) { return (iso || '').replace('T', ' ').slice(0, 16); }
+function cell(cls, text, title) {
+  const td = document.createElement('td');
+  td.className = cls;
+  td.textContent = text;
+  if (title != null) td.title = title;
+  return td;
+}
+function badgeFor(st) {
+  const b = document.createElement('span');
+  b.className = 'badge ' + (ST_CLS[st] || 'st-todo');
+  b.textContent = st;
+  return b;
+}
+function makeRow(r) {
+  const tr = document.createElement('tr');
+  tr.dataset.id = String(r.id);
+  tr.appendChild(cell('', String(r.id)));
+  tr.appendChild(cell('q', r.normalized_question, r.normalized_question));
+  tr.appendChild(cell('ai', r.ai_suggested_answer || '—', r.ai_suggested_answer || ''));
+  const occTd = document.createElement('td');
+  const pill = document.createElement('span');
+  pill.className = 'occ-pill' + (r.occurrence_count >= 3 ? ' hot' : '');
+  pill.textContent = '×' + r.occurrence_count;
+  pill.title = '同一缺口被问次数(查重归并)';
+  occTd.appendChild(pill);
+  tr.appendChild(occTd);
+  const stTd = document.createElement('td');
+  stTd.appendChild(badgeFor(r.review_status));
+  tr.appendChild(stTd);
+  tr.appendChild(cell('', fmtTime(r.updated_at)));
+  const opTd = document.createElement('td');
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm';
+  btn.textContent = '详情';
+  btn.addEventListener('click', () => openDetail(r.id));
+  opTd.appendChild(btn);
+  tr.appendChild(opTd);
+  return tr;
+}
+function renderRows() {
+  rowsEl.textContent = '';
+  for (const r of loaded) rowsEl.appendChild(makeRow(r));
+  countEl.textContent = '已载 ' + loaded.length + ' 行(服务端排序:occurrence 降序)';
+}
+
+/* ===== 详情弹层 ===== */
+const patchOverlay = document.getElementById('patch-overlay');
+const dNq = document.getElementById('d-nq');
+const dAi = document.getElementById('d-ai');
+const dSrcs = document.getElementById('d-srcs');
+const dAnswer = document.getElementById('d-answer');
+const patchMsg = document.getElementById('patch-msg');
+const dOps = document.getElementById('d-ops');
+const dPass = document.getElementById('d-pass');
+const dReject = document.getElementById('d-reject');
+
+async function openDetail(id) {
+  patchMsg.textContent = '';
+  patchMsg.className = 'mono';
+  try {
+    const resp = await fetch('/api/review_queue/' + id + '/detail');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    editing = await resp.json();
+  } catch (err) {
+    patchMsg.textContent = '✗ 详情读取失败:' + err.message;
+    patchMsg.className = 'mono err';
+    return;
+  }
+  document.getElementById('d-title').textContent =
+    '🛠 队列个案 #' + editing.id + '(' + editing.review_status + ')';
+  dNq.textContent = editing.normalized_question;
+  dAi.textContent = editing.ai_suggested_answer || '(流水线未给出建议答案)';
+  dSrcs.textContent = '';
+  const srcs = Array.isArray(editing.sources) ? editing.sources : [];
+  if (!srcs.length) {
+    const div = document.createElement('div');
+    div.textContent = '(无归并原话——行由补扫/导入产生?)';
+    dSrcs.appendChild(div);
+  }
+  for (const s of srcs) {
+    const div = document.createElement('div');
+    div.className = 'src-item';
+    div.textContent = '“' + s.raw_question + '”';
+    const meta = document.createElement('div');
+    meta.className = 'src-meta mono';
+    meta.textContent = '[' + s.source + '] ' + (s.reason || '') + ' ' + fmtTime(s.created_at);
+    div.appendChild(meta);
+    for (const c of (s.retrieved_chunks || [])) {
+      const line = document.createElement('div');
+      line.className = 'snap-line mono';
+      line.textContent = '↳ chunk ' + c.chunk_id + ' · ' + Number(c.score).toFixed(3) +
+        ' · ' + (c.text || '').slice(0, 40);
+      line.title = c.text || '';
+      div.appendChild(line);
+    }
+    dSrcs.appendChild(div);
+  }
+  dAnswer.value = editing.approved_answer || editing.ai_suggested_answer || '';
+  const pending = editing.review_status === '待审';
+  dOps.style.display = pending ? '' : 'none';   // 已定态行只读(服务端 422 同律)
+  patchOverlay.classList.add('open');
+}
+function closeDetail() { patchOverlay.classList.remove('open'); editing = null; }
+
+async function castPatch(body) {
+  if (!editing) return;
+  dPass.disabled = true; dReject.disabled = true;
+  try {
+    const resp = await fetch('/api/review_queue/' + editing.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    let out = null;
+    try { out = await resp.json(); } catch (e) {}
+    if (!resp.ok) {
+      if (resp.status === 502) {
+        patchMsg.textContent = '✗ 知识库写入失败(状态未动,可重试或查 Milvus/embedding):' +
+          ((out && out.detail) || '');
+      } else if (resp.status === 422) {
+        patchMsg.textContent = '✗ 填写核准答案后再通过 / 该行已定态';
+      } else {
+        patchMsg.textContent = '✗ ' + ((out && out.detail) || ('HTTP ' + resp.status));
+      }
+      patchMsg.className = 'mono err';
+      return;
+    }
+    patchMsg.textContent = '✓ ' + out.review_status +
+      (out.chunk_id ? '(chunk #' + out.chunk_id + ' 已入库,再问即对)' : '');
+    patchMsg.className = 'mono ok';
+    await load();
+  } catch (err) {
+    patchMsg.textContent = '✗ 网络错误:' + err.message;
+    patchMsg.className = 'mono err';
+  } finally {
+    dPass.disabled = false; dReject.disabled = false;
+  }
+}
+
+dPass.addEventListener('click', () => castPatch({
+  status: '通过', approved_answer: dAnswer.value.trim(),
+}));
+dReject.addEventListener('click', () => castPatch({ status: '驳回' }));
+fStatus.addEventListener('change', load);
+document.getElementById('reload-btn').addEventListener('click', load);
+document.getElementById('d-close').addEventListener('click', closeDetail);
+patchOverlay.addEventListener('click', e => { if (e.target === patchOverlay) closeDetail(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && patchOverlay.classList.contains('open')) closeDetail(); });
+
+load();
+</script>
+</body>
+</html>

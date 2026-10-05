@@ -16,6 +16,7 @@ from app.db.models import (
     LowConfidenceQuestion,
     Message,
     QaExtractionStaging,
+    ReviewQueue,
     Ticket,
     ToolAuditLog,
 )
@@ -45,6 +46,7 @@ async def add_message(
     content: str | None = None,
     tool_calls: list | None = None,
     tool_call_id: str | None = None,
+    retrieval_snapshot: list | None = None,
 ) -> Message:
     msg = Message(
         conversation_id=conversation_id,
@@ -52,10 +54,50 @@ async def add_message(
         content=content,
         tool_calls=tool_calls,
         tool_call_id=tool_call_id,
+        retrieval_snapshot=retrieval_snapshot,
     )
     session.add(msg)
     await session.commit()
     return msg
+
+
+async def find_feedback_anchor(session, conversation_id: int, seq: int):
+    """ch09 T6/终I1 👎 反查:第 seq(1 基)个**有答的轮**——锚=轮内末条可见
+    assistant 行,问=开该轮的 user 行文本。
+
+    计数按轮不按行:👎 只挂在 live 完成的气泡上,每轮至多 push 一条
+    (index.html:601 `if (answer)`),故与 assistantSeqFromHistory() 的行→段
+    折叠同律。轮占号 ⇔ 轮内有 ≥1 条 content 真值的 assistant 行(流过的文字
+    即用户所见);锚=轮内最后一条**无 tool_calls** 的可见行(终答),轮内只有
+    前言/作废行时回退锚=最后一条可见行(确认预览轮 live 确有气泡)。
+    由此:前言+终答轮锚终答不顶后续号(a)、ch08 作废行落在 drain 轮由终答
+    覆盖(b)、NULL/空串行不算(M2-I1 面被真值判断覆盖)(c)。病态边角:纯
+    作废轮(预览轮无前言且从未终答)不占号,与 live 无 push 一致。
+    会话缺/越界(seq<1 或 > 有答轮数)/锚轮无 user 文本 → (None, None)=404 面。
+    """
+    rows = (await session.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.id))).scalars().all()
+    answered = []            # (user_text, anchor_row) per counted turn
+    cur_q = None
+    cur_final = None         # 轮内最后一条终答行(无 tool_calls)
+    cur_any = None           # 轮内最后一条 content 真值行(回退锚)
+    for r in rows:
+        if r.role == "user":
+            if cur_any is not None:
+                answered.append((cur_q, cur_final or cur_any))
+            cur_q, cur_final, cur_any = r.content, None, None
+        elif r.role == "assistant" and r.content and cur_q is not None:
+            cur_any = r
+            if not r.tool_calls:
+                cur_final = r
+    if cur_any is not None:
+        answered.append((cur_q, cur_final or cur_any))
+    if seq < 1 or seq > len(answered):
+        return None, None
+    q, anchor = answered[seq - 1]
+    return anchor, q
 
 
 def build_faq_query(keyword: str, limit: int = 3) -> Select:
@@ -296,10 +338,150 @@ async def clear_staging(session) -> int:
 
 async def add_low_confidence_question(session, *, conversation_id: int | None,
                                       raw_question: str, source: str,
-                                      reason: str | None) -> None:
-    """低置信问题池;conversation_id 可空(评估 runner 无会话)。"""
-    session.add(LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
-                                      source=source, reason=reason))
+                                      reason: str | None,
+                                      retrieved_chunks: list | None = None) -> int:
+    """低置信问题池;conversation_id 可空(评估 runner 无会话)。
+
+    ch09 T4:retrieved_chunks=当轮召回片段快照(审核页详情数据源,T6 👎 回捞同款)。
+    ch09 T7:返回行 id——落池成功触发流水线要用(expire_on_commit=False,id 可用)。
+    """
+    row = LowConfidenceQuestion(conversation_id=conversation_id, raw_question=raw_question,
+                                source=source, reason=reason,
+                                retrieved_chunks=retrieved_chunks)
+    session.add(row)
+    await session.commit()
+    return row.id
+
+
+# ---- ch09 T7: 飞轮队列读写(spec「飞轮流水线」节) ----
+
+async def get_lcq_row(session, row_id: int):
+    return await session.get(LowConfidenceQuestion, row_id)
+
+
+async def unprocessed_lcq_ids(session, *, limit: int | None = None) -> list[int]:
+    """补扫边界=matched_review_id IS NULL(处理完即出集,幂等所在)。"""
+    stmt = (select(LowConfidenceQuestion.id)
+            .where(LowConfidenceQuestion.matched_review_id.is_(None))
+            .order_by(LowConfidenceQuestion.id))
+    if limit:
+        stmt = stmt.limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def pending_review_candidates(session, *, cap: int):
+    """查重候选=待审全量 ≤cap,超出按 updated_at 最新截(spec)。
+
+    返回 ([(id, normalized_question)…], total)——total>cap 时调用方记 WARN。"""
+    total = (await session.execute(
+        select(func.count()).select_from(ReviewQueue)
+        .where(ReviewQueue.review_status == "待审"))).scalar_one()
+    rows = (await session.execute(
+        select(ReviewQueue.id, ReviewQueue.normalized_question)
+        .where(ReviewQueue.review_status == "待审")
+        .order_by(ReviewQueue.updated_at.desc()).limit(cap))).all()
+    return [(r[0], r[1]) for r in rows], total
+
+
+async def merge_lcq_into_queue(session, lcq_id: int, *, matched_id: int | None,
+                               normalized_question: str,
+                               suggested_answer: str | None) -> int:
+    """Review Focus 6 封口:累加/新建与 matched 写回全落在同一次 commit 之前——
+    中途崩=两边都不存在,补扫重跑不双并(finalize_qa 单事务同律)。"""
+    if matched_id is None:
+        rq = ReviewQueue(normalized_question=normalized_question,
+                         ai_suggested_answer=suggested_answer,
+                         occurrence_count=1, review_status="待审")
+        session.add(rq)
+        await session.flush()  # 取自增 id(expire_on_commit=False,后续可读)
+        queue_id = rq.id
+    else:
+        queue_id = matched_id
+        await session.execute(
+            update(ReviewQueue).where(ReviewQueue.id == matched_id)
+            .values(occurrence_count=ReviewQueue.occurrence_count + 1))
+    res = await session.execute(
+        update(LowConfidenceQuestion)
+        .where(LowConfidenceQuestion.id == lcq_id,
+               LowConfidenceQuestion.matched_review_id.is_(None))
+        .values(matched_review_id=queue_id))
+    if res.rowcount == 0:
+        # M3-I1:输家(callers entry 检查后赢家才回填)整笔回滚——
+        # 同事务的新行/累加一并撤销,不双并不留孤儿行。
+        await session.rollback()
+        return None
+    await session.commit()
+    return queue_id
+
+
+# ---------- ch09 T9: 审核队列读写 + 核准回写 ----------
+
+
+class ReviewConflict(Exception):
+    """M3-I2:目标行已非「待审」——并发处置抢先定态,迟到写手整笔作废。"""
+
+
+async def list_review_queue(session, *, status: str | None = None):
+    stmt = select(ReviewQueue)
+    if status:
+        stmt = stmt.where(ReviewQueue.review_status == status)
+    stmt = stmt.order_by(ReviewQueue.occurrence_count.desc(), ReviewQueue.id.desc())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_review_row(session, rq_id: int):
+    return await session.get(ReviewQueue, rq_id)
+
+
+async def lock_review_row(session, rq_id: int):
+    """PATCH 专用锁读:行级 FOR UPDATE 压缩并发窗口(终拦仍靠条件更新)。"""
+    return (await session.execute(
+        select(ReviewQueue).where(ReviewQueue.id == rq_id)
+        .with_for_update())).scalars().first()
+
+
+async def review_sources(session, rq_id: int):
+    """归并到该队列行的 LCQ 原话+快照列表(T10 详情弹层数据面),id 升序。"""
+    stmt = (select(LowConfidenceQuestion)
+            .where(LowConfidenceQuestion.matched_review_id == rq_id)
+            .order_by(LowConfidenceQuestion.id))
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def find_chunk_by_qa(session, category: str, questions: str, answer: str):
+    """核准回写指纹位:三元精确匹配=chunk_fingerprint 同口径,免全表扫。
+    注:MySQL ci/PAD 排序下大小写/尾空格变体视为等价——比 sha1 字节精确略松,
+    中文场景可忽略;将来若换哈希指纹勿假定两者等价(M-5)。"""
+    stmt = select(KnowledgeChunk).where(
+        KnowledgeChunk.category == category,
+        KnowledgeChunk.questions == questions,
+        KnowledgeChunk.answer == answer)
+    return (await session.execute(stmt)).scalars().first()
+
+
+async def reject_review(session, rq_id: int):
+    res = await session.execute(
+        update(ReviewQueue)
+        .where(ReviewQueue.id == rq_id, ReviewQueue.review_status == "待审")
+        .values(review_status="驳回"))
+    if res.rowcount == 0:
+        raise ReviewConflict(f"id={rq_id} 已非待审(并发处置)")
+    await session.commit()
+    return await session.get(ReviewQueue, rq_id)
+
+
+async def approve_review(session, rq_id: int, approved_answer: str,
+                         chunk_id: int) -> None:
+    """Focus 5 收口:置「通过」条件更新先行(M3-I2),撞并发=ReviewConflict
+    整笔不落;过了才 done 回填。commit 实为两次(mark_chunks_vectorized 内部
+    自提,M-1 订正):失败方向安全——chunk done+行待审=pending 命中自愈。"""
+    res = await session.execute(
+        update(ReviewQueue)
+        .where(ReviewQueue.id == rq_id, ReviewQueue.review_status == "待审")
+        .values(review_status="通过", approved_answer=approved_answer))
+    if res.rowcount == 0:
+        raise ReviewConflict(f"id={rq_id} 已非待审(并发处置)")
+    await mark_chunks_vectorized(session, [chunk_id])
     await session.commit()
 
 

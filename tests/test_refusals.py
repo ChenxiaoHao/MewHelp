@@ -26,7 +26,12 @@ async def test_pool_forwards_to_crud(monkeypatch):
     monkeypatch.setattr(refusals, "get_session_factory", lambda: (lambda: FakeSession()))
     await refusals.pool_low_confidence(5, "退货运费谁出", "retrieval_low_conf", "note-x")
     assert seen == {"conversation_id": 5, "raw_question": "退货运费谁出",
-                    "source": "retrieval_low_conf", "reason": "note-x"}
+                    "source": "retrieval_low_conf", "reason": "note-x",
+                    "retrieved_chunks": None}  # ch09 T4:快照参扩形,旧调用=None
+    seen.clear()
+    snap = [{"chunk_id": 1, "score": 0.05, "text": "t"}]
+    await refusals.pool_low_confidence(5, "q2", "ch05_gate", "r2", retrieved_chunks=snap)
+    assert seen["retrieved_chunks"] == snap
 
 
 async def test_pool_swallows_engine_uninitialized():

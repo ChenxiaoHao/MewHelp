@@ -94,7 +94,8 @@ class FakeCrud:
         return FakeConv()
 
     async def add_message(self, session, conversation_id, role, content=None,
-                          tool_calls=None, tool_call_id=None):
+                          tool_calls=None, tool_call_id=None,
+                          retrieval_snapshot=None):  # ch09 T5 加参改钉
         self.messages.append((conversation_id, role, content, tool_calls, tool_call_id))
 
 
@@ -250,21 +251,29 @@ async def test_confirm_race_new_message_single_terminal(env, post_model, recorde
     await _reach_preview(client, post_model)
     app.dependency_overrides[routes_mod.dep_chat_model] = lambda: ScriptModel()
 
-    # 触窗放大:confirm 侧重放建单挂 0.3s——drain 必然在单未落时读到 pending
-    # (慢包裹在 fake_ticket 录制替身外层,调用照常入 calls 清单)
+    # 触窗放大:confirm 侧重放建单挂 0.3s(慢包裹在 fake_ticket 录制替身外层,
+    # 调用照常入 calls 清单)。ch09 收编:盲 gather 在负载下会翻转为
+    # 「drain 完整抢先→confirm 合法 409」的假失败——改事件定序:confirm 先起,
+    # 重放真正开跑(slow_create 进门=锁已被 resume 接力持有)后才发新消息,
+    # 钉死本用例要审的交错(drain 撞进重放窗口);无锁接力时双终局照样现形。
+    entered = asyncio.Event()
     rec_create = defs.crud_create_ticket
 
     async def slow_create(session, **kw):
+        entered.set()
         await asyncio.sleep(0.3)
         return await rec_create(session, **kw)
     monkeypatch.setattr(defs, "crud_create_ticket", slow_create)
 
-    r_confirm, r_chat = await asyncio.gather(
-        client.post("/api/tickets/confirm",
-                    json={"conversation_id": 7, "decision": "confirm"}),
-        client.post("/api/chat/stream",
-                    json={"messages": [{"role": "user", "content": "顺便问下退货地址"}],
-                          "conversation_id": 7}))
+    t_confirm = asyncio.create_task(client.post(
+        "/api/tickets/confirm",
+        json={"conversation_id": 7, "decision": "confirm"}))
+    await asyncio.wait_for(entered.wait(), 5)  # 超时即失败,不再赌调度
+    r_chat = await client.post(
+        "/api/chat/stream",
+        json={"messages": [{"role": "user", "content": "顺便问下退货地址"}],
+              "conversation_id": 7})
+    r_confirm = await t_confirm
     assert r_confirm.status_code == 200 and r_chat.status_code == 200
     assert "event:error" not in r_chat.text, "RF1:新消息轮不得带 error 帧"
     assert len(fake_ticket) <= 1, "并发竞态不得双建单(需求4 唯一 write 闸)"

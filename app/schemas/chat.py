@@ -27,6 +27,15 @@ class ChatRequest(BaseModel):
         return self
 
 
+class FeedbackRequest(BaseModel):
+    """ch09 T6/终I1:👍/👎 投票;seq=会话内第 seq 个**有答的轮**(1 基;轮占号
+    ⇔ 轮内有 ≥1 条 content 真值 assistant 行,锚=轮内终答行、无终答回退预言行
+    ——与前端 assistantSeqFromHistory() 行→段折叠计数同律)。"""
+    conversation_id: int = Field(ge=1)
+    seq: int = Field(ge=1)
+    vote: Literal["up", "down"]
+
+
 class HealthResponse(BaseModel):
     status: str
     model: str

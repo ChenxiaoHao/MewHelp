@@ -17,7 +17,8 @@ class FakeCrud:
         return FakeConv()
 
     async def add_message(
-        self, session, conversation_id, role, content=None, tool_calls=None, tool_call_id=None
+        self, session, conversation_id, role, content=None, tool_calls=None,
+        tool_call_id=None, retrieval_snapshot=None  # ch09 T5 加参改钉
     ):
         self.messages.append((conversation_id, role, content, tool_calls, tool_call_id))
 

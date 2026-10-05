@@ -11,6 +11,7 @@ dependencies = [
     "langchain>=1.4.2",
     "langchain-mcp-adapters>=0.3.2",
     "langchain-openai>=1.6.2",
+    "langfuse>=4.16.0",
     "mcp>=1.30.0",
     "pydantic-settings>=2.15.0",
     "pymilvus>=3.0.2",

@@ -83,8 +83,116 @@ services:
       - "etcd"
       - "minio"
 
+  # --- ch09: Langfuse v3 自部署(拍板 7A;profile 门控:
+  #     docker compose --profile langfuse up -d 起全套;默认 up 不启动) ---
+  langfuse-postgres:
+    image: postgres:16
+    container_name: langfuse-postgres
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse_dev
+      POSTGRES_DB: langfuse
+    volumes:
+      - lf-postgres-data:/var/lib/postgresql/data
+    healthcheck:  # M1 评审批修 I3:冷 up 迁移连不上库=容器躺平,traces 静默失踪
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  langfuse-redis:
+    image: redis:7
+    container_name: langfuse-redis
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    # langfuse ioredis 客户端总会发 AUTH(无密码则报 ERR AUTH),显式设密码对齐两侧
+    command: ["redis-server", "--requirepass", "langfuse_dev"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a langfuse_dev ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: langfuse-clickhouse
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    environment:
+      # 官方 compose 用两个 config.xml bind-mount(Windows 0777 前科,拍板走 env 建用户)
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse_dev
+      CLICKHOUSE_DB: langfuse
+    volumes:
+      - lf-clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user langfuse --password langfuse_dev -q 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: langfuse-worker
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres: {condition: service_healthy}
+      langfuse-redis: {condition: service_healthy}
+      langfuse-clickhouse: {condition: service_healthy}
+    environment: &lf-env
+      DATABASE_URL: postgresql://langfuse:langfuse_dev@langfuse-postgres:5432/langfuse
+      # 密钥真值一律进 gitignored .env(T1 终审规矩:compose 只留占位默认)
+      SALT: ${LF_SALT:-changeme-salt}
+      NEXTAUTH_SECRET: ${LF_NEXTAUTH_SECRET:-changeme-auth}
+      ENCRYPTION_KEY: ${LF_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse_dev
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: langfuse_dev  # langfuse v3 变量名是 REDIS_AUTH(shared/env.ts),非 REDIS_PASSWORD
+      # blob 复用既有 minio(桶 langfuse,起栈后 mc mb 一次,命令见 dev-notes/README)
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minioadmin
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: minioadmin
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      TELEMETRY_ENABLED: "false"
+
+  langfuse-web:
+    image: langfuse/langfuse:3
+    container_name: langfuse-web
+    profiles: ["langfuse"]
+    restart: unless-stopped
+    depends_on:
+      langfuse-worker:
+        condition: service_started  # worker 无 HTTP 健康面可担保,启动序足够;web 自会重试
+    ports:
+      - "3001:3000"  # 宿主 3000 被 minio console/其他占用,观测 UI 走 3001
+    environment:
+      <<: *lf-env
+      NEXTAUTH_URL: http://localhost:3001
+      # LANGFUSE_INIT_*: 首启自动建 org/project + API 键(免 UI 注册手点)
+      LANGFUSE_INIT_ORG_ID: mewhelp
+      LANGFUSE_INIT_PROJECT_ID: mewhelp-dev
+      LANGFUSE_INIT_PROJECT_NAME: MewHelp
+      # 与 app 侧共用 LANGFUSE_PUBLIC_KEY/SECRET_KEY 两个 .env 键(DRY)
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-change-me}  # 占位默认=假值,真值走 .env(M2)
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-change-me}
+      LANGFUSE_INIT_USER_EMAIL: ${LF_INIT_USER_EMAIL:-dev@mewhelp.local}
+      LANGFUSE_INIT_USER_PASSWORD: ${LF_INIT_USER_PASSWORD:-mewhelp_dev}
+      LANGFUSE_INIT_USER_NAME: MewHelpDev
+
 volumes:
   mewhelp_mysql_data:
   etcd-data:
   minio-data:
   milvus-data:
+  lf-postgres-data:
+  lf-clickhouse-data:

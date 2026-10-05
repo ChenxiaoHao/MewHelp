@@ -46,10 +46,13 @@ class DBChatPersister:
         except Exception:  # noqa: BLE001
             logger.warning("persist tool result failed", exc_info=True)
 
-    async def on_final_answer(self, conversation_id: int, content: str) -> None:
+    async def on_final_answer(self, conversation_id: int, content: str,
+                              retrieval_snapshot: list | None = None) -> None:
+        """ch09 T5:retrieval_snapshot 随行(👎 回捞数据源;闲聊/数据轮不传=NULL)。"""
         try:
             await crud.add_message(
-                self._session, self._conversation_id, "assistant", content=content
+                self._session, self._conversation_id, "assistant", content=content,
+                retrieval_snapshot=retrieval_snapshot,
             )
         except Exception:  # noqa: BLE001
             logger.warning("persist final answer failed", exc_info=True)

@@ -101,7 +101,8 @@ class FakeCrud:
         return FakeConv()
 
     async def add_message(self, session, conversation_id, role, content=None,
-                          tool_calls=None, tool_call_id=None):
+                          tool_calls=None, tool_call_id=None,
+                          retrieval_snapshot=None):  # ch09 T5 加参改钉
         self.messages.append((conversation_id, role, content, tool_calls, tool_call_id))
 
 
@@ -167,7 +168,7 @@ async def test_gate_refusal_turn_streams_refusal_and_pools(client, db_env, monke
         return RetrieveResult(chunks=[ScoredRow(chunk_id=1, score=0.05, row=row)])
     monkeypatch.setattr(retriever_mod, "retrieve", fake_retrieve)
     pools = []
-    async def rec_pool(cid, q, src, reason):
+    async def rec_pool(cid, q, src, reason, retrieved_chunks=None):
         pools.append({"cid": cid, "q": q, "src": src})
     monkeypatch.setattr(refusals, "pool_low_confidence", rec_pool)
 

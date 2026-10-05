@@ -1,0 +1,123 @@
+{
+  "threshold": 8,
+  "passed": 9,
+  "total": 10,
+  "overall": "PASS",
+  "samples": [
+    {
+      "id": 1,
+      "kind": "normalize",
+      "raw": "我家猫不爱吃冻干,买了能退吗",
+      "verdict": "PASS",
+      "notes": "口语:关键实体(冻干)+诉求(退)必须保留;品类条件不得丢",
+      "signals": {
+        "normalized_question": "已购猫用冻干食品是否可以退货",
+        "suggested_answer": "未开封且不影响二次销售的冻干食品支持 7 天无理由退货；若已开封或存在宠物舔食痕迹，因食品安全及卫生原因不予退货。(待人工补充品类细则)",
+        "missing_groups": []
+      }
+    },
+    {
+      "id": 2,
+      "kind": "normalize",
+      "raw": "申情退款一直没人处理咋办",
+      "verdict": "PASS",
+      "notes": "错字:申情→申请;诉求「无人处理」是缺口本体,标准化不得洗成泛泛退款咨询",
+      "signals": {
+        "normalized_question": "申请退款后长时间无人处理怎么办",
+        "suggested_answer": "退款申请提交后，商家应在48小时内响应；超时未处理可联系平台客服介入。(待人工补充当前时效政策与申诉路径)",
+        "missing_groups": []
+      }
+    },
+    {
+      "id": 3,
+      "kind": "normalize",
+      "raw": "我上周买的那个,它过期了咋整",
+      "verdict": "PASS",
+      "notes": "指代补不了→按规则保留原词,不得瞎编品类;「过期」必须留在标准问里",
+      "signals": {
+        "normalized_question": "已购商品过期如何处理",
+        "suggested_answer": "(待人工补充)",
+        "missing_groups": []
+      }
+    },
+    {
+      "id": 4,
+      "kind": "normalize",
+      "raw": "新疆发货会不会被加收运费啊",
+      "verdict": "PASS",
+      "notes": "口语+地域约束:新疆这一实体不得丢(知识缺口=偏远地区附加费政策)",
+      "signals": {
+        "normalized_question": "从新疆发货的商品是否会额外收取运费",
+        "suggested_answer": "(待人工补充)",
+        "missing_groups": []
+      }
+    },
+    {
+      "id": 5,
+      "kind": "normalize",
+      "raw": "订单还能不能改地址勒,刚下完",
+      "verdict": "PASS",
+      "notes": "口语助词归一;「刚下完」隐含未发货时点,改地址诉求保留",
+      "signals": {
+        "normalized_question": "刚下单的订单是否还能修改收货地址",
+        "suggested_answer": "订单未发货前可联系客服或在订单详情页尝试修改地址；已发货则无法修改。(待人工补充具体时限和操作路径)",
+        "missing_groups": []
+      }
+    },
+    {
+      "id": 6,
+      "kind": "dedup",
+      "raw": "退款咋还没到账",
+      "verdict": "PASS",
+      "notes": "同义命中:缺口=退款到账时效,措辞不同应归并",
+      "signals": {
+        "matched_id": 31,
+        "expect": 31
+      }
+    },
+    {
+      "id": 7,
+      "kind": "dedup",
+      "raw": "换的货邮费谁给",
+      "verdict": "FAIL",
+      "notes": "近义陷阱:换货≠退货(品类条件不同),不得并到退货运费",
+      "signals": {
+        "matched_id": 32,
+        "expect": null
+      }
+    },
+    {
+      "id": 8,
+      "kind": "dedup",
+      "raw": "生日当天买东西打折吗",
+      "verdict": "PASS",
+      "notes": "近义陷阱:人群条件不同(生日会员≠新会员),权益类型也不同(折扣≠积分)",
+      "signals": {
+        "matched_id": null,
+        "expect": null
+      }
+    },
+    {
+      "id": 9,
+      "kind": "dedup",
+      "raw": "罐头开了吃不完能放几天",
+      "verdict": "PASS",
+      "notes": "近义陷阱:开封/未开封=条件不同缺口,答案不可互相复用",
+      "signals": {
+        "matched_id": null,
+        "expect": null
+      }
+    },
+    {
+      "id": 10,
+      "kind": "dedup",
+      "raw": "下单三天了还没动静,能催催不",
+      "verdict": "PASS",
+      "notes": "空候选必 null(规则4),即便问题本身很典型也不许编 id",
+      "signals": {
+        "matched_id": null,
+        "expect": null
+      }
+    }
+  ]
+}

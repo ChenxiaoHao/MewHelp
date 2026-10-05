@@ -399,6 +399,7 @@
       <div class="status mono"><span class="dot">●</span> ONLINE · 智能客服</div>
     </div>
     <div class="header-btns">
+      <a id="review-link" class="btn btn-sm" href="/static/review.html" title="review_queue 缺口审核(ch09)">🛠 缺口审核</a>
       <a id="faith-link" class="btn btn-sm" href="/static/faith.html" title="faith_cases 忠实度台账(ch04)">📜 忠实度台账</a>
       <button id="extract-open-btn" class="btn btn-sm" title="售后信息结构化提取">🔧 售后提取</button>
       <button id="new-chat-btn" class="btn btn-sm" title="清空聊天记录，重新开始">＋ 新对话</button>
@@ -731,7 +732,14 @@ convListEl.addEventListener('click', e => {   // 事件委托(角标同款,不�
 
 // ===== ch04(T13) ①引用角标:[n] → <sup class="cite" data-cid> =====
 function assistantSeqFromHistory() {
-  return history.filter(m => m.role === 'assistant').length;  // seq=本会话第几条 assistant 消息
+  // ch09 终I1:seq=「有答段数」——连续 assistant 行折成一段(回载把前言/作废行
+  // 逐行展示,但 live 每轮只 push 一个气泡;后端 find_feedback_anchor 同律按轮分组)
+  let n = 0, inRun = false;
+  for (const m of history) {
+    if (m.role === 'assistant') { if (!inRun) { n++; inRun = true; } }
+    else inRun = false;
+  }
+  return n;
 }
 function citationSegments(text, citations) {
   const byN = {};
@@ -811,7 +819,17 @@ function addFeedbackRow(col, seq) {
     const entry = { v: btn.dataset.v, ts: new Date().toISOString() };
     try { localStorage.setItem(key, JSON.stringify(entry)); }
     catch (err) { note.textContent = '本地存储失败'; return; }
-    lock(entry);                               // 不发任何后端请求(纯采集,留数据飞轮入口)
+    lock(entry);
+    // ch09 T10:👎 同时上报 /api/feedback(seq=assistantSeqFromHistory() 的 1 基号,
+    // 与后端 find_feedback_anchor 同律零换算,M2-I2 裁决红利);👍 仍纯本地不发。
+    if (btn.dataset.v === 'down' && conversationId != null) {
+      fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: conversationId, seq, vote: 'down' }),
+      }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); })
+        .catch(() => { note.textContent = '已锁定(上报失败)'; });
+    }
   });
   col.appendChild(rowEl);
   return rowEl;

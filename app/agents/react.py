@@ -29,6 +29,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.context.budget import estimate_msg
+from app.rag import confidence
 from app.tools.executor import ToolContext, audit_denied, execute_tool, make_summary
 from app.tools.registry import BUILTIN_SPECS
 from app.workflows.state import TRANSFER_HUMAN
@@ -54,12 +55,19 @@ async def react_agent_stream(
     一一对应（落库语义不动，P5），失败只 WARN 不中断流（spec §9）。
     """
     cid = state.get("conversation_id")
+    # ch09 T5:知识轮快照随终答行落库(👎 回捞源);无证据=None(闲聊/数据面)。
+    # M2-C-1:agent_node 恒带显式键(其保险丝会清 evidence,键是唯一可靠下传通道);
+    # 键缺位=旧直调面(ch05/06 测形)契约不变——从 evidence 现算。
+    if "retrieval_snapshot" in state:
+        _snap = state["retrieval_snapshot"] or None
+    else:
+        _snap = confidence.evidence_snapshot(state.get("evidence"), settings) or None
 
-    async def _p(hook: str, *args: Any) -> None:
+    async def _p(hook: str, *args: Any, **kw: Any) -> None:
         if persister is None:
             return
         try:
-            await getattr(persister, hook)(*args)
+            await getattr(persister, hook)(*args, **kw)
         except Exception:  # noqa: BLE001
             logger.warning("persister.%s failed; stream continues", hook, exc_info=True)
 
@@ -96,11 +104,13 @@ async def react_agent_stream(
             last_text = _text_of(full)
         tool_calls = list(getattr(full, "tool_calls", None) or [])
         if not tool_calls:
-            await _p("on_final_answer", cid, _text_of(full))   # ch04 同位挂点
+            await _p("on_final_answer", cid, _text_of(full),   # ch04 同位挂点
+                     retrieval_snapshot=_snap)
             yield ("done", {"steps": steps, "suggestions": []})
             return
         if tokens_used >= settings.react_token_budget:          # 预算熔断:收尾即已发文本
-            await _p("on_final_answer", cid, "".join(all_text))
+            await _p("on_final_answer", cid, "".join(all_text),
+                     retrieval_snapshot=_snap)
             yield ("done", {"steps": steps, "suggestions": [TRANSFER_HUMAN]})
             return
         await _p("on_tool_calls", cid, _text_of(full),
@@ -141,7 +151,7 @@ async def react_agent_stream(
         logger.info("ch05 react step %d/%d tokens≈%d",
                     steps, settings.max_agent_steps, tokens_used)
     wrap = EXHAUST_PREFIX + last_text
-    await _p("on_final_answer", cid, wrap)
+    await _p("on_final_answer", cid, wrap, retrieval_snapshot=_snap)
     yield ("token", wrap)
     yield ("done", {"steps": steps, "suggestions": [TRANSFER_HUMAN]})
 

@@ -186,7 +186,8 @@ class RecPersister:
     def __init__(self):
         self.rows = []
 
-    async def on_final_answer(self, conversation_id, content):
+    async def on_final_answer(self, conversation_id, content,
+                              retrieval_snapshot=None):  # ch09 T5 加参改钉
         self.rows.append((conversation_id, content))
 
 

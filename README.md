@@ -287,3 +287,45 @@ uv run pytest -m integration -q -p no:cacheprovider          # 含 ch08 双 Serv
 uv run python evals/run_ch08_eval.py                          # 三桶话术评估(先起两 Server;不进 CI)
 ```
 - **已知边界(spec 挂账原文)**:InMemorySaver 进程内——多 worker/重启丢待确认 interrupt,confirm 得 409(=用户可见「确认已过期」语义);审计表只增不清;每轮两次 MCP 会话的本地开销(demo 规模可接受,缓存/TTL 挂账);外部 server 写语义不支持(P5:MCP 工具一律 readonly);naive_agent_loop / tool_chat_service 两个 legacy 面不吃 MCP 新工具(单漏斗闸与审计照吃)。
+
+## ch09 可观测性与数据飞轮:Langfuse 追踪 + 缺口流水线 + 审核回写 + 评估趋势
+
+- **Langfuse 自托管观测链**(profile `langfuse`:postgres/redis/clickhouse/minio + web/worker):LangGraph 编译挂 `CallbackHandler`,每轮一条 trace——意图/置信度/工具名/拒答 reason 进 metadata,retriever 召回段进 span;意图以 `intent:<名>` tag 落 trace 供报表聚合。密钥三键(`LANGFUSE_HOST/PUBLIC_KEY/SECRET_KEY`)只进 gitignored `.env`,compose 里全占位;未配置=回调静默不挂,主流程零拖累。
+- **置信度双闸(定位如实记,终审口径订正)**:排序闸 `rag_score_threshold`(ch04 遗留,进 LLM 前的候选过滤)与池化闸是两个不同的闸,升级只动后者:池化线=ch09 T4 的 `evidence_conf` 综合分(形 `sum`,权重 0.9/0.05/0.05=top1/有效条数/间隙,θ=`evidence_conf_threshold` 0.168,300 题校准择优),在闸节点判「答不了」即低置信落池;`retrieval_low_conf_threshold`=0.161 为 ch04 闸1(rerank 后 top 口径)兼 rule 形缺键回落(ch05 老行为零漂移),本章未改其语义。
+- **三入口落池 + 当轮召回快照**:`low_confidence_questions` 加 `retrieved_chunks` 快照列(source 扩 `user_feedback`)。漏斗全收口:`query_faq` 低置信拒答、`refund_gate`/gate 闸拒答、`self_check` 兜圈拒答、前端 👎(`POST /api/feedback`)——池写成功即 `spawn_process` 自触发流水线(拍板 2A 三入口平权,fire-and-forget 强引用防 GC)。重复 👎 允许重复落池(归并兜)。
+- **数据飞轮流水线** `app/services/flywheel.py`:`process_lcq_row` 标准化→语义查重(候选=待审 ≤50,窗满 WARN 如实)→命中累加/未命中新行+建议答案,`matched_review_id` 写回同事务封口(幂等边界=非 NULL 即出集;并发输家条件更新整笔作废)。幻觉候选 id 按未命中处理+WARN。CLI 补扫:`uv run python -m app.jobs.flywheel [--limit N|--dry-run]`;LLM 提示词评估=标注样例集 9/10 过阈(dev-notes 阶段十二含唯一 FAIL 样本人核记录)。
+- **审核 API + 后台页**:`GET /api/review_queue`、`GET /api/review_queue/{id}/detail`(归并原话+快照)、`PATCH /api/review_queue/{id}`(仅 待审→通过|驳回;通过必带核准答案否则 422;并发/迟到写手条件更新 422「非法流转」)。通过=双落:chunk 三元指纹复用(同问同答不重做,done 命中置态照走=「复用也是通过」)→ embedding+upsert+flush → 置态——Milvus/向量任一步失败 502 状态留待审可重试(半成功不许存在)。页面 `static/review.html`(复古像素形制,聊天页顶栏入口),👎 已真接上报。
+- **评估趋势与成本报表** `app.jobs.eval_cycle`:一轮 `eval_runs` 行(recall@3/recall@10/mrr@10 + faithfulness 抽样,检索臂与阈值口径同 ch04 策略评估);`--trend` 出环比表、`--report` 按 intent tag 聚合 Langfuse trace 成本/延迟(不可达明确报错不拖主流程)。控制台 ASCII,中文表 UTF-8 落 `evals/reports/`。
+
+```bash
+# 部署(一次性;Milvus 栈已在跑的前提下)
+docker compose --profile langfuse up -d        # lf 四件套+web(3001)+worker
+docker exec milvus-minio sh -c "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb -p local/langfuse"   # 建观测桶(已存在=幂等)
+# .env 补 LANGFUSE_HOST=http://127.0.0.1:3001 + 两把 key(web UI 建 project 后拿)
+
+# ⚠⚠ 旧 MySQL 卷必读 ⚠⚠
+# db/init/09、10 两个 DDL 只对「新卷」自动执行。已有 mysql-data 卷(从未 down -v)
+# 必须手工应用,否则新列缺失——落池/快照整行写失败被吞:
+#   docker compose exec -T mysql mysql -u root -p<pwd> mewhelp < db/init/09_*.sql
+#   docker compose exec -T mysql mysql -u root -p<pwd> mewhelp < db/init/10_*.sql
+# (本仓开发即此状态,09/10 已手工应用并双证接缝;down -v 会连 mysql/milvus 卷一起毁,禁止)
+
+# 演示(按序)
+uv run uvicorn app.main:app --port 8000        # 主服务
+uv run python -m app.jobs.flywheel --dry-run   # 看未处理池行
+uv run python -m app.jobs.flywheel --limit 50  # 补扫(幂等,已处理出集)
+uv run python -m app.jobs.eval_cycle --limit 10 --trigger 手动
+uv run python -m app.jobs.eval_cycle --limit 10 --skip-faith --trigger 定时
+uv run python -m app.jobs.eval_cycle --trend   # → evals/reports/ch09_eval_trend.md
+uv run python -m app.jobs.eval_cycle --report  # → evals/reports/ch09_langfuse_report.md
+uv run pytest -q                                # 单元全绿(含 e2e 验收 2–6 单元级钉)
+uv run pytest -m integration -q -p no:cacheprovider   # 活库/活 Milvus 面(含 ch04–09 全 integration)
+```
+- **验收演示脚本(P 手工面)**:
+  - 验收1 观测链:问一句→Langfuse UI(3001)出现 trace,metadata 含 intent/置信度;拒答轮 reason 可见。
+  - 验收2 缺口成案:问知识库没有的问题(如「我家猫不吃冻干能退吗」)→兜底话术→`static/review.html` 待审列表出现,详情含原话+当轮快照。
+  - 验收3 审核闭环:详情弹层填核准答案→「通过」→同问再问即答对(硬基线:真模型面;T10 手测取证 chunk53 仍在库,演示资产)。
+  - 验收4 👎 链:历史回答点 👎→队列数 +1(source=user_feedback),流水线自触发。
+  - 验收5 趋势:`--trend` 两轮以上环比表(真库 run id 5/6 已落)。
+  - 验收6 报表:`--report` 意图组表(注:qwen 兼容端未配单价,`totalCost` 恒 0 如实呈现;条数/延迟可用,配价后自动出成本)。
+- **已知边界(spec 挂账)**:单用户 demo 无鉴权(admin 页/审核 API 裸奔,公网部署前必须加);查重候选窗=待审 ≤50,窗满理论可产生 twin 行;👎 上报失败前端只标注不重试;eval faith 面单样本超时降级跳过不进分母;Langfuse trace 采样全量(demo 规模)。
