@@ -174,7 +174,8 @@ async def run_cycle(args, st) -> tuple[dict, int]:
         qs = qs[: args.limit]
     ms = []
     for q in qs:
-        res = await retriever.retrieve(q.query, strategy="hybrid_rerank")
+        res = await retriever.retrieve(q.query, strategy="hybrid_rerank",
+                                       settings=st_eval)
         paths = [c.row.section_path for c in res.chunks]
         ms.append(eval_question(q.groups, paths, ks=(3, 10)))
         print(f"[eval-cycle] retrieve {q.id} ok", flush=True)

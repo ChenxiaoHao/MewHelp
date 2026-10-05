@@ -62,30 +62,41 @@ async def add_message(
 
 
 async def find_feedback_anchor(session, conversation_id: int, seq: int):
-    """ch09 T6 👎 反查:第 seq(1 基)个**可见** assistant 行 + 其前紧邻 user 文本。
+    """ch09 T6/终I1 👎 反查:第 seq(1 基)个**有答的轮**——锚=轮内末条可见
+    assistant 行,问=开该轮的 user 行文本。
 
-    M2-I1:仅数 content 非 NULL 的 assistant 行——on_tool_calls 落的无前言
-    工具行(content NULL)不占号,与前端回载 filter `&& m.content`(index.html)
-    及 assistantSeqFromHistory() 计数同律。M2-I2:1 基,与前端键 push 后
-    count 严格同律(spec「同律」钉)。
-    会话缺/越界(seq<1 或 > 可见行数)/锚点前无 user 行 → (None, None)=端点 404 面。
+    计数按轮不按行:👎 只挂在 live 完成的气泡上,每轮至多 push 一条
+    (index.html:601 `if (answer)`),故与 assistantSeqFromHistory() 的行→段
+    折叠同律。轮占号 ⇔ 轮内有 ≥1 条 content 真值的 assistant 行(流过的文字
+    即用户所见);锚=轮内最后一条**无 tool_calls** 的可见行(终答),轮内只有
+    前言/作废行时回退锚=最后一条可见行(确认预览轮 live 确有气泡)。
+    由此:前言+终答轮锚终答不顶后续号(a)、ch08 作废行落在 drain 轮由终答
+    覆盖(b)、NULL/空串行不算(M2-I1 面被真值判断覆盖)(c)。病态边角:纯
+    作废轮(预览轮无前言且从未终答)不占号,与 live 无 push 一致。
+    会话缺/越界(seq<1 或 > 有答轮数)/锚轮无 user 文本 → (None, None)=404 面。
     """
-    ids = (await session.execute(
-        select(Message.id)
-        .where(Message.conversation_id == conversation_id,
-               Message.role == "assistant",
-               Message.content.isnot(None))
+    rows = (await session.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
         .order_by(Message.id))).scalars().all()
-    if seq < 1 or seq > len(ids):
+    answered = []            # (user_text, anchor_row) per counted turn
+    cur_q = None
+    cur_final = None         # 轮内最后一条终答行(无 tool_calls)
+    cur_any = None           # 轮内最后一条 content 真值行(回退锚)
+    for r in rows:
+        if r.role == "user":
+            if cur_any is not None:
+                answered.append((cur_q, cur_final or cur_any))
+            cur_q, cur_final, cur_any = r.content, None, None
+        elif r.role == "assistant" and r.content and cur_q is not None:
+            cur_any = r
+            if not r.tool_calls:
+                cur_final = r
+    if cur_any is not None:
+        answered.append((cur_q, cur_final or cur_any))
+    if seq < 1 or seq > len(answered):
         return None, None
-    anchor = await session.get(Message, ids[seq - 1])
-    q = (await session.execute(
-        select(Message.content)
-        .where(Message.conversation_id == conversation_id,
-               Message.role == "user", Message.id < anchor.id)
-        .order_by(Message.id.desc()).limit(1))).scalar_one_or_none()
-    if q is None:
-        return None, None
+    q, anchor = answered[seq - 1]
     return anchor, q
 
 

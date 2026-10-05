@@ -264,9 +264,10 @@ async def health(settings=Depends(dep_settings)):
 
 @router.post("/api/feedback")
 async def cast_feedback(req: FeedbackRequest, session=Depends(dep_db_session)):
-    """ch09 T6 👎 后端化:反查第 seq(1 基)个可见 assistant 轮→带快照落池
-    (source=user_feedback,重复👎允许);👍=204 记账面留给评估链。
-    同步面不吞错——落池失败必须可见(裁决见 ledger;M2-I1/I2 契约钉)。"""
+    """ch09 T6 👎 后端化:反查第 seq(1 基)个**有答的轮**(锚=轮内终答行,
+    无终答回退流过的预言行)→带快照落池(source=user_feedback,重复👎允许);
+    👍=204 记账面留给评估链。同步面不吞错——落池失败必须可见
+    (裁决见 ledger;M2-I1/I2 + 终I1 契约钉)。"""
     if session is None:
         raise HTTPException(status_code=503, detail="数据库未初始化")
     if req.vote == "up":

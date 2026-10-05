@@ -291,9 +291,9 @@ uv run python evals/run_ch08_eval.py                          # 三桶话术评�
 ## ch09 可观测性与数据飞轮:Langfuse 追踪 + 缺口流水线 + 审核回写 + 评估趋势
 
 - **Langfuse 自托管观测链**(profile `langfuse`:postgres/redis/clickhouse/minio + web/worker):LangGraph 编译挂 `CallbackHandler`,每轮一条 trace——意图/置信度/工具名/拒答 reason 进 metadata,retriever 召回段进 span;意图以 `intent:<名>` tag 落 trace 供报表聚合。密钥三键(`LANGFUSE_HOST/PUBLIC_KEY/SECRET_KEY`)只进 gitignored `.env`,compose 里全占位;未配置=回调静默不挂,主流程零拖累。
-- **置信度双闸(定位如实记)**:排序闸 `rag_score_threshold`(ch04 遗留,进 LLM 前的候选过滤)与池化闸 `retrieval_low_conf_threshold`(ch09 新增,「答不了」判定线=低置信落池阈值)是两个不同的闸,升级只动后者;top_score 口径从「rerank 后」订正为「召回融合后 top」(rerank 模型不可用降级时分数面不漏)。
+- **置信度双闸(定位如实记,终审口径订正)**:排序闸 `rag_score_threshold`(ch04 遗留,进 LLM 前的候选过滤)与池化闸是两个不同的闸,升级只动后者:池化线=ch09 T4 的 `evidence_conf` 综合分(形 `sum`,权重 0.9/0.05/0.05=top1/有效条数/间隙,θ=`evidence_conf_threshold` 0.168,300 题校准择优),在闸节点判「答不了」即低置信落池;`retrieval_low_conf_threshold`=0.161 为 ch04 闸1(rerank 后 top 口径)兼 rule 形缺键回落(ch05 老行为零漂移),本章未改其语义。
 - **三入口落池 + 当轮召回快照**:`low_confidence_questions` 加 `retrieved_chunks` 快照列(source 扩 `user_feedback`)。漏斗全收口:`query_faq` 低置信拒答、`refund_gate`/gate 闸拒答、`self_check` 兜圈拒答、前端 👎(`POST /api/feedback`)——池写成功即 `spawn_process` 自触发流水线(拍板 2A 三入口平权,fire-and-forget 强引用防 GC)。重复 👎 允许重复落池(归并兜)。
-- **数据飞轮流水线** `app/services/flywheel.py`:`process_lcq_row` 标准化→语义查重(候选=待审 ≤50,窗满 WARN 如实)→命中累加/未命中新行+建议答案,`matched_review_id` 写回同事务封口(幂等边界=非 NULL 即出集;并发输家条件更新整笔作废)。幻觉候选 id 按未命中处理+WARN。CLI 补扫:`uv run python -m app.jobs.flywheel [--sweep N|--dry-run]`;LLM 提示词评估=标注样例集 9/10 过阈(dev-notes 阶段十二含唯一 FAIL 样本人核记录)。
+- **数据飞轮流水线** `app/services/flywheel.py`:`process_lcq_row` 标准化→语义查重(候选=待审 ≤50,窗满 WARN 如实)→命中累加/未命中新行+建议答案,`matched_review_id` 写回同事务封口(幂等边界=非 NULL 即出集;并发输家条件更新整笔作废)。幻觉候选 id 按未命中处理+WARN。CLI 补扫:`uv run python -m app.jobs.flywheel [--limit N|--dry-run]`;LLM 提示词评估=标注样例集 9/10 过阈(dev-notes 阶段十二含唯一 FAIL 样本人核记录)。
 - **审核 API + 后台页**:`GET /api/review_queue`、`GET /api/review_queue/{id}/detail`(归并原话+快照)、`PATCH /api/review_queue/{id}`(仅 待审→通过|驳回;通过必带核准答案否则 422;并发/迟到写手条件更新 422「非法流转」)。通过=双落:chunk 三元指纹复用(同问同答不重做,done 命中置态照走=「复用也是通过」)→ embedding+upsert+flush → 置态——Milvus/向量任一步失败 502 状态留待审可重试(半成功不许存在)。页面 `static/review.html`(复古像素形制,聊天页顶栏入口),👎 已真接上报。
 - **评估趋势与成本报表** `app.jobs.eval_cycle`:一轮 `eval_runs` 行(recall@3/recall@10/mrr@10 + faithfulness 抽样,检索臂与阈值口径同 ch04 策略评估);`--trend` 出环比表、`--report` 按 intent tag 聚合 Langfuse trace 成本/延迟(不可达明确报错不拖主流程)。控制台 ASCII,中文表 UTF-8 落 `evals/reports/`。
 
@@ -313,7 +313,7 @@ docker exec milvus-minio sh -c "mc alias set local http://127.0.0.1:9000 minioad
 # 演示(按序)
 uv run uvicorn app.main:app --port 8000        # 主服务
 uv run python -m app.jobs.flywheel --dry-run   # 看未处理池行
-uv run python -m app.jobs.flywheel --sweep 50  # 补扫(幂等,已处理出集)
+uv run python -m app.jobs.flywheel --limit 50  # 补扫(幂等,已处理出集)
 uv run python -m app.jobs.eval_cycle --limit 10 --trigger 手动
 uv run python -m app.jobs.eval_cycle --limit 10 --skip-faith --trigger 定时
 uv run python -m app.jobs.eval_cycle --trend   # → evals/reports/ch09_eval_trend.md

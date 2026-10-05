@@ -140,6 +140,34 @@ def test_cli_bad_trigger_rejected():
         E.main(["--trigger", "随缘"])
 
 
+# ---- 终I2:评估轮必须携 settings=st_eval(阈值归零随参传,不靠在线默认) ----
+
+
+async def test_run_cycle_threads_eval_settings(monkeypatch):
+    """终I2:retrieve 不带 settings 时读在线 get_settings(),闸1
+    (retrieval_low_conf_threshold)在跑批里照样拒→recall/mrr 被压低,
+    与 ch04 基线及 evals/calibrate_confidence.py(携 st_eval)不可比。"""
+    import app.rag.retriever as R
+    import evals.teacher_csv as tc
+    from app.core.config import get_settings
+
+    calls = []
+
+    async def fake_retrieve(query, *, strategy="hybrid_rerank", settings=None, **kw):
+        calls.append(settings)
+        return SimpleNamespace(chunks=[])
+    monkeypatch.setattr(R, "retrieve", fake_retrieve)
+    monkeypatch.setattr(tc, "load_questions", lambda *a, **k: [SimpleNamespace(
+        id="q1", bucket="A_policy", query="冻干能退吗", groups=[["faq/退货"]])])
+    args = SimpleNamespace(limit=1, skip_faith=True, trigger="手动")
+    metrics, n = await E.run_cycle(args, get_settings())
+    assert n == 1 and len(calls) == 1
+    assert calls[0] is not None, "retrieve 必须显式收到 settings(不靠在线默认)"
+    assert (calls[0].rag_score_threshold,
+            calls[0].retrieval_low_conf_threshold) == (0.0, 0.0), "评估轮双闸归零"
+    assert metrics["recall_at_3"] == 0.0, "零命中如实打表"
+
+
 # ---- 活库最小轮(integration):limit=2 --skip-faith 真检索落一行再清掉 ----
 
 @pytest.mark.integration

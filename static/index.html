@@ -732,7 +732,14 @@ convListEl.addEventListener('click', e => {   // 事件委托(角标同款,不�
 
 // ===== ch04(T13) ①引用角标:[n] → <sup class="cite" data-cid> =====
 function assistantSeqFromHistory() {
-  return history.filter(m => m.role === 'assistant').length;  // seq=本会话第几条 assistant 消息
+  // ch09 终I1:seq=「有答段数」——连续 assistant 行折成一段(回载把前言/作废行
+  // 逐行展示,但 live 每轮只 push 一个气泡;后端 find_feedback_anchor 同律按轮分组)
+  let n = 0, inRun = false;
+  for (const m of history) {
+    if (m.role === 'assistant') { if (!inRun) { n++; inRun = true; } }
+    else inRun = false;
+  }
+  return n;
 }
 function citationSegments(text, citations) {
   const byN = {};
