@@ -26,7 +26,14 @@ from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
 from app.schemas.refund import RefundRequest
 from app.schemas.ticket import TicketConfirmRequest, TicketCreateRequest, TicketOut
 from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
-from app.services import flywheel
+from app.schemas.review import (
+    ReviewDetail,
+    ReviewOut,
+    ReviewPatch,
+    ReviewQueueItem,
+    ReviewSource,
+)
+from app.services import flywheel, review
 from app.services.chat_service import get_model
 from app.services.extract_service import extract_after_sale
 from app.services.persistence import DBChatPersister
@@ -274,6 +281,56 @@ async def cast_feedback(req: FeedbackRequest, session=Depends(dep_db_session)):
         retrieved_chunks=anchor.retrieval_snapshot)
     flywheel.spawn_process(row_id)  # T7 拍板 2A:👎 路落池成功即触发(不走吞错漏斗)
     return {"pooled": True}
+
+
+@router.get("/api/review_queue", response_model=list[ReviewQueueItem])
+async def list_review_queue(status: str | None = None,
+                            session=Depends(dep_db_session)):
+    """审核队列列表(T9):occurrence desc,可按状态过滤。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    return await crud.list_review_queue(session, status=status)
+
+
+@router.get("/api/review_queue/{rq_id}/detail", response_model=ReviewDetail)
+async def get_review_detail(rq_id: int, session=Depends(dep_db_session)):
+    """详情(T10 弹层数据面):行 + 归并 LCQ 原话/当轮召回快照。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.get_review_row(session, rq_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="队列行不存在")
+    detail = ReviewDetail.model_validate(row)
+    detail.sources = [ReviewSource.model_validate(s)
+                      for s in await crud.review_sources(session, rq_id)]
+    return detail
+
+
+@router.patch("/api/review_queue/{rq_id}", response_model=ReviewOut)
+async def patch_review_queue(rq_id: int, req: ReviewPatch,
+                             session=Depends(dep_db_session)):
+    """状态机(T9):仅 待审→通过|驳回;通过=同请求内核准回写双落成功才置态,
+    KB 写失败 502 状态留待审(Focus 5——半成功不许存在)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    row = await crud.get_review_row(session, rq_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="队列行不存在")
+    if row.review_status != "待审":
+        raise HTTPException(status_code=422,
+                            detail=f"非法流转:{row.review_status}→{req.status}")
+    if req.status == "通过":
+        answer = (req.approved_answer or "").strip()
+        if not answer:
+            raise HTTPException(status_code=422, detail="通过必须带核准答案")
+        try:
+            chunk_id = await review.publish_approved(session, row, answer)
+        except Exception as exc:  # noqa: BLE001 —— 半成功闸:写不成就不置态,502 可见
+            logger.warning("review publish failed id=%s", rq_id, exc_info=True)
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return ReviewOut(id=row.id, review_status="通过", chunk_id=chunk_id)
+    row = await crud.reject_review(session, rq_id)
+    return ReviewOut(id=row.id, review_status="驳回")
 
 
 @router.get("/api/chunks/{chunk_id}", response_model=ChunkOut)

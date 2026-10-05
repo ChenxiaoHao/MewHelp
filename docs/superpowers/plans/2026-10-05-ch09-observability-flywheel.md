@@ -95,8 +95,8 @@
 ### Task 9:审核 API + 通过回写知识库
 **Files:** Modify `app/api/routes.py`、`app/db/crud.py`;Create `app/services/review.py`(或并入 flywheel,实施自决)、`tests/test_review_api_ch09.py`。
 **Interfaces:** Consumes `app/rag/indexer`(直写 chunk+向量化,category=「客服对话问答」,指纹幂等);Produces 三路由:`GET /api/review_queue?status=`(list,occurrence desc)/`GET /api/review_queue/{id}/detail`(行+matched 的 LCQ 原话/快照列表)/`PATCH /api/review_queue/{id}`(仅 待审→通过|驳回;通过必带 approved_answer 否则 422;其余流转 422;通过=同请求内 `publish_approved` 双落成功才置状态,失败 502 状态不动——Focus 5)。
-- [ ] Step1 RED(mock indexer 成败两路):流转表全覆盖+半成功 502+detail 组装。
-- [ ] Step2 实现 GREEN + integration 活库过一路 + commit `feat(ch09-t9): 审核 API——状态机+核准回写(过=写成才置态)`;M3 批评审→修复批。
+- [x] Step1 RED(mock indexer 成败两路):流转表全覆盖+半成功 502+detail 组装。
+- [x] Step2 实现 GREEN + integration 活库过一路 + commit `feat(ch09-t9): 审核 API——状态机+核准回写(过=写成才置态)`;M3 批评审→修复批。(11 单测+活库 1 例;done 命中复用仍置态)
 
 ### Task 10:后台审核页 + 👎 接线(Vibe,豁免流程)
 **Files:** Create `static/review.html`(faith.html 形制:列表/状态筛选/通过·驳回/详情弹层含归并原话与召回片段/通过弹核准答案框预填 ai_suggested_answer);Modify `static/index.html`(顶栏入口;👎 点击同时 POST /api/feedback,👍 不发;锁钮与 localStorage 回显逻辑保持)。

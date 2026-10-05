@@ -396,6 +396,55 @@ async def merge_lcq_into_queue(session, lcq_id: int, *, matched_id: int | None,
     return queue_id
 
 
+# ---------- ch09 T9: 审核队列读写 + 核准回写 ----------
+
+async def list_review_queue(session, *, status: str | None = None):
+    stmt = select(ReviewQueue)
+    if status:
+        stmt = stmt.where(ReviewQueue.review_status == status)
+    stmt = stmt.order_by(ReviewQueue.occurrence_count.desc(), ReviewQueue.id.desc())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_review_row(session, rq_id: int):
+    return await session.get(ReviewQueue, rq_id)
+
+
+async def review_sources(session, rq_id: int):
+    """归并到该队列行的 LCQ 原话+快照列表(T10 详情弹层数据面),id 升序。"""
+    stmt = (select(LowConfidenceQuestion)
+            .where(LowConfidenceQuestion.matched_review_id == rq_id)
+            .order_by(LowConfidenceQuestion.id))
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def find_chunk_by_qa(session, category: str, questions: str, answer: str):
+    """核准回写指纹位:三元精确匹配=chunk_fingerprint 同口径,免全表扫。"""
+    stmt = select(KnowledgeChunk).where(
+        KnowledgeChunk.category == category,
+        KnowledgeChunk.questions == questions,
+        KnowledgeChunk.answer == answer)
+    return (await session.execute(stmt)).scalars().first()
+
+
+async def reject_review(session, rq_id: int):
+    await session.execute(
+        update(ReviewQueue).where(ReviewQueue.id == rq_id)
+        .values(review_status="驳回"))
+    await session.commit()
+    return await session.get(ReviewQueue, rq_id)
+
+
+async def approve_review(session, rq_id: int, approved_answer: str,
+                         chunk_id: int) -> None:
+    """Focus 5 收口:done 回填+置「通过」同一 commit——向量已写完才走到这里。"""
+    await mark_chunks_vectorized(session, [chunk_id])
+    await session.execute(
+        update(ReviewQueue).where(ReviewQueue.id == rq_id)
+        .values(review_status="通过", approved_answer=approved_answer))
+    await session.commit()
+
+
 # ---- ch04: 原文回查 + 忠实度台账 ----
 
 async def get_chunk(session, chunk_id: int):
