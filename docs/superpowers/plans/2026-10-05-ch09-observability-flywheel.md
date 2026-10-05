@@ -89,8 +89,8 @@
 
 ### Task 8:流水线 Prompt 评估(真模型)
 **Files:** Create `evals/flywheel_samples.jsonl`(标准化≥5:口语/错字/指代;查重≥5:同义命中/近义陷阱/新问不误并)、`evals/run_ch09_flywheel_eval.py`(run_ch08 形制:ASCII 控制台+UTF-8 JSON 明细+exit code)。
-- [ ] Step1 跑批 ≥8/10 + 人工逐条核对留痕 dev-notes;不达标只调 few-shot 重跑。
-- [ ] Step2 commit `test(ch09-t8): 飞轮标准化/查重标注样例集+评估跑批结论`。
+- [x] Step1 跑批 ≥8/10 + 人工逐条核对留痕 dev-notes;不达标只调 few-shot 重跑。(实跑 9/10;唯一 FAIL=id7 换货/退货近义对,人核改判可辩护归并,金标保留不动 few-shot)
+- [x] Step2 commit `test(ch09-t8): 飞轮标准化/查重标注样例集+评估跑批结论`。
 
 ### Task 9:审核 API + 通过回写知识库
 **Files:** Modify `app/api/routes.py`、`app/db/crud.py`;Create `app/services/review.py`(或并入 flywheel,实施自决)、`tests/test_review_api_ch09.py`。
