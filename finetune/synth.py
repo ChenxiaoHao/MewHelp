@@ -80,10 +80,17 @@ async def _run(args) -> int:
         return 0
     for cls, need in sorted(plan.items()):
         got = 0
-        for attempt in range(3):
-            if got >= need:
-                break
-            r = await model.ainvoke(build_prompt(cls, need - got))
+        attempt = 0
+        while got < need and attempt < 12:
+            attempt += 1
+            chunk = min(25, need - got)  # 长生成拆小片,单次回复更稳
+            try:
+                r = await asyncio.wait_for(
+                    model.ainvoke(build_prompt(cls, chunk)), timeout=240)
+            except Exception:  # noqa: BLE001 —— 网络/超时均记attempt重试
+                print(f"[synth] {cls.encode('ascii', 'replace').decode()} "
+                      f"call-fail attempt={attempt}", flush=True)
+                continue
             qs = parse_questions(r.content)
             with out.open("a", encoding="utf-8") as f:
                 for q in qs[: need - got]:
@@ -91,7 +98,7 @@ async def _run(args) -> int:
                                         "main_class": cls}, ensure_ascii=False) + "\n")
                     got += 1
             print(f"[synth] {cls.encode('ascii', 'replace').decode()} "
-                  f"attempt={attempt + 1} got={got}/{need}", flush=True)
+                  f"attempt={attempt} got={got}/{need}", flush=True)
         if got < need:
             print(f"[synth] WARN deficit {cls.encode('ascii', 'replace').decode()} "
                   f"{got}/{need}", flush=True)
