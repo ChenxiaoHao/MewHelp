@@ -87,7 +87,7 @@
 
 **Interfaces:** Produces `stratified_split(rows, ratios=(.8,.1,.1), seed) -> dict[str, list]`(按 **label-组合** 分层,类内等比;组合稀有到 <3 条时并入「其他组合」桶轮转分配,断言只钉「每类 train/valid/test 计数 ≥ 该类总数 70%/5%/5% 且无一行跨集重复」);`augment_train(train, glossary) -> list`(同义词替换 ×1 + 句式模板改写 ×0.5,新增行带 `aug:true`;**绝不触碰 valid/test**)。产物 `finetune/dataset/{train,valid,test}.jsonl`。
 
-- [ ] Step1 RED:比例容差、无跨集泄漏(行 text 集合互斥)、增强只进 train、valid/test 文件哈希前后不变、增强行数 ∈ [原始×1.2, 原始×2.2]。Expected FAIL。
+- [x] Step1 RED:比例容差、无跨集泄漏(行 text 集合互斥)、增强只进 train、valid/test 文件哈希前后不变、增强行数 ∈ [原始×1.2, 原始×2.2]。Expected FAIL。
 - [ ] Step2 GREEN + 实跑出定稿数据集,ASCII 统计(每类 train/valid/test 计数)进 dev-notes。
 - [ ] Step3 commit `feat(ch10-t6): 分层80/10/10+同义词/句式增强只扩train,dataset定稿`。
 
