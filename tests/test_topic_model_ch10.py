@@ -25,9 +25,12 @@ async def session():
 
 @pytest.mark.integration
 async def test_one_row_per_question_uk_enforced(session):
-    qid = (await session.execute(
-        text("SELECT id FROM low_confidence_questions ORDER BY id LIMIT 1"))).scalar()
-    assert qid is not None, "活池至少一行(现状 138)"
+    # 取一个「未归类」的池行:演示行(qid 1-3)是永久资产,本测试不得插入/删除它们
+    qid = (await session.execute(text(
+        "SELECT lq.id FROM low_confidence_questions lq "
+        "LEFT JOIN topic_classifications tc ON tc.question_id = lq.id "
+        "WHERE tc.id IS NULL ORDER BY lq.id LIMIT 1"))).scalar()
+    assert qid is not None, "活池存在未归类行(138 池 - 演示归类)"
     session.add(TopicClassification(question_id=qid, labels=["物流", "运费"]))
     await session.commit()
 
