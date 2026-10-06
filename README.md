@@ -329,3 +329,17 @@ uv run pytest -m integration -q -p no:cacheprovider   # 活库/活 Milvus 面(�
   - 验收5 趋势:`--trend` 两轮以上环比表(真库 run id 5/6 已落)。
   - 验收6 报表:`--report` 意图组表(注:qwen 兼容端未配单价,`totalCost` 恒 0 如实呈现;条数/延迟可用,配价后自动出成本)。
 - **已知边界(spec 挂账)**:单用户 demo 无鉴权(admin 页/审核 API 裸奔,公网部署前必须加);查重候选窗=待审 ≤50,窗满理论可产生 twin 行;👎 上报失败前端只标注不重试;eval faith 面单样本超时降级跳过不进分母;Langfuse trace 采样全量(demo 规模)。
+
+## ch10 自训主题分类器:RoBERTa-wwm-ext 全参微调 + 旁路批量归类 + 主题分布后台
+
+- **17 类多标签主题分类器**(`hfl/chinese-roberta-wwm-ext` 全参微调,非 LoRA):类目契约唯一权威=术语表 `finetune/glossary.json`(四大类 退换货/物流/尺码/发票 领头,近邻边界钉:修归保修维修退归退换货、运费管钱物流管货、价保补差价优惠活动券满减),词表漂移红线在 evaluate 加载、TopicClassifier init、DDL 注释、前端图例四处同 assert。
+- **数据管道**:清洗(脱敏手机号/长单号/地址+全角归一)→ LLM 照术语表造数补缺(每类 100,「其他」减半,多诉求 directive)→ LLM 预标(JSON `{"labels":[..],"text":"错别字修正"}` 一调用双职责)+ 抽审面 963 行 `finetune/audit/annotation_review.csv`(全部多标签+每类 10%;人工回改走 `apply_audit` 原子校验,不回改即以预标定稿)→ 标签组合分层 80/10/10(test 216 行封存)→ 增强(同义词替换+中性前缀)只扩 train。定稿 1998 条,多标签占 48.7%。
+- **训练/评测**:`finetune/train.py`(lr2e-5/batch16/max_len128/epochs≤10/早停3/fp16,RTX 4060 全程 ~4 分钟)——训练毕 valid 扫 [0.30,0.70] 步 0.05 取 macro-F1 最优阈值写 `topic_config.json`(推理只认 config,不硬编码 0.5)。封存 test macro-F1 **0.8771** · micro-F1 **0.8815**(阈值 0.55),逐类 P/R/F1+每类二值混淆矩阵落 `finetune/reports/ch10_eval_report.md`,错例台账 misclassified.csv 人工抽判 20(真错~9 集中近邻边界与多标签次标签漏召,金标错~4——见 dev-notes 阶段七;第一轮错例已回灌:口语锚进同义词表+定向造数 210 条只并 train/valid,test 未动)。
+- **旁路部署(实时主链路零 import 零调用)**:`app/jobs/topic_classify.py` 攒低置信度池未归类行 → 进程内批量推理 → `topic_classifications`(uk_question_id 一人一行幂等,`--rerun` 刷新,`--dry-run` 选池数钉「已归类不重选」),Langfuse 落一条 trace;ONNX 导出为可选件未做(拍板 4)。演示资产=池 qid 1-3 三行真归类。
+- **只读 API + 后台页**:`GET /api/topics/distribution?days=N`(labels JSON Python 层展开计数,多标签句每类各计一次,pct 按标签出现总次数归一,count 降序;days<1→422,无库→503);`static/topic.html` 复古像素条形图(时间窗下拉,飞轮审核页入口),验收三钉 `tests/e2e/test_ch10_acceptance.py`。
+
+```bash
+uv run python -m finetune.train --epochs 10                  # 全参微调+扫阈值(~4 分钟)
+uv run python -m finetune.evaluate                           # 封存 test → 报告+错例台账
+uv run python -m app.jobs.topic_classify --limit 50          # 旁路批量归类活库真写
+uv run pytest tests/e2e/test_ch10_acceptance.py -m integration -v   # 验收三钉
