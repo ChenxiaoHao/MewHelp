@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#FF9B50">
+<title>主题分布 · MewHelp</title>
+<style>
+  /* ===== ch10 T11 飞轮后台主题分布页(Vibe 豁免面,复古像素同款,零新依赖) ===== */
+  :root {
+    --bg: #F6D89C; --win: #FFF8E8; --paper: #FFFDF5;
+    --orange: #FF9B50; --ink: #292929; --aux: #E8DCC5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: var(--ink); background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(41,41,41,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(41,41,41,.07) 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 100vh; padding: 18px;
+  }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .sheet {
+    max-width: 900px; margin: 0 auto;
+    background: var(--win); border: 3px solid var(--ink); border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--ink); overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--orange); border-bottom: 3px solid var(--ink);
+  }
+  header h1 { font-size: 16px; letter-spacing: 1px; flex: 1; min-width: 160px; }
+  .btn {
+    font: inherit; font-weight: 700; color: var(--ink);
+    background: var(--orange); border: 3px solid var(--ink); border-radius: 4px;
+    box-shadow: 3px 3px 0 var(--ink); padding: 5px 12px; cursor: pointer;
+    display: inline-block; text-decoration: none; font-size: 13px;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+  .btn-sm { padding: 3px 8px; font-size: 12px; border-width: 2px; background: var(--win); box-shadow: 2px 2px 0 var(--ink); }
+  .toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 12px; background: var(--aux); border-bottom: 3px solid var(--ink);
+    font-size: 13px;
+  }
+  .toolbar label { font-weight: 700; }
+  .toolbar select {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--paper); border: 2px solid var(--ink); border-radius: 3px; padding: 3px 6px;
+  }
+  #meta { margin-left: auto; font-size: 11px; color: #8a7c60; }
+  .rows { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: grid; grid-template-columns: 90px 1fr 110px; align-items: center; gap: 10px; font-size: 13px; }
+  .row .name { font-weight: 700; }
+  .bar-track {
+    height: 18px; background: var(--paper);
+    border: 2px solid var(--ink); border-radius: 3px; overflow: hidden;
+  }
+  .bar {
+    height: 100%; background: repeating-linear-gradient(
+      45deg, var(--orange), var(--orange) 6px, #FFB377 6px, #FFB377 12px);
+    border-right: 2px solid var(--ink); min-width: 2px;
+    transition: width .25s steps(8);
+  }
+  .num { text-align: right; color: #6b5f45; }
+  .empty, .err { padding: 26px 16px; text-align: center; color: #8a7c60; font-size: 14px; }
+  footer {
+    padding: 8px 12px; border-top: 3px solid var(--ink);
+    background: var(--aux); font-size: 11px; color: #8a7c60;
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <h1>📊 低置信度池 · 主题分布</h1>
+    <a class="btn btn-sm" href="/static/review.html">缺口审核</a>
+    <a class="btn btn-sm" href="/static/index.html">← 返回聊天</a>
+  </header>
+  <div class="toolbar">
+    <label for="days">时间窗</label>
+    <select id="days">
+      <option value="">全部</option>
+      <option value="7">近 7 天</option>
+      <option value="30" selected>近 30 天</option>
+      <option value="90">近 90 天</option>
+    </select>
+    <button class="btn btn-sm" id="refresh">刷新</button>
+    <span id="meta" class="mono"></span>
+  </div>
+  <div id="rows" class="rows"><div class="empty">加载中…</div></div>
+  <footer>数据源:topic_classifications(旁路批量归类,实时主链路不写不读)· 多标签句每类各计一次</footer>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  async function load() {
+    const days = $('days').value;
+    $('rows').innerHTML = '<div class="empty">加载中…</div>';
+    try {
+      const resp = await fetch('/api/topics/distribution' + (days ? '?days=' + days : ''));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (!data.length) {
+        $('rows').innerHTML = '<div class="empty">窗口内还没有归类数据——先跑 <span class="mono">python -m app.jobs.topic_classify</span></div>';
+        $('meta').textContent = '';
+        return;
+      }
+      const max = Math.max(...data.map(d => d.count));
+      const total = data.reduce((s, d) => s + d.count, 0);
+      $('meta').textContent = '标签 ' + total + ' 次 / ' + data.length + ' 类';
+      $('rows').innerHTML = data.map(d =>
+        '<div class="row">' +
+          '<span class="name"></span>' +
+          '<span class="bar-track"><span class="bar" style="width:' + (100 * d.count / max) + '%"></span></span>' +
+          '<span class="num mono">' + d.count + ' · ' + d.pct + '%</span>' +
+        '</div>').join('');
+      // 中文标签走 textContent 注入,防 HTML 注入
+      $('rows').querySelectorAll('.row .name').forEach((el, i) => { el.textContent = data[i].label; });
+    } catch (e) {
+      $('rows').innerHTML = '<div class="err">加载失败:' + e.message + '</div>';
+    }
+  }
+  $('days').addEventListener('change', load);
+  $('refresh').addEventListener('click', load);
+  load();
+</script>
+</body>
+</html>
