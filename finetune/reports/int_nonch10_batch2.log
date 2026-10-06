@@ -1,0 +1,105 @@
+........................F......                                          [100%]
+================================== FAILURES ===================================
+________________ test_ch05_upstream_model_tool_calls_and_json _________________
+
+    @pytest.mark.integration
+    async def test_ch05_upstream_model_tool_calls_and_json():
+        """spec 开放核对项(需真 key):①bind_tools 后 tool_calls 命中且 args 为 dict
+        ②JSON 指令输出可解析。Task 1 冒烟的一次性回归件。"""
+        import json
+    
+        from langchain_core.messages import HumanMessage
+    
+        from app.services.chat_service import get_model
+        from app.tools.registry import get_tools
+    
+        st = get_settings()
+        bound = get_model(st).bind_tools(get_tools())
+>       ai = await bound.ainvoke([HumanMessage("订单 1001 的物流到哪了")])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_model_smoke_ch05_integration.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv\Lib\site-packages\langchain_core\runnables\base.py:6027: in ainvoke
+    return await self.bound.ainvoke(
+.venv\Lib\site-packages\langchain_core\language_models\chat_models.py:511: in ainvoke
+    llm_result = await self.agenerate_prompt(
+.venv\Lib\site-packages\langchain_core\language_models\chat_models.py:1888: in agenerate_prompt
+    return await self.agenerate(
+.venv\Lib\site-packages\langchain_core\language_models\chat_models.py:1846: in agenerate
+    raise exceptions[0]
+.venv\Lib\site-packages\langchain_core\language_models\chat_models.py:2179: in _agenerate_with_cache
+    result = await self._agenerate(
+.venv\Lib\site-packages\langchain_openai\chat_models\base.py:2214: in _agenerate
+    raise e
+.venv\Lib\site-packages\langchain_openai\chat_models\base.py:2203: in _agenerate
+    raw_response = await self.async_client.with_raw_response.create(
+.venv\Lib\site-packages\openai\_legacy_response.py:386: in wrapped
+    return cast(LegacyAPIResponse[R], await func(*args, **kwargs))
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\openai\resources\chat\completions\completions.py:2931: in create
+    return await self._post(
+.venv\Lib\site-packages\openai\_base_client.py:1990: in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\openai\_base_client.py:1710: in request
+    response = await self._send_request(
+.venv\Lib\site-packages\openai\_client.py:1359: in _send_request
+    response = await self._send_with_auth_retry(request, stream=stream, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\openai\_client.py:1338: in _send_with_auth_retry
+    response = await super()._send_request(request, stream=stream, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\openai\_base_client.py:1628: in _send_request
+    return await self._client.send(request, stream=stream, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx2\_client.py:1818: in send
+    response = await self._send_handling_auth(
+.venv\Lib\site-packages\httpx2\_client.py:1846: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv\Lib\site-packages\httpx2\_client.py:1881: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx2\_client.py:1915: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx2\_transports\default.py:388: in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpcore2\_async\connection_pool.py:242: in handle_async_request
+    raise exc from None
+.venv\Lib\site-packages\httpcore2\_async\connection_pool.py:224: in handle_async_request
+    response = await connection.handle_async_request(pool_request.request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpcore2\_async\http_proxy.py:325: in handle_async_request
+    return await self._connection.handle_async_request(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpcore2\_async\http11.py:124: in handle_async_request
+    await self._response_closed()
+.venv\Lib\site-packages\httpcore2\_async\http11.py:228: in _response_closed
+    await self.aclose()
+.venv\Lib\site-packages\httpcore2\_async\http11.py:236: in aclose
+    await self._network_stream.aclose()
+.venv\Lib\site-packages\httpcore2\_backends\anyio.py:55: in aclose
+    await self._stream.aclose()
+.venv\Lib\site-packages\anyio\streams\tls.py:248: in aclose
+    await self.transport_stream.aclose()
+.venv\Lib\site-packages\anyio\_backends\_asyncio.py:1467: in aclose
+    self._transport.close()
+C:\Users\chenxiaohao\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\proactor_events.py:109: in close
+    self._loop.call_soon(self._call_connection_lost, None)
+C:\Users\chenxiaohao\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\base_events.py:799: in call_soon
+    self._check_closed()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <ProactorEventLoop running=False closed=True debug=False>
+
+    def _check_closed(self):
+        if self._closed:
+>           raise RuntimeError('Event loop is closed')
+E           RuntimeError: Event loop is closed
+
+C:\Users\chenxiaohao\AppData\Roaming\uv\python\cpython-3.12-windows-x86_64-none\Lib\asyncio\base_events.py:545: RuntimeError
+=========================== short test summary info ===========================
+FAILED tests/test_model_smoke_ch05_integration.py::test_ch05_upstream_model_tool_calls_and_json
+1 failed, 30 passed, 70 deselected in 990.14s (0:16:30)
