@@ -300,3 +300,21 @@ class EvalRuns(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), index=True
     )
+
+
+class TopicClassification(Base):
+    """ch10 主题归类结果,一问题一行(uk_question_id);DDL=db/init/11_ 用户原文逐字。
+
+    旁路批量 job 唯一写方;实时主链路不写不读。"""
+
+    __tablename__ = "topic_classifications"
+
+    id: Mapped[int] = _pk()
+    question_id: Mapped[int] = mapped_column(
+        BIGINT(unsigned=True), ForeignKey("low_confidence_questions.id"),
+        nullable=False, unique=True,
+    )
+    labels: Mapped[list] = mapped_column(JSON, nullable=False)
+    classified_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
