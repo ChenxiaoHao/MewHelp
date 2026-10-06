@@ -68,8 +68,8 @@
 **Interfaces:** Consumes glossary、chat_service.get_model;Produces `build_prompt(cls_name, glossary, n) -> str`(含术语表全文+边界+多诉求 directive)、`parse_questions(reply) -> list[str]`(行拆+去序号+校验非空/长度)、`gap_plan(counts, target_per_class) -> dict[str, int]`(缺口=目标-已有,真实池与已造都算已有)。CLI:`-m finetune.synth --target 100 --out finetune/drafts/synth.jsonl`(断点续造:已有行按类计数,只补缺口)。
 
 - [x] Step1 RED:build_prompt 含 17 类名+该类目标词+「≥2 标签」示例句要求;parse_questions 抗「1. 」「- 」前缀与空行;gap_plan 只补缺口、不超造。Expected FAIL。
-- [ ] Step2 GREEN(fake LLM 单测全绿后)**实跑 LLM 造数**至 ~1560+(1700-138 缺口,多诉求句 directive 常驻 prompt)→ 验证:类分布统计 ASCII 打印 + 抽查 20 条 UTF-8 落 `finetune/audit/synth_check.csv`(样例验证替代 TDD 尾步)。
-- [ ] Step3 commit `feat(ch10-t4): 术语表驱动造数——缺口续算+多诉求directive,~1700语料成形`。
+- [x] Step2 GREEN(fake LLM 单测全绿后)**实跑 LLM 造数**至 ~1560+(1700-138 缺口,多诉求句 directive 常驻 prompt)→ 验证:类分布统计 ASCII 打印 + 抽查 20 条 UTF-8 落 `finetune/audit/synth_check.csv`(样例验证替代 TDD 尾步)。
+- [x] Step3 commit `feat(ch10-t4): 术语表驱动造数——缺口续算+多诉求directive,~1700语料成形`。
 
 ### Task 5: 预标 + 抽审面 `finetune/prelabel.py`
 
@@ -77,9 +77,9 @@
 
 **Interfaces:** Consumes clean、glossary、synth 草稿、真池;Produces `PRELABEL_SYSTEM`(prompt:照术语表打标+顺手修错别字+只回 JSON `{"labels":[...]}`)、`parse_labels(reply) -> list[str]`(JSON 解+白名单过滤+空则归「其他」+「一个不多一个不少」校验去重)、`run_audit_export(dataset, per_class=0.1, seed) -> Path`(每类 10%+全部多标签 → `finetune/audit/annotation_review.csv`)、`apply_audit(csv, dataset)`(人工改标回写,labels 列以 `|` 分隔)。真池读取 integration:LEFT 无归类要求的 raw_question 全量入标。
 
-- [ ] Step1 RED:parse_labels 对脏回复(JSON 包裹/越类名/重复/空)四类行为钉死;audit_export 固定 seed 确定性+多标签 100% 入审;apply_audit 回改生效+非法类名拒收。Expected FAIL。
-- [ ] Step2 GREEN;**实跑全量预标**(1700 条,qwen 温度 0,并发≤4)→ `finetune/drafts/labeled.jsonl`;抽审 CSV 导出给用户(人工环节异步:用户不回改即以预标定稿,记 ledger 与 dev-notes)。
-- [ ] Step3 commit `feat(ch10-t5): LLM预标(含错别字归一)+10%/全多标签抽审面+回改apply`。
+- [x] Step1 RED:parse_labels 对脏回复(JSON 包裹/越类名/重复/空)四类行为钉死;audit_export 固定 seed 确定性+多标签 100% 入审;apply_audit 回改生效+非法类名拒收。Expected FAIL。
+- [x] Step2 GREEN;**实跑全量预标**(1700 条,qwen 温度 0,并发≤4)→ `finetune/drafts/labeled.jsonl`;抽审 CSV 导出给用户(人工环节异步:用户不回改即以预标定稿,记 ledger 与 dev-notes)。
+- [x] Step3 commit `feat(ch10-t5): LLM预标(含错别字归一)+10%/全多标签抽审面+回改apply`。
 
 ### Task 6: 分层切分 + 增强 `finetune/split.py` `augment.py`
 
@@ -88,8 +88,8 @@
 **Interfaces:** Produces `stratified_split(rows, ratios=(.8,.1,.1), seed) -> dict[str, list]`(按 **label-组合** 分层,类内等比;组合稀有到 <3 条时并入「其他组合」桶轮转分配,断言只钉「每类 train/valid/test 计数 ≥ 该类总数 70%/5%/5% 且无一行跨集重复」);`augment_train(train, glossary) -> list`(同义词替换 ×1 + 句式模板改写 ×0.5,新增行带 `aug:true`;**绝不触碰 valid/test**)。产物 `finetune/dataset/{train,valid,test}.jsonl`。
 
 - [x] Step1 RED:比例容差、无跨集泄漏(行 text 集合互斥)、增强只进 train、valid/test 文件哈希前后不变、增强行数 ∈ [原始×1.2, 原始×2.2]。Expected FAIL。
-- [ ] Step2 GREEN + 实跑出定稿数据集,ASCII 统计(每类 train/valid/test 计数)进 dev-notes。
-- [ ] Step3 commit `feat(ch10-t6): 分层80/10/10+同义词/句式增强只扩train,dataset定稿`。
+- [x] Step2 GREEN + 实跑出定稿数据集,ASCII 统计(每类 train/valid/test 计数)进 dev-notes。
+- [x] Step3 commit `feat(ch10-t6): 分层80/10/10+同义词/句式增强只扩train,dataset定稿`。
 
 ### Task 7: 依赖 + 模型资产 + `train.py`
 
@@ -97,11 +97,11 @@
 
 **Interfaces:** Consumes dataset jsonl+glossary;Produces `load_dataset(path) -> datasets-like list`、`compute_metrics(eval_pred) -> {"f1_macro","f1_micro"}`(sigmoid@0.5 起步)、CLI `uv run python -m finetune.train [--epochs 10] [--max-steps N] [--smoke]`;产物 `models/ch10_topic/`(模型+tokenizer)+ `models/ch10_topic/topic_config.json`(classes 序、threshold、best_valid_f1、train 时间戳)。阈值扫:训练毕在 valid 上对 [0.3,0.35,…,0.7] 扫 macro-F1 取最优写 config(spec 拍板 5)。
 
-- [ ] Step1 装依赖+下载 `hfl/chinese-roberta-wwm-ext`(`HF_ENDPOINT=https://hf-mirror.com`)。Expected:`uv run python -c "import torch,transformers;print(torch.cuda.is_available())"` → True;模型目录本地存在。
-- [ ] Step2 RED smoke 测试(产出不存在即 FAIL)。
-- [ ] Step3 GREEN train.py(全参、无 LoRA;早停 patience=3 monitor f1_macro;fp16 走 TrainingArguments `fp16=True`——4060 支持,显存告急即报不换方案);smoke 绿。
-- [ ] Step4 **正式训练实跑**(机时 1-2h,`--limit` 不砍数据)→ 日志 ASCII 落 `finetune/reports/train_log.txt`;最优 checkpoint+阈值配置落盘。样例/资产验证替代 TDD 尾步。
-- [ ] Step5 commit `feat(ch10-t7): RoBERTa-wwm-ext全参微调——早停+valid扫阈值,模型资产落盘`(models/ 与 pip cache 进 .gitignore,pyproject+代码进库)。
+- [x] Step1 装依赖+下载 `hfl/chinese-roberta-wwm-ext`(`HF_ENDPOINT=https://hf-mirror.com`)。Expected:`uv run python -c "import torch,transformers;print(torch.cuda.is_available())"` → True;模型目录本地存在。
+- [x] Step2 RED smoke 测试(产出不存在即 FAIL)。
+- [x] Step3 GREEN train.py(全参、无 LoRA;早停 patience=3 monitor f1_macro;fp16 走 TrainingArguments `fp16=True`——4060 支持,显存告急即报不换方案);smoke 绿。
+- [x] Step4 **正式训练实跑**(机时 1-2h,`--limit` 不砍数据)→ 日志 ASCII 落 `finetune/reports/train_log.txt`;最优 checkpoint+阈值配置落盘。样例/资产验证替代 TDD 尾步。
+- [x] Step5 commit `feat(ch10-t7): RoBERTa-wwm-ext全参微调——早停+valid扫阈值,模型资产落盘`(models/ 与 pip cache 进 .gitignore,pyproject+代码进库)。
 
 ### Task 8: 评测 `finetune/evaluate.py`
 
@@ -109,9 +109,9 @@
 
 **Interfaces:** Consumes `models/ch10_topic/`+test.jsonl;Produces `binary_confusion(preds, golds, classes) -> dict[str, dict]`(每类 TP/FP/FN/TN)、`report_text(...) -> str`(逐类表+micro/macro+阈值+多标签命中例);CLI `-m finetune.evaluate`。落 `finetune/reports/ch10_eval_report.md`(UTF-8)+ `misclassified.csv`;控制台一行 ASCII `macro_f1=… micro_f1=… n=…`。
 
-- [ ] Step1 RED:四格数学+空类(support=0)不炸+阈值单调影响格数。Expected FAIL。
-- [ ] Step2 GREEN;**test 集封存首跑**出报告(验收 1);多诉求句命中例(「买大了想退」→ 尺码|退换货)进报告样例节(验收 3 前半);错例人工抽判 20 条,结论(真错/标错比例)记 dev-notes(验收 3 复核)。
-- [ ] Step3 commit `test(ch10-t8): 逐类PRF1+每类二值混淆矩阵+错例台账,test封存首跑落报告`。
+- [x] Step1 RED:四格数学+空类(support=0)不炸+阈值单调影响格数。Expected FAIL。
+- [x] Step2 GREEN;**test 集封存首跑**出报告(验收 1);多诉求句命中例(「买大了想退」→ 尺码|退换货)进报告样例节(验收 3 前半);错例人工抽判 20 条,结论(真错/标错比例)记 dev-notes(验收 3 复核)。
+- [x] Step3 commit `test(ch10-t8): 逐类PRF1+每类二值混淆矩阵+错例台账,test封存首跑落报告`。
 
 ### Task 9: 旁路推理 `app/services/topic_classifier.py` + 攒批 job
 
@@ -119,9 +119,9 @@
 
 **Interfaces:** Consumes 池表+`models/ch10_topic/topic_config.json`;Produces `TopicClassifier(settings).classify_batch(texts: list[str]) -> list[list[str]]`(加载一次、批推理、threshold 来自 config)、CLI `-m app.jobs.topic_classify [--limit N] [--rerun] [--dry-run]`;job 输出 ASCII 行计数。Langfuse trace 一条(name=`ch10_topic_classify`,tags=["ch10"])。
 
-- [ ] Step1 RED→Step2 GREEN(mock 面全绿)。
-- [ ] Step3 integration 真写:`--limit 3` 首跑 insert 3 行,重跑(无 --rerun)处理数 0,`--rerun --limit 3` 刷新同 3 行(uk 不新增)。测后**保留**这 3 行作演示资产?——保留(验收 2 素材),dev-notes 记行 id。
-- [ ] Step4 commit `feat(ch10-t9): 旁路批量归类job——未选池攒批/uk幂等/--rerun刷新,主链路零侵入`。
+- [x] Step1 RED→Step2 GREEN(mock 面全绿)。
+- [x] Step3 integration 真写:`--limit 3` 首跑 insert 3 行,重跑(无 --rerun)处理数 0,`--rerun --limit 3` 刷新同 3 行(uk 不新增)。测后**保留**这 3 行作演示资产?——保留(验收 2 素材),dev-notes 记行 id。
+- [x] Step4 commit `feat(ch10-t9): 旁路批量归类job——未选池攒批/uk幂等/--rerun刷新,主链路零侵入`。
 
 ### Task 10: `GET /api/topics/distribution`
 
@@ -129,8 +129,8 @@
 
 **Interfaces:** Produces `TopicStat(label, count, pct)`;`GET /api/topics/distribution?days=30` → 按 count 降序数组;labels JSON 展开计数在 Python 层(crud `topic_distribution(session, days)`,join LCQ.created_at 过滤)。
 
-- [ ] Step1 RED(fake)→ Step2 GREEN → Step3 integration(依赖 T9 已写的演示行)→ 全绿。
-- [ ] Step4 commit `feat(ch10-t10): 主题分布只读API——labels展开+days窗+pct`。
+- [x] Step1 RED(fake)→ Step2 GREEN → Step3 integration(依赖 T9 已写的演示行)→ 全绿。
+- [x] Step4 commit `feat(ch10-t10): 主题分布只读API——labels展开+days窗+pct`。
 
 ### Task 11: 主题分布页 `static/topic.html`(Vibe Coding)
 
@@ -140,10 +140,10 @@ Vibe 直做:fetch `/api/topics/distribution`,17 条纯 CSS 横向条形(count �
 
 ### Task 12: e2e 演示 + README + 完结
 
-- [ ] Step1 e2e 钉(integration):攒批→分布 API→计数单调;多标签句(验收 3 终钉:一句真实多诉求进池→归类 labels≥2)。
-- [ ] Step2 README「ch10」节(演示命令:`-m finetune.train/evaluate`、`-m app.jobs.topic_classify`、分布页 URL、新依赖安装)。
-- [ ] Step3 dev-notes 完结段+里程碑批评审收口;终审(review-package → fresh reviewer 高配)→ fix pass(RED→GREEN)→ finishing-a-development-branch(合并前问用户 push 与否——远端仍无,预期本地 merge)。
-- [ ] commit `test(ch10-t12): 验收三钉+README ch10节+完结留痕`。
+- [x] Step1 e2e 钉(integration):攒批→分布 API→计数单调;多标签句(验收 3 终钉:一句真实多诉求进池→归类 labels≥2)。
+- [x] Step2 README「ch10」节(演示命令:`-m finetune.train/evaluate`、`-m app.jobs.topic_classify`、分布页 URL、新依赖安装)。
+- [x] Step3 dev-notes 完结段+里程碑批评审收口;终审(review-package → fresh reviewer 高配)→ fix pass(RED→GREEN)→ finishing-a-development-branch(合并前问用户 push 与否——远端仍无,预期本地 merge)。
+- [x] commit `test(ch10-t12): 验收三钉+README ch10节+完结留痕`。
 
 ## Review Focus
 

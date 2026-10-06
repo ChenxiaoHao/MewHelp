@@ -86,3 +86,49 @@ async def test_store_results_insert_then_update_only_on_rerun():
     await store_results(s3, [(7, ["物流"])], rerun=True)
     upd = [i for i in s3.sqls if i.upper().lstrip().startswith("UPDATE")]
     assert len(upd) == 1 and "topic_classifications" in upd[0]
+
+
+@pytest.mark.asyncio
+async def test_job_feeds_cleaned_text_to_classifier(monkeypatch):
+    # 终审 I-4:训练面全是 clean() 后文本,推理入参必须同口径(消 train/serve skew)
+    import app.jobs.topic_classify as job_mod
+    import app.services.topic_classifier as svc_mod
+    from finetune.clean import clean
+
+    raw = "我的 13800138000 查下物流，地址北京朝阳区某某路１号"
+    seen: list[list[str]] = []
+
+    class SpyClf:
+        def __init__(self, *a, **k): pass
+        def classify_batch(self, texts, batch_size=32):
+            seen.append(list(texts))
+            return [["物流"] for _ in texts]
+
+    async def fake_collect(session, limit, rerun):
+        return [(1, raw)]
+    async def fake_store(session, pairs, rerun):
+        return len(pairs)
+
+    monkeypatch.setattr(job_mod, "collect_unclassified", fake_collect)
+    monkeypatch.setattr(job_mod, "store_results", fake_store)
+    monkeypatch.setattr(job_mod, "_trace", lambda *a: None)
+    monkeypatch.setattr(svc_mod, "TopicClassifier", SpyClf)
+    monkeypatch.setattr(job_mod, "init_engine", lambda st: None)
+
+    async def fake_dispose(): pass
+    monkeypatch.setattr(job_mod, "dispose_engine", fake_dispose)
+
+    class _Ctx:
+        async def __aenter__(self): return object()
+        async def __aexit__(self, *a): return False
+    monkeypatch.setattr(job_mod, "get_session_factory", lambda: (lambda: _Ctx()))
+
+    await job_mod._amain(_mkargs())
+    assert seen[0] == [clean(raw)]
+
+
+def _mkargs():
+    import argparse
+    ns = argparse.Namespace(limit=1, rerun=False, dry_run=False)
+    return ns
+

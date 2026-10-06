@@ -1,300 +1,241 @@
+{"text": "买完发现降价了，能按最低价补差吗", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "买完就降价，补差价流程太复杂，能远程帮我操作一下吗？还有登录老提示验证码错误。", "labels": ["价保", "账号"], "src": "synth", "typo_fixed": false}
+{"text": "买完就降价，补差价申请提交后一直没审核，能加急处理吗？另外快递显示签收但我没收到。", "labels": ["价保", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "买贵了，系统显示在保价期，但客服说要提供降价截图，能直接帮我查吗？", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "买贵了，补差价请打到原支付账户，另外这个商品详情页写的材质和实物不符，算质量问题吗？", "labels": ["价保", "质量问题"], "src": "synth", "typo_fixed": false}
 {"text": "价保+换货一起申请，系统能识别两个诉求吗", "labels": ["价保", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "价保后积分退回吗，还是只返现金", "labels": ["价保", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "价保和发票都归一个客服处理吗", "labels": ["价保", "发票"], "src": "synth", "typo_fixed": false}
-{"text": "价保审核要人工看，得等几个工作日", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "价保后订单变成“已完结”，还能开发票吗", "labels": ["价保", "发票"], "src": "synth", "typo_fixed": false}
 {"text": "价保提交后发现漏传截图，能补传吗", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "价保是不是只看商品页面标价啊", "labels": ["价保"], "src": "synth", "typo_fixed": false}
 {"text": "价保申请填错银行卡号了还能改吗", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "价保被客服电话回访，问一堆问题，正常吗", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "保价期内商品下架又上架，新链接能保原单吗", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "保价期内商品参加秒杀，比我的成交价低，算不算", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "保价申请提交后多久到账？能微信直接返吗", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "保价申请被拒，理由是“非同一商品型号”，可参数完全一样啊", "labels": ["价保"], "src": "synth", "typo_fixed": false}
-{"text": "好评发完发现优惠券没用上，能一边申请价保一边改评价内容吗", "labels": ["价保", "评价"], "src": "synth", "typo_fixed": false}
+{"text": "价保的钱是直接返券还是现金", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "价保返的是无门槛券，但我想要现金", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "会员等级提升后，之前买的商品能保价吗", "labels": ["价保", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "保价期内商品参加大促跨店满减，能叠加比价吗", "labels": ["价保", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "刚买就降了，补差价要等多久？另外想把订单里的尺码换成大一号的。", "labels": ["价保", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "刚收到货发现便宜了能退差价不", "labels": ["价保"], "src": "synth", "typo_fixed": false}
 {"text": "想申请价保补差价，但系统让我先确认收货，可我还没付款成功，这流程不对啊！", "labels": ["价保", "支付"], "src": "synth", "typo_fixed": false}
-{"text": "下单前领了券，付款时自动失效了，啥情况", "labels": ["优惠活动", "支付"], "src": "synth", "typo_fixed": false}
-{"text": "下单时用了满减，退货后重新下单，满减额度重置了吗", "labels": ["优惠活动", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "我价保申请点了两次，会不会重复打款", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "降价补差需要自己申请还是自动到账？顺便问下这个商品什么时候补货？", "labels": ["价保", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "页面写着“限时直降”，这算不算价保范围", "labels": ["价保"], "src": "synth", "typo_fixed": false}
+{"text": "下单后发现优惠券没用上，重新下单能延续原运费险吗？", "labels": ["优惠活动", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "下单时误删了优惠券，能联系客服手动加回去吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
 {"text": "为什么我领的优惠券在结算页不自动抵扣，要手动选才行", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "刚在直播间抢的券，结算时自动用了，但支付时提示“优惠不可用”，钱按原价扣了，差价能退吗？", "labels": ["优惠活动", "价保"], "src": "synth", "typo_fixed": false}
-{"text": "我用券下单后马上取消，券返还延迟了，正常吗", "labels": ["优惠活动", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "我领的券在PC端能用，手机端不显示，是适配问题吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "新人券领了但注册完没收到短信提醒", "labels": ["优惠活动", "账号"], "src": "synth", "typo_fixed": false}
-{"text": "满299减40，我买了298.5，差1.5能手动补邮费凑单吗", "labels": ["优惠活动", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "满300减50，我买了299.9，系统能四舍五入吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "返的券有使用期限吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "这个“跨店满减”需要在同一家店下多单才能凑吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "这张“拼团专享券”参团成功了但券没发放", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "页面说限时抢券，点进去就没了，是缓存问题吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "会员等级变更后，已领未用的券会失效吗", "labels": ["会员积分", "优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "成长值显示异常，比实际少了一半", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "成长值统计包含退款订单吗", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "成长值统计是否含取消订单的那笔", "labels": ["会员积分", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "成长值计算规则在哪看", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "为啥别人领到50元券我只有5元，是不是账号有问题", "labels": ["优惠活动", "账号"], "src": "synth", "typo_fixed": false}
+{"text": "优惠券没了，页面还在展示“限时领取”，点进去却提示领完，这算虚假宣传吗？", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "兑换的礼品券怎么没收到", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "我用积分兑了个优惠券，结果下单时提示“不可与其他优惠同享”，可页面根本没写这条限制！", "labels": ["优惠活动", "评价"], "src": "synth", "typo_fixed": false}
+{"text": "我领了券但没在有效期内下单，系统能恢复吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "新人礼包里的券和满减能同时享受吗", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "用券买的，换货时新商品价格更高，要补差还能用券吗", "labels": ["优惠活动", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "跨店满减要求同一收货人，我给爸妈分别下单，能合并计算吗？", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "这个折扣是全场通用还是只限部分商品", "labels": ["优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "会员等级对应的成长值要求变了吗", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "会员等级权益里的优先发货怎么体现", "labels": ["会员积分", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "会员等级权益里的新品试用怎么报名", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "成长值不够升不了级怎么办", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "积分兑换后发现地址填错了能改吗", "labels": ["会员积分", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "积分兑换后能退货吗", "labels": ["会员积分", "退换货"], "src": "synth", "typo_fixed": false}
 {"text": "积分兑换失败了能重试吗", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
 {"text": "积分兑换的电子券被误删了能恢复吗", "labels": ["会员积分", "评价"], "src": "synth", "typo_fixed": false}
-{"text": "积分商城里的商品下架了，我兑的券还能用吗", "labels": ["会员积分", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "积分商城页面打不开是不是系统问题", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "积分过期了吗", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "请问月球基地的喵星人会员费多少钱一个月", "labels": ["会员积分"], "src": "pool", "typo_fixed": false}
-{"text": "商品保修期是多久，人为损坏还能保修吗", "labels": ["保修维修"], "src": "pool", "typo_fixed": true}
-{"text": "追评里问“保修卡怎么用”", "labels": ["保修维修", "评价"], "src": "synth", "typo_fixed": true}
-{"text": "原话", "labels": ["其他"], "src": "pool", "typo_fixed": false}
-{"text": "请问月球基地的氦-3采矿许可证怎么办", "labels": ["其他"], "src": "pool", "typo_fixed": false}
-{"text": "请问月球基地的氦-3采矿许可证怎么办", "labels": ["其他"], "src": "pool", "typo_fixed": false}
-{"text": "问题", "labels": ["其他"], "src": "pool", "typo_fixed": false}
-{"text": "发票信息填错+会员积分没到账，能同步处理吗", "labels": ["发票", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "发票开好了但购买方税号少了一位，能马上换开吗？这单还等着报销呢！", "labels": ["发票"], "src": "synth", "typo_fixed": false}
+{"text": "积分兑换的虚拟商品激活码无效怎么办", "labels": ["会员积分", "商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "积分能兑换携程代金券吗", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "积分能兑换顺丰包邮券吗", "labels": ["会员积分", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "积分能兑换饿了么红包吗", "labels": ["会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "吸尘器电机异响，保修期内修，但我想把收货地址改成公司地址", "labels": ["保修维修", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "商品页面写支持三包，结果客服说人为损坏不保，可我根本没摔过，怎么界定？", "labels": ["保修维修", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "扫地机器人卡在沙发底下不动了，能修吗？顺便查下物流到哪了", "labels": ["保修维修", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "电压力锅无法排气，能修吗？另外退货运费谁承担", "labels": ["保修维修", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "能不能额外购买延长保修服务", "labels": ["保修维修"], "src": "pool", "typo_fixed": false}
+{"text": "客服，我点“联系客服”弹出的窗口全是乱码，是浏览器兼容问题吗", "labels": ["其他"], "src": "synth", "typo_fixed": false}
+{"text": "甲说法", "labels": ["其他"], "src": "pool", "typo_fixed": false}
+{"text": "下单时没选开票，现在还能补吗", "labels": ["发票"], "src": "synth", "typo_fixed": false}
+{"text": "买了两件商品，能分开开两张发票吗？", "labels": ["发票"], "src": "synth", "typo_fixed": false}
+{"text": "买完发现发票抬头填错了，想取消订单重下，但支付已完成，能原路退回再让我重新付吗？", "labels": ["发票", "订单修改", "支付"], "src": "synth", "typo_fixed": false}
+{"text": "付款后发现填错发票抬头，现在订单已支付完成，能同步修改发票+申请退款重拍吗？", "labels": ["发票", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "发票内容应为“智能设备”但开了“其他货物”+物流显示派送中但一直没动静", "labels": ["发票", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "发票备注要加合同号+会员等级升级没生效，能帮看下吗", "labels": ["发票", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "发票开好了但没收到邮件，查订单里显示已开具，是不是系统没发成功？", "labels": ["发票"], "src": "synth", "typo_fixed": false}
 {"text": "发票开票方税号错了+商品页面承诺“顺丰包邮”但发的圆通，差价能补吗", "labels": ["发票", "物流", "价保"], "src": "synth", "typo_fixed": false}
-{"text": "发票开错+运费险理赔失败，两个问题一起咨询下", "labels": ["发票", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "发票抬头写成“猫爪商城”了，不是我们公司名", "labels": ["发票"], "src": "synth", "typo_fixed": false}
-{"text": "发票日期能不能改成报销需要的日期？比如上个月的？", "labels": ["发票"], "src": "synth", "typo_fixed": false}
-{"text": "增值税专用发票需要提供哪些资料", "labels": ["发票"], "src": "synth", "typo_fixed": false}
-{"text": "好评里提到了发票已开，但其实还没开，这个能修改吗", "labels": ["发票", "评价"], "src": "synth", "typo_fixed": false}
-{"text": "开的发票开票方名称不对+商品材质跟描述不一致，要反馈", "labels": ["发票", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "开的发票金额不对，少开了几十块", "labels": ["发票"], "src": "synth", "typo_fixed": false}
-{"text": "开的发票销方地址与营业执照不符+商品功能与宣传视频完全不一样", "labels": ["发票", "质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "开票信息填错了，要换开，另外商品有划痕想退", "labels": ["发票", "退换货", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "发票开错了要换开，但订单已经签收了，影响换开吗？", "labels": ["发票"], "src": "synth", "typo_fixed": false}
+{"text": "发票换开后，原发票作废吗？另外这单运费险怎么没生效？", "labels": ["发票", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "发票能开成公司抬头吗？", "labels": ["发票"], "src": "synth", "typo_fixed": false}
+{"text": "发票邮箱填错+账号绑定的微信突然解绑了，怎么找回", "labels": ["发票", "账号"], "src": "synth", "typo_fixed": false}
+{"text": "增值税专用发票资料审核不通过+商品详情页视频加载不出来，影响选品", "labels": ["发票", "商品信息"], "src": "synth", "typo_fixed": true}
+{"text": "好评晒单都做了，结果发现发票抬头错了，评价里写的公司名要同步改吗", "labels": ["发票", "评价"], "src": "synth", "typo_fixed": false}
+{"text": "开的发票货物名称太模糊+商品使用一天就坏了，要走保修还是退换", "labels": ["发票", "质量问题", "保修维修", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "开的发票销方信息不全+想取消订单但显示已支付成功，能撤回吗", "labels": ["发票", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "开票信息中地址太简略+商品包装盒印刷错误，要换新包装", "labels": ["发票", "质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "开票信息中电话号码错了+商品颜色和网页图严重不符，要退", "labels": ["发票", "商品信息", "退换货"], "src": "synth", "typo_fixed": false}
 {"text": "用优惠券买的，但发票要开全额，税务合规吗", "labels": ["发票", "优惠活动"], "src": "synth", "typo_fixed": false}
 {"text": "用美团月付付款后想开发票，但开票页面要求填写“支付凭证号”，这个在哪查？", "labels": ["发票", "支付"], "src": "synth", "typo_fixed": false}
-{"text": "电子发票重复发送了两份，订单里有一件没发货，咋回事", "labels": ["发票", "物流"], "src": "synth", "typo_fixed": true}
-{"text": "加热垫能一直插着吗，过热了有保护吗，表面能洗吗", "labels": ["商品信息", "保修维修"], "src": "pool", "typo_fixed": true}
-{"text": "好评里写了“颜色和描述不符”，算商品信息+评价双标签吧", "labels": ["商品信息", "评价"], "src": "synth", "typo_fixed": false}
-{"text": "电动牙刷刷头接口是通用款还是品牌专配？想买第三方替换头。", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "自动喂食一天最多能设几顿", "labels": ["商品信息"], "src": "pool", "typo_fixed": false}
-{"text": "详情页里写的“加厚羽绒”，鹅绒含量和充绒量分别是多少？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "买了两个同款U盘，一个标称读速150MB/s，另一个标称180MB/s，包装盒参数不统一，哪个准？", "labels": ["商品信息"], "src": "synth", "typo_fixed": true}
+{"text": "买了双42码的鞋，但详情页没写鞋楦宽窄，脚背高的人穿会不会挤？", "labels": ["商品信息", "尺码"], "src": "synth", "typo_fixed": false}
+{"text": "买的不是这个材质，能改规格+咨询商品信息确认成分吗", "labels": ["商品信息", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "你们做不做企业定制礼盒", "labels": ["商品信息"], "src": "pool", "typo_fixed": false}
+{"text": "儿童袜子的棉含量标的是95%，剩下5%是啥材料？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "摄像头版喂食器怎么配网，断电了会不会停喂", "labels": ["商品信息", "保修维修"], "src": "pool", "typo_fixed": true}
+{"text": "有没有保税仓的跨境直邮", "labels": ["商品信息"], "src": "pool", "typo_fixed": false}
+{"text": "这个儿童安全座椅侧翼防护厚度是8cm还是10cm？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
 {"text": "这个儿童水壶吸管是硅胶还是TPE？弯折寿命多少次？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个厨房电子秤最小称重是0.1g还是1g？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个台灯的色温范围到底是2700K-6500K还是只有三档固定值？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个无线充电器放手机时会不会发热严重？温升多少度？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个智能音箱唤醒词支持自定义吗？远场识别距离几米？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个蓝牙耳机通话降噪是双麦克风还是三麦克风？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个键盘按键是PBT材质还是ABS的？麻烦确认下～", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "T恤买成XL了，我穿L正合适，现在穿太肥，能换吗", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "下单时选错尺码又填错发票抬头，现在能一起改吗？", "labels": ["尺码", "发票", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "下单选错尺码想改，结果发现想换的码也缺货，补货和订单修改能联动吗？", "labels": ["尺码", "订单修改", "库存补货"], "src": "synth", "typo_fixed": false}
-{"text": "买大了想换，但怕换货又要等好久，能不能先发新尺码，旧的我再寄回？", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "买大了想退，尺码不合适穿着太松垮，麻烦处理下", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "买小了想换大号，但商品页面写着“发货后不支持修改”，现在还没出库能拦下来吗？", "labels": ["尺码", "退换货", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "卫衣买小了，下摆只到胯骨，换L码要提供试穿照片吗", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "宝宝刚满一岁，买的小熊连体衣3个月码穿着有点紧，是偏小吗？", "labels": ["尺码"], "src": "synth", "typo_fixed": false}
-{"text": "想换码，但不确定新尺码对应的实际胸围是多少，能给个详细尺寸表吗？", "labels": ["尺码", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "毛呢大衣买大了，肩线掉到胳膊上，换小一号包邮吗", "labels": ["尺码", "退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "羊绒衫标S码，我肩宽38穿完袖子只到手腕，是袖长缩水还是尺码错", "labels": ["尺码", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "这个瑜伽垫厚度标6mm，但实物摸着偏软，回弹参数有测试数据吗？", "labels": ["商品信息", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "这个电火锅功率2000W，电压适配220V吗？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "这个防晒喷雾SPF50+，PA++++，酒精含量多少？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "鼠标滚轮阻尼感描述里写“顺滑静音”，但没提是否带金属轴心，会影响寿命不？", "labels": ["商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "下单时选错尺码了，想退掉重拍，但优惠券过期了，能补发一张吗？", "labels": ["尺码", "退换货", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "买回来发现尺码标错，吊牌写L实际是M，能换吗", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "买大了想退", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "买小了想换S码，但刚付完款，能直接改地址+改支付方式吗？", "labels": ["尺码", "订单修改", "支付"], "src": "synth", "typo_fixed": true}
+{"text": "买小了想换大号，但新到的这件袖口还有线头没剪，做工粗糙", "labels": ["尺码", "质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "买小了想换码，但快递还没到，能等到了直接退换吗？", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "买错尺码想换，但系统提示“该尺码暂无库存”，补货和订单修改能打通吗？", "labels": ["尺码", "退换货", "库存补货", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "孩子穿小了想换成大一号的", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "孩子衣服尺码买小了，现在还没发货能改规格吗", "labels": ["尺码", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "宝宝脚长12cm，该买多大码的学步鞋啊？", "labels": ["尺码"], "src": "synth", "typo_fixed": false}
+{"text": "断码归本类？那我选不了尺码是不是也算尺码问题？", "labels": ["尺码", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "毛呢大衣我穿M码肩线正合适，但袖长只到手腕，是不是尺码表袖长数据有误？", "labels": ["尺码"], "src": "synth", "typo_fixed": false}
+{"text": "牛仔裤小一码，坐下就勒肚子，想换大一号，但发票抬头填错了，能一起改吗？", "labels": ["尺码", "发票", "订单修改"], "src": "synth", "typo_fixed": false}
 {"text": "羽绒服买小了，手臂抬不起来，换大一号能同步更新物流信息吗", "labels": ["尺码", "退换货", "物流"], "src": "synth", "typo_fixed": false}
-{"text": "羽绒服尺码比往年同品牌大一圈，今年是不是改版了", "labels": ["尺码", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "裤子尺码不合适想换，但不同颜色库存不一样，换货要重新付运费吗？", "labels": ["尺码", "退换货", "运费", "库存补货"], "src": "synth", "typo_fixed": false}
-{"text": "试穿后发现尺码和详情页描述不符，想换码但全缺货，补货和商品信息准确性需核查", "labels": ["尺码", "库存补货", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个卫衣我平时穿XL，看详情页说偏大，该选L还是XL啊？", "labels": ["尺码"], "src": "synth", "typo_fixed": false}
+{"text": "裤子尺码偏大，想退掉重新下单，退货运费谁出啊？", "labels": ["尺码", "退换货", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "裤子腰围太大了，换S码行不行", "labels": ["尺码", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "西装外套标48码，我肩宽44穿起来垫肩都快掉下来了，咋回事", "labels": ["尺码", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "试穿后发现尺码不合适，想换码，可所有码都显示缺货，啥时候补？", "labels": ["尺码", "退换货", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "这件风衣肩宽标42cm，我实际肩宽41.5cm，穿起来会显壮吗？求真实反馈！", "labels": ["尺码", "商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "连衣裙买大了，胸围合适但腰身松垮，想换S码，但订单地址填错了，能同步改地址吗？", "labels": ["尺码", "退换货", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "风衣标170/88A，我168/60穿完下摆扫小腿肚，长度超标啊", "labels": ["尺码"], "src": "synth", "typo_fixed": false}
 {"text": "为啥别的平台都有货，咱们猫爪一直缺货？", "labels": ["库存补货"], "src": "synth", "typo_fixed": true}
-{"text": "断码补货会参考用户加购数据吗？比如XX码加购最多就优先补", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
-{"text": "缺货的保温杯什么时候上架？我发票抬头填错了也得一起改下", "labels": ["库存补货", "发票"], "src": "synth", "typo_fixed": false}
-{"text": "缺货补发的处理时限是几个工作日", "labels": ["库存补货", "物流"], "src": "pool", "typo_fixed": false}
-{"text": "补货后会同步到所有渠道吗？小程序和APP都得有", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "大促活动赠品没随单发出，是算活动缺货还是发货问题？", "labels": ["库存补货", "优惠活动"], "src": "synth", "typo_fixed": true}
+{"text": "宝贝缺货了，能通知我一下补货时间吗？", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "断码商品会重新上架还是直接下架？", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "缺货商品在购物车里会一直显示“缺货”还是自动移除？", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "缺货的护膝啥时候补？我支付失败了两次，补货后能优先发货吗？", "labels": ["库存补货", "支付"], "src": "synth", "typo_fixed": false}
+{"text": "补货后会同步更新主图视频里的尺码展示吗？", "labels": ["库存补货", "商品信息"], "src": "synth", "typo_fixed": false}
 {"text": "补货时会检查旧批次余量吗？怕补的还是老瑕疵批次", "labels": ["库存补货", "质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "补货是按销量预测还是随机上？能不能透明点？", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
-{"text": "补货消息能短信通知吗？APP推送经常错过", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
-{"text": "这款儿童袜子断码了，补货时能不能同步更新尺码表？", "labels": ["库存补货", "尺码"], "src": "synth", "typo_fixed": false}
-{"text": "这款睡衣套装断码了，补货时会恢复所有颜色吗？", "labels": ["库存补货", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这款蓝牙音箱全渠道都缺货，是不是不补了？我要是申请价保的话补货价算不算新价格？", "labels": ["库存补货", "价保"], "src": "synth", "typo_fixed": false}
-{"text": "下单时选了“先用积分再付现金”，结果全扣的现金，积分没抵扣，能补退吗？", "labels": ["支付", "会员积分"], "src": "synth", "typo_fixed": true}
-{"text": "刚开通数字人民币钱包，第一次付就提示“钱包未激活”，激活在哪操作？", "labels": ["支付", "账号"], "src": "synth", "typo_fixed": false}
-{"text": "微信分付额度刚提了，付完款发现商品缺货，申请退款后分付账单里还挂着这笔，钱啥时候能解冻？", "labels": ["支付", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "这款帆布包断货了，补货后开售会发短信提醒吗？能和发票一起开吗？", "labels": ["库存补货", "发票"], "src": "synth", "typo_fixed": false}
+{"text": "这款鞋断码了什么时候能补货啊", "labels": ["库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "下单选了分期付款，结果扣款是整笔，不是分12期，是不是设置错了？", "labels": ["支付"], "src": "synth", "typo_fixed": false}
+{"text": "微信零钱余额不足时自动用了微粒贷，但没收到借款确认，这算不算支付成功？", "labels": ["支付"], "src": "synth", "typo_fixed": false}
 {"text": "我用微信支付失败了，页面一直转圈", "labels": ["支付"], "src": "synth", "typo_fixed": false}
-{"text": "用京东支付下单，结果扣的是我另一张招商银行储蓄卡，咋回事？", "labels": ["支付"], "src": "synth", "typo_fixed": false}
-{"text": "用华为钱包NFC付的，嘀了一声但没跳转成功页面，查余额已扣", "labels": ["支付"], "src": "synth", "typo_fixed": false}
-{"text": "用抖音支付跳转后闪退，再进APP订单是“已支付”，但银行卡流水没记录，钱到底扣没扣？", "labels": ["支付"], "src": "synth", "typo_fixed": false}
-{"text": "用抖音来客跳转的链接下单，支付时却跳回猫爪APP，流程太绕了", "labels": ["支付"], "src": "synth", "typo_fixed": false}
-{"text": "用花呗付的款，怎么还没从我的花呗账单里扣？是不是没支付成功？", "labels": ["支付"], "src": "synth", "typo_fixed": false}
-{"text": "订单还没付款，系统卡在支付页，能取消重下吗", "labels": ["支付", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "下单时勾选了“送货上门”，结果快递扔楼下就走了，这符合物流服务标准吗？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "我用支付宝付款失败，重新支付时优惠没了，能恢复吗", "labels": ["支付", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "我的订单，用了100积分（1:1）+99现金，但支付后积分没扣、现金扣了199", "labels": ["支付", "会员积分"], "src": "synth", "typo_fixed": true}
+{"text": "支付宝里设置了“优先使用余额宝”，但这次付完发现扣的是余额，为啥没走余额宝？", "labels": ["支付"], "src": "synth", "typo_fixed": true}
+{"text": "用夸克浏览器下单，支付时提示“检测到非标准UA”，强行刷新才出来", "labels": ["支付"], "src": "synth", "typo_fixed": false}
+{"text": "用网易支付下单，结果扣的是我很久不用的网易宝余额，怎么换默认？", "labels": ["支付", "账号"], "src": "synth", "typo_fixed": false}
+{"text": "用银联云闪付APP扫的码，扣款成功但猫爪没收到通知，订单卡在待支付", "labels": ["支付"], "src": "synth", "typo_fixed": false}
+{"text": "选了货到付款，结果下单后自动跳转到在线支付页面，还扣了我账户里的钱，这算强制支付吗？", "labels": ["支付", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "下单后两小时就显示“已发货”，这速度靠谱吗？是不是虚假发货？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "下单选了到付，结果快递硬要我现场扫码付13块，这算包邮吗？", "labels": ["物流", "运费"], "src": "synth", "typo_fixed": false}
 {"text": "买的是预售款，发货前我能申请包邮吗？", "labels": ["物流", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "刚收到货发现少了一包猫粮，物流单上写的是5件，实际只给4件，怎么补？", "labels": ["物流", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "发货了为啥物流轨迹还是“待揽收”？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
-{"text": "发货时间能提前吗？我明早就要出差，今天必须发出！", "labels": ["物流"], "src": "synth", "typo_fixed": false}
-{"text": "在途快一周了，比平时慢好多，是不是丢件了？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
-{"text": "快递把货送错小区，我跑去拿的，这趟打车费能算进退货运费吗？", "labels": ["物流", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "物流信息停在“到达分拨中心”五天了，是压货还是异常？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
-{"text": "物流单号输错了一位，查不到信息，能帮我核对下正确单号吗？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
-{"text": "物流显示“签收异常：他人代收”，我没授权任何人代收，这算签收有效吗？会影响保修吗？", "labels": ["物流", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "积分兑换的东西物流慢是不是要扣成长值", "labels": ["物流", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "签收了但没收到货，是不是被放错地方了？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
-{"text": "下单后发现要开专票，能改地址+换开发票类型吗", "labels": ["订单修改", "发票"], "src": "synth", "typo_fixed": false}
-{"text": "下单后发现规格选错了，想改成带充电盒的版本，能改吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "下单时地址填错了一个字，收到货想退", "labels": ["订单修改", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "下单时把“男款”选成“女款”，能改规格+按尺码推荐合适尺码吗", "labels": ["订单修改", "尺码"], "src": "synth", "typo_fixed": false}
-{"text": "买多了想退，但想先改数量+走退换货流程", "labels": ["订单修改", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "买的是预售商品，发货前取消订单，预付的运费能退吗？", "labels": ["订单修改", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "买的是预售款，但想改成现货款，能改规格+问补货时间吗", "labels": ["订单修改", "库存补货"], "src": "synth", "typo_fixed": false}
-{"text": "买错适用肤质了（油皮买了干皮款），能改规格+按商品信息确认成分适配吗", "labels": ["订单修改", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "刚付完款发现地址写少了两个字，能改地址吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "仓库在哪个城市，能不能到仓库自提", "labels": ["物流", "库存补货"], "src": "pool", "typo_fixed": true}
+{"text": "凑单用的都是预售商品，大促结束前能保证全部按时发货吗？", "labels": ["物流", "优惠活动"], "src": "synth", "typo_fixed": true}
+{"text": "刚签收发现快递盒被压扁，里面玻璃杯碎了，这怎么处理？", "labels": ["物流", "质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "快递显示“已签收”，但我家监控拍到是隔壁邻居拿走的，能追回吗？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "派件中但联系不上快递员，同时这个商品页面写的“72小时发货”怎么超时了？", "labels": ["物流", "商品信息"], "src": "synth", "typo_fixed": true}
+{"text": "物流信息三天没更新了，一直卡在中转站，等不及了想直接退！", "labels": ["物流", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "物流信息更新延迟严重，每次都要等半天才动一下，能优化下数据同步吗？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "物流单号查不到，是不是漏发了我的货？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "物流显示“已签收”，但我查快递柜记录是“超时未取自动退回”，矛盾了。", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "物流显示“派件中”，但快递员说系统没分配他这单，是不是漏派了？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "签收了但没收到货，是不是送错了？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "货到了但外包装严重破损，里面东西可能坏了，这算物流问题还是质量问题？", "labels": ["物流", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "货被退回了，说是地址不详，但我填的是完整小区名+楼栋号，能查下具体原因吗？", "labels": ["物流"], "src": "synth", "typo_fixed": false}
+{"text": "配送范围有哪些，偏远地区运费怎么算", "labels": ["物流", "运费"], "src": "pool", "typo_fixed": true}
+{"text": "下单时误选了加绒款，现在要改成普通款，能改规格吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "下单选错颜色了想改，结果收到的红色T恤胸前印花了，油墨还蹭得到处都是", "labels": ["订单修改", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "买的是A系列想换成B系列，能改规格+问B系列库存补货时间吗", "labels": ["订单修改", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "刚下单就发现地址是空号，能马上改地址再发货吗", "labels": ["订单修改", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "刚下单就后悔了，想取消+申请运费险", "labels": ["订单修改", "运费"], "src": "synth", "typo_fixed": false}
 {"text": "刚付款就收到短信说已打包，还能取消订单吗", "labels": ["订单修改", "物流"], "src": "synth", "typo_fixed": false}
-{"text": "刚提交订单发现填的是旧地址，现在能改吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "填地址的时候手滑把区县选错了，现在能改吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "填错代收点名称了，能改指定代收点+同步更新物流面单吗", "labels": ["订单修改", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "刚拍下就发现地址是空的，这单能改地址还是只能取消", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "地址写成隔壁小区了，现在改还来得及吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
 {"text": "填错小区名称了，能同步更新到所有未发货订单吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "这个订单还没出库，能把收货电话也一起改了吗", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "好评发完想改下语气，温柔点，能二次编辑吗？", "labels": ["评价"], "src": "synth", "typo_fixed": false}
-{"text": "好评被屏蔽了是为啥", "labels": ["评价"], "src": "synth", "typo_fixed": false}
+{"text": "快递已经发出了还能改收货地址吗", "labels": ["订单修改", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "我填错收货地址了，货已经发出了，能拦截改地址然后换货吗？", "labels": ["订单修改", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "订单显示“已复核”，这时候改地址需要联系哪个部门？", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "订单显示待支付，我想取消重新下单行不行", "labels": ["订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "订单还没出库，能取消+把满减优惠自动带入新订单吗", "labels": ["订单修改", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "好评里写了赠品没收到，算评价违规吗", "labels": ["评价"], "src": "synth", "typo_fixed": false}
 {"text": "好评里提到快递问题会被删吗", "labels": ["评价", "物流"], "src": "synth", "typo_fixed": false}
-{"text": "差评写了“客服态度差”，平台会处理吗", "labels": ["评价"], "src": "synth", "typo_fixed": false}
 {"text": "差评写了“质量差”，其实只是尺码不合适，现在想改成“尺码偏小”，能改吗", "labels": ["评价", "尺码"], "src": "synth", "typo_fixed": false}
-{"text": "差评写了半天结果提交不了，一直提示网络错误咋办？", "labels": ["评价"], "src": "synth", "typo_fixed": false}
-{"text": "晒单后发现优惠券没用上，现在想补个追评说明，怎么加", "labels": ["评价", "优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "晒单后发现地址填错了，顺便把评价也改一下行不行", "labels": ["评价", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "晒单时误选了“未收到货”，能改状态吗", "labels": ["评价"], "src": "synth", "typo_fixed": false}
-{"text": "追评写了两次都变成空白，是不是系统bug？", "labels": ["评价"], "src": "synth", "typo_fixed": false}
+{"text": "差评发出去两小时了，还没人联系我，能撤回吗", "labels": ["评价", "其他"], "src": "synth", "typo_fixed": false}
+{"text": "晒单带视频支持吗", "labels": ["评价"], "src": "synth", "typo_fixed": false}
+{"text": "晒单用了别人照片，被举报了咋办", "labels": ["评价"], "src": "synth", "typo_fixed": false}
+{"text": "晒单返现没到账，评价也想改下内容", "labels": ["评价", "价保"], "src": "synth", "typo_fixed": false}
+{"text": "能删掉之前那条差评吗", "labels": ["评价"], "src": "synth", "typo_fixed": false}
+{"text": "追评能不能改时间戳", "labels": ["评价"], "src": "synth", "typo_fixed": false}
+{"text": "追评能带链接吗", "labels": ["评价"], "src": "synth", "typo_fixed": false}
 {"text": "追评要等多久才能显示", "labels": ["评价"], "src": "synth", "typo_fixed": false}
 {"text": "追评里提到商品有异味，客服说要我删掉这句，合理吗？", "labels": ["评价", "质量问题"], "src": "synth", "typo_fixed": false}
 {"text": "为啥我一登录就自动退出？刚买完东西订单状态也不更新了", "labels": ["账号", "订单修改"], "src": "synth", "typo_fixed": false}
-{"text": "会员身份能转让给朋友用吗", "labels": ["账号"], "src": "pool", "typo_fixed": false}
 {"text": "刚注册完就登不上，说用户名已存在，可我明明是新注册的", "labels": ["账号"], "src": "synth", "typo_fixed": false}
-{"text": "好评里提了“登录不了账号”", "labels": ["账号", "评价"], "src": "synth", "typo_fixed": true}
-{"text": "微信一键登录后进不去个人中心，页面空白", "labels": ["账号"], "src": "synth", "typo_fixed": false}
-{"text": "我用家人手机号注册的，现在想改绑成自己的，但改绑页面打不开，连发票抬头都填不了！", "labels": ["账号", "发票"], "src": "synth", "typo_fixed": false}
-{"text": "注册时勾选了“接收营销短信”，现在登不上账号，退订入口也打不开", "labels": ["账号", "其他"], "src": "synth", "typo_fixed": false}
-{"text": "注册时误点了游客模式，现在想转正式账号，但历史订单和优惠券都找不到了", "labels": ["账号", "订单修改", "优惠活动"], "src": "synth", "typo_fixed": false}
-{"text": "注册时误选了“企业用户”，现在想改个人，但会员等级权益全变了", "labels": ["账号", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "登录失败还顺带扣了我10积分，这合理吗？", "labels": ["账号", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "登录总是跳转回首页，试了五次，期间还错过了价保申请时间！", "labels": ["账号", "价保"], "src": "synth", "typo_fixed": false}
-{"text": "登录页的“第三方登录”图标全灰了，微信QQ都点不动，是账号权限问题？", "labels": ["账号"], "src": "synth", "typo_fixed": false}
-{"text": "能不能把我的会员昵称从“爱吃糖的小熊”改成“爱喝奶茶的小熊”", "labels": ["账号"], "src": "synth", "typo_fixed": false}
+{"text": "差评写了“注册收不到验证码”", "labels": ["账号", "评价"], "src": "synth", "typo_fixed": true}
+{"text": "忘记密码了怎么重置？登录页面点不了找回密码按钮", "labels": ["账号"], "src": "synth", "typo_fixed": false}
+{"text": "我用微信一键登录，结果跳转失败，再试又说我已注册，这跟我的积分兑换记录丢失有关吗", "labels": ["账号", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "注册时填的身份证号最后一位X输成了小写x，现在实名认证总失败，账号还能救吗？", "labels": ["账号"], "src": "synth", "typo_fixed": false}
+{"text": "注册时选错了性别，现在会员权益显示不全，能改资料吗？改完会影响已有的积分吗", "labels": ["账号", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "注册页面一直加载不出来，而且首页推荐的商品全变成陌生品类了，是账号出问题了吗", "labels": ["账号", "商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "登录界面卡住不动，刷新后又说会话过期，这跟我的会员等级降级有关系吗", "labels": ["账号", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "登录页“隐私协议”点开是404，注册流程能走完但账号后续功能全残", "labels": ["账号"], "src": "synth", "typo_fixed": false}
 {"text": "账号被封了但订单还在进行中，这单还能发货吗", "labels": ["账号", "物流"], "src": "synth", "typo_fixed": false}
 {"text": "账号被封了但订单里还有个待发货的，能先解封让我把货退了吗？", "labels": ["账号", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "账号被封期间，我朋友帮我充了100积分，解封后这积分到账了吗？", "labels": ["账号", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "买回来第三天充电宝就充不进电了，这质量也太差了", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "账号被封了，显示违反规则，但我没干啥啊", "labels": ["账号"], "src": "synth", "typo_fixed": false}
+{"text": "买的不锈钢筷子筷尖不齐，一根弯一根直", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "买的录音笔录不了音，内存显示满但实际没存文件，是硬件坏了吗？保修怎么走？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
+{"text": "买的投影仪散热风扇噪音特别大，影响使用，保修期内能免费换主板吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
+{"text": "买的投影仪灯泡三个月就暗了，说明书写灯泡属耗材不保，可这寿命也太短了吧？能修或换吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
 {"text": "买的智能体重秤单位切换失灵，kg/lb键按了没反应，LCD屏还有残影，能刷固件吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "买的玻璃烛台底座有细小裂纹，点蜡烛后开始冒烟", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "买的电动剃须刀清洗中心不工作，刀头干燥后发霉，说明书说“自动清洁”，能修基站吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
 {"text": "买的电动螺丝刀扭矩档位错乱，标10N·m实测仅3N·m，校准工具没配，能返厂调校吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "买的电子记事本触控延迟严重，笔迹断续，充电时屏幕频闪，保修期内支持换新吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "买的电烤箱烘烤不均，食物半边焦黑半边生，温控探头位置疑似偏移，能调整校准吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "刚拆封发现摄像头有划痕，是质量问题吧？我想修但客服说只能退，合理吗？", "labels": ["质量问题", "保修维修", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "刚收到货发现包装盒上有猫抓的痕迹，这算质量问题还是物流问题啊", "labels": ["质量问题", "物流"], "src": "synth", "typo_fixed": false}
-{"text": "剃须刀刀头卡死转不动，保修期内寄修要自己垫运费吗？", "labels": ["质量问题", "保修维修", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "我上周在喵帮平台下的订单1002购买的冻干猫粮两公斤装出现外包装破损、颜色气味异常及宠物拒食问题，想了解优惠券使用范围。", "labels": ["质量问题", "优惠活动"], "src": "pool", "typo_fixed": true}
-{"text": "收到的蓝牙音箱外壳有划痕和凹坑，看着像二手的", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "新买的加湿器不出雾，水箱结满水垢，是机器问题还是水质问题？需要修吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "新买的空气炸锅按键失灵，但订单里没开电子发票，影响保修吗？", "labels": ["质量问题", "发票", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "新到的抱枕拉链一拉就崩开，里面棉絮都漏出来了", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "新到的收纳箱合页断裂，盖子一掀就掉", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "新拆的电动牙刷充电底座接触点氧化发黑", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "买的黑色卫衣，收到发现偏灰蓝，色差这么大正常吗？能退吗？", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "儿童水杯内壁有针孔渗水，安全风险太大了，必须退换货+查下是不是批次问题", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "净水器滤芯装上后漏水，是修还是直接退？", "labels": ["质量问题", "退换货", "保修维修"], "src": "synth", "typo_fixed": false}
+{"text": "咖啡机萃取不出液，坏了能修，另外会员等级怎么升级", "labels": ["质量问题", "保修维修", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "围巾边角脱线还带着小黑点污渍，做工瑕疵+发票抬头填错了能一起处理吗", "labels": ["质量问题", "发票"], "src": "synth", "typo_fixed": false}
+{"text": "头戴式耳机线控失灵，插电脑没反应，客服说要寄回检测，这运费谁出？", "labels": ["质量问题", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "我上周在喵帮平台下的订单1002购买的冻干猫粮两公斤装，签收后发现外包装破损、冻干颜色和气味异常、猫拒食且精神萎靡，现咨询该订单下优惠券的使用范围、政策依据、办理步骤、所需材料及处理时限。", "labels": ["质量问题", "优惠活动"], "src": "pool", "typo_fixed": true}
+{"text": "拆开发现儿童积木少了一块，而且边缘毛刺扎手", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "拆快递发现玩具车轮子少装一颗螺丝，轮子都歪了", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "收到的瑜伽垫表面有明显气泡鼓包，按压还会吱吱响，材质有问题吧", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "收到的陶瓷碗边沿全是小缺口，看着像次品，要怎么处理", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "新拆的电动剃须刀刀头固定卡簧缺失，刀网晃动", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
 {"text": "新拆的电动牙刷刷头接口处有毛边，插拔困难", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "烤箱温度不准还冒烟，能修吗？保修期内修，但订单里颜色选错了能改吗", "labels": ["质量问题", "保修维修", "订单修改"], "src": "synth", "typo_fixed": false}
+{"text": "热水器漏电报警，能修吗？另外发票抬头错了能换开吗", "labels": ["质量问题", "保修维修", "发票"], "src": "synth", "typo_fixed": false}
+{"text": "电热毯加热不均匀，一边烫一边凉，说明书说“整机保修三年”，但客服让我先拍照，拍什么部位？修之前能先寄个备用的吗？", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
+{"text": "电风扇摇头失灵还发出焦糊味，修一下，另外这个活动券怎么领", "labels": ["质量问题", "保修维修", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "电饭煲内胆涂层大面积脱落，煮饭都粘锅了，能退吗", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "睡衣领口线头一大堆，拉扯一下就脱线，这种瑕疵能退不？", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "睡裙肩带缝线全开，要退掉，另外问下这个月会员积分怎么没到账？", "labels": ["质量问题", "退换货", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "空气净化器滤芯装不上，坏了能修，另外这个型号有库存吗", "labels": ["质量问题", "保修维修", "库存补货"], "src": "synth", "typo_fixed": false}
 {"text": "衣服洗一次就严重掉色，还褪成两块色，能退吗？", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "衣服洗一次就褪色严重，明显是质量问题，要求退货退款！", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
 {"text": "衣服洗一次就起球，属于质量问题吧？退货的话运费怎么算？", "labels": ["质量问题", "退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "运动鞋鞋底标的是EVA材质，踩上去特别硬，和描述“轻弹缓震”对不上啊！", "labels": ["质量问题", "商品信息"], "src": "synth", "typo_fixed": false}
-{"text": "这个儿童积木边角毛刺太多，划手，安全质量堪忧，能退吗", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "这个毛衣领口一圈都起球还掉毛，穿一天就这样了", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "追评说耳机左耳没声音，现在要走保修，但评价里写的是“质量差”，能改成更准确的描述吗", "labels": ["质量问题", "保修维修"], "src": "synth", "typo_fixed": false}
-{"text": "鞋子穿了一次就开胶了，这算质量问题吧，我要退货！", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
-{"text": "满多少钱包邮，不满怎么收运费", "labels": ["运费", "物流"], "src": "pool", "typo_fixed": true}
-{"text": "积分能用来支付退货运费吗", "labels": ["运费", "会员积分"], "src": "synth", "typo_fixed": false}
+{"text": "衣服袖口开线了，能换一件新的吗", "labels": ["质量问题", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "这个折叠椅展开后两条腿高度不一致，坐上去左右晃，焊点还发黑", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "这个木质梳子齿根处有毛刺，梳头时刮头皮", "labels": ["质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "这个陶瓷碗底部有个明显小坑，还说是正品？", "labels": ["质量问题"], "src": "synth", "typo_fixed": true}
+{"text": "这台净水器不出水了，修一下要多少钱？快递寄过去运费谁出", "labels": ["质量问题", "保修维修", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "连帽衫帽子抽绳断了，要退货，修的话能寄修吗？", "labels": ["质量问题", "退换货", "保修维修"], "src": "synth", "typo_fixed": false}
+{"text": "下单时勾选了运费险，但退货时说不支持理赔，怎么回事？", "labels": ["运费", "退换货"], "src": "synth", "typo_fixed": false}
+{"text": "买三件打八折但不包邮，运费按原价收还是按折后价算？", "labels": ["运费", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "包邮差额能退现金吗？别老让我等运费险到账，太慢了！另外会员积分怎么没到账？", "labels": ["运费", "会员积分"], "src": "synth", "typo_fixed": false}
 {"text": "说好全场包邮，结果结算页又跳出“偏远地区加收15元”，这算不算虚假宣传？", "labels": ["运费", "价保"], "src": "synth", "typo_fixed": false}
-{"text": "追评里提了退货运费谁出，算运费+评价双标签吧", "labels": ["运费", "评价"], "src": "synth", "typo_fixed": false}
 {"text": "那个邮费到底要给多少钱啊", "labels": ["运费"], "src": "pool", "typo_fixed": false}
-{"text": "下单时选错颜色了，现在又发现耳机左耳没声音，我想直接退掉行不行？", "labels": ["退换货", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "下单时选错颜色了想换，但新发来的这件纽扣都掉了两颗，质量太差", "labels": ["退换货", "质量问题"], "src": "synth", "typo_fixed": false}
 {"text": "买多了想退两件，退完能让我把原评价改成“已退货，剩余商品满意”的追评吗？", "labels": ["退换货", "评价"], "src": "synth", "typo_fixed": false}
-{"text": "买大了想换小号，但客服说换货要我自己承担来回运费？", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "买大了想退，运费谁承担？", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "买小了想换大号，但换货前发现衣服袖口开线了，能先修再换吗？", "labels": ["退换货", "保修维修", "质量问题"], "src": "synth", "typo_fixed": false}
+{"text": "买大了想退，运费险怎么理赔？另外发票抬头填错了能改吗？", "labels": ["退换货", "运费", "发票"], "src": "synth", "typo_fixed": false}
 {"text": "买小了想换货，但系统提示“仅支持原路退款”，我当初是用美团月付付的，现在退款到账慢是不是支付渠道的问题？", "labels": ["退换货", "支付"], "src": "synth", "typo_fixed": false}
-{"text": "买的是预售商品，付了定金，现在想付尾款但提示“该订单不支持尾款支付”，定金还能退吗？", "labels": ["退换货"], "src": "synth", "typo_fixed": false}
-{"text": "买错了颜色想换，但不确定新选的“薄荷绿”和图上是不是一致，能发实拍图吗？", "labels": ["退换货", "商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "买小了想退，但怕来不及赶七天，能先锁定退货资格吗？", "labels": ["退换货", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "买的是组合套装，只想退其中一件可以吗", "labels": ["退换货"], "src": "synth", "typo_fixed": false}
+{"text": "买错颜色要换货，但客服说得先退货再重新下单，那原订单的退款什么时候原路返回？", "labels": ["退换货", "支付"], "src": "synth", "typo_fixed": false}
 {"text": "刚收到发现吊牌剪了但没穿，想七天无理由退，运费险能用吗？", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "孩子把玩具弄坏了，还能退吗？", "labels": ["退换货", "质量问题"], "src": "synth", "typo_fixed": false}
-{"text": "想换货（尺码选小了）+问下原尺码什么时候补货？", "labels": ["退换货", "尺码", "库存补货"], "src": "synth", "typo_fixed": true}
-{"text": "想退货但发现同款只剩一个断码在售，补货和库存策略能说明下吗？", "labels": ["退换货", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "刚收到货发现发错颜色了，退货运费你们承担吗？", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
+{"text": "已经拆封的猫砂还能退吗，不能退的话我该找谁", "labels": ["退换货"], "src": "pool", "typo_fixed": true}
+{"text": "想退掉买大了的T恤，但想换的M码也缺货，补货和退换货一起处理行吗？", "labels": ["退换货", "库存补货"], "src": "synth", "typo_fixed": false}
+{"text": "我买的加热垫想退，已经用过一次算不算影响二次销售", "labels": ["退换货"], "src": "pool", "typo_fixed": true}
+{"text": "我申请退货后运费险没赔，是不是没买上？", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
 {"text": "我退货寄出两天了，物流停滞不动，能帮忙联系快递查下吗", "labels": ["退换货", "物流"], "src": "synth", "typo_fixed": false}
-{"text": "换货时旧衣服寄回后，新衣服发货前会质检吗", "labels": ["退换货"], "src": "synth", "typo_fixed": false}
-{"text": "换货的话新衣服什么时候发呀", "labels": ["退换货", "物流"], "src": "synth", "typo_fixed": true}
-{"text": "积分兑换的实体商品尺寸不合适能退吗", "labels": ["退换货", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "衣服标签没剪但试穿了一次，这种能无理由退货吗？", "labels": ["退换货", "尺码"], "src": "synth", "typo_fixed": false}
-{"text": "退换政策是怎样的", "labels": ["退换货"], "src": "pool", "typo_fixed": false}
-{"text": "退货后原发票怎么处理？新订单重开的发票能和退货运单号关联上吗？", "labels": ["退换货", "发票"], "src": "synth", "typo_fixed": false}
-{"text": "退货寄出后物流一直没更新，超时了运费险还能赔吗？", "labels": ["退换货", "物流", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "退货运费险没自动生效，是不是我操作错了？要重新申请吗？", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "退货运费险理赔要上传什么凭证", "labels": ["退换货", "运费"], "src": "synth", "typo_fixed": false}
-{"text": "收到的T恤有明显线头和跳针，能退掉吗？是不是该打质量问题标签？", "labels": ["质量问题", "退换货"]}
-{"text": "羽绒服钻绒严重，穿一次就漏毛，能退掉吗？需要拍照留证吗？", "labels": ["质量问题", "退换货"]}
-{"text": "新买的皮带扣眼开线，扣舌还生锈，做工瑕疵——这算质量问题还是材质问题", "labels": ["质量问题"]}
-{"text": "手机壳边缘做工瑕疵，毛刺扎手还刮衣服", "labels": ["质量问题"]}
-{"text": "买的锅底掉漆露出铁皮，煮汤发黑，质量问题+要补开发票", "labels": ["质量问题", "发票"]}
-{"text": "保温杯盖子拧紧后漏水，杯身还有划痕，做工问题+物流包装太简陋了", "labels": ["质量问题", "物流"]}
-{"text": "买大了，能帮我换小一码吗？", "labels": ["尺码", "退换货"]}
-{"text": "裤子小一码，穿上蹲不下，退换货流程怎么走？", "labels": ["尺码", "退换货"]}
-{"text": "衣服偏紧，穿起来勒胳膊，是不是该选大一号？", "labels": ["尺码"]}
-{"text": "买回来的不锈钢盆底部有针孔，装水就渗漏，做工问题+退货运费谁承担", "labels": ["质量问题", "退换货", "运费"]}
-{"text": "T恤胸前印花翘边、背面还有胶印残留，做工问题+尺码偏小想换大一码", "labels": ["质量问题", "尺码", "退换货"]}
-{"text": "T恤偏紧，但领口还有点起球，是质量问题还是尺码问题？", "labels": ["尺码", "质量问题"]}
-{"text": "买小了，肩膀都绷着，想换XL，顺便问下换货要自己付运费吗？", "labels": ["尺码", "退换货", "运费"]}
-{"text": "外套买大了，肩膀线都掉到胳膊肘了，换L码的话，物流能加急发吗？", "labels": ["尺码", "退换货", "物流"]}
-{"text": "牛仔裤小一码，坐下就勒肚子，想换大一号，但发票抬头填错了，能一起改吗？", "labels": ["尺码", "发票", "订单修改"]}
-{"text": "打底衫偏紧，后背拉不开，但详情页说“微弹面料”，是不是参数写错了？", "labels": ["商品信息", "质量问题"]}
-{"text": "买大了，下摆都快到膝盖了，换码时能用我刚领的5元优惠券抵运费吗？", "labels": ["尺码", "退换货", "运费", "优惠活动"]}
-{"text": "想退掉这件，尺码不合适，另外订单地址填错了能一起改吗", "labels": ["退换货", "尺码", "订单修改"]}
-{"text": "短裤买大了，裤腰滑到胯骨，但裤脚又短了一截，是尺码不准还是剪裁问题？", "labels": ["尺码", "商品信息"]}
-{"text": "七天无理由申请退货，但系统提示“已超时”，还能操作吗？", "labels": ["退换货"]}
-{"text": "卫裤小一码，蹲下就绷大腿，想换，但刚下单的同款有满299减30活动，能等补差价后再换吗？", "labels": ["尺码", "退换货", "价保"]}
-{"text": "羽绒服买大了，袖子长出一截还鼓包，但拉链头有点松动，是修还是换？", "labels": ["尺码", "质量问题", "退换货", "保修维修"]}
-{"text": "刚收到就发现拉链坏了，七天无理由能退吗？还是得走保修？", "labels": ["质量问题", "退换货", "保修维修"]}
-{"text": "能退吗？快递还没签收，我先取消订单再申请退货行不行？", "labels": ["退换货", "订单修改"]}
-{"text": "鞋盒压瘪了但鞋子完好，能退掉吗？顺便问下电子发票怎么开？", "labels": ["退换货", "发票"]}
-{"text": "下单时选错尺码了，想退掉重拍，但优惠券过期了，能补发一张吗？", "labels": ["尺码", "退换货", "优惠活动"]}
-{"text": "袜子洗一次就掉色，想退，另外问下积分怎么查？", "labels": ["质量问题", "退换货", "会员积分"]}
-{"text": "七天无理由退换，但快递还没取件，能帮我催下物流吗", "labels": ["退换货", "物流"]}
-{"text": "七天无理由申请退货后，退款是原路退回吗？支付宝付款能退到余额宝吗？", "labels": ["退换货", "支付"]}
-{"text": "不制冷了，空调刚用两个月，保修期内修，但客服上次说要寄回太麻烦，能上门吗", "labels": ["保修维修"]}
-{"text": "能修吗？洗衣机脱水时哐当响还漏水，还在保修期内", "labels": ["保修维修", "质量问题"]}
-{"text": "破壁机打浆时剧烈震动，保修期内修，发票还没开，能一起处理吗", "labels": ["质量问题", "保修维修", "发票"]}
-{"text": "吸尘器电机异响，保修期内修，但我想把收货地址改成公司地址", "labels": ["保修维修", "订单修改"]}
-{"text": "微波炉突然不加热了，修一下要多少钱？顺便问下退货运费怎么算", "labels": ["质量问题", "保修维修", "运费"]}
-{"text": "空气净化器滤芯装不上，坏了能修，另外这个型号有库存吗", "labels": ["质量问题", "保修维修", "库存补货"]}
-{"text": "咖啡机萃取不出液，坏了能修，另外会员等级怎么升级", "labels": ["质量问题", "保修维修", "会员积分"]}
-{"text": "扫地机器人卡在沙发底下不动了，能修吗？顺便查下物流到哪了", "labels": ["保修维修", "物流"]}
-{"text": "烤箱温度不准还冒烟，能修吗？保修期内修，但订单里颜色选错了能改吗", "labels": ["质量问题", "保修维修", "订单修改"]}
-{"text": "电磁炉通电没反应，能修吗？顺便问下这个满减活动还能参加吗", "labels": ["质量问题", "保修维修", "优惠活动"]}
-{"text": "电压力锅无法排气，能修吗？另外退货运费谁承担", "labels": ["保修维修", "运费"]}
-{"text": "空气炸锅显示屏全黑，坏了能修，但我想把订单里的赠品换成另一个", "labels": ["质量问题", "订单修改"]}
-{"text": "不制冷了，车载冰箱插车充就没冷气，保修期内修，但快递显示签收我没收到", "labels": ["质量问题", "保修维修", "物流"]}
-{"text": "大促活动页面说前100名赠礼，我第98名付款没收到，算不算活动履约问题？", "labels": ["优惠活动"]}
-{"text": "满减后更便宜，但为啥结算页没显示满300减50？", "labels": ["优惠活动"]}
-{"text": "凑单凑到299差1块，能临时加个运费险凑够满减门槛吗？", "labels": ["优惠活动", "运费"]}
-{"text": "用了券下单后想换颜色，改规格会影响已享的满减吗？", "labels": ["订单修改", "优惠活动"]}
-{"text": "满减后更便宜，但发票金额是按原价开的，这影响报销吗？", "labels": ["发票", "优惠活动"]}
-{"text": "满减后更便宜，但退款时只退了实付金额，没退对应比例的优惠分摊，合理吗？", "labels": ["退换货", "优惠活动"]}
-{"text": "刚买就降了，补差价是退现金还是返券？要是返券能换成无门槛的吗？", "labels": ["价保", "优惠活动"]}
-{"text": "跨店满减里C店商品突然下架，我凑单失败，能补偿差价吗？", "labels": ["库存补货", "优惠活动"]}
-{"text": "凑单用的都是预售商品，大促结束前能保证全部按时发货吗？", "labels": ["物流", "优惠活动"]}
-{"text": "物流不更新已经48小时了，客服能帮忙查下卡在哪了吗？", "labels": ["物流"]}
-{"text": "大促活动页面详情图和文字描述不一致，以哪个为准？", "labels": ["商品信息", "优惠活动"]}
-{"text": "签收前发现地址写错了，现在还能改派吗？", "labels": ["订单修改", "物流"]}
-{"text": "派件中突然变成“滞留”，这算物流异常吗？另外发票抬头要开公司名。", "labels": ["物流", "发票"]}
-{"text": "物流信息停在“运输中”不动了，同时想把订单里的尺码换成大一号的。", "labels": ["物流", "尺码", "订单修改"]}
-{"text": "还没到，物流单号查不到最新节点，而且我付的款还没扣成功，是不是支付失败影响发货了？", "labels": ["物流", "支付"]}
-{"text": "派件中但联系不上快递员，同时这个商品页面写的“72小时发货”怎么超时了？", "labels": ["物流", "商品信息"]}
-{"text": "签收前想改送到公司，顺便问下电子发票什么时候能开？", "labels": ["物流", "订单修改", "发票"]}
-{"text": "物流不更新，客服说要等仓库反馈，那仓库今天能补货吗？我买的是断码款。", "labels": ["物流", "库存补货"]}
-{"text": "运费险理赔要提供什么材料？是不是必须用他们指定的快递？我用京东物流行不行？", "labels": ["运费", "物流"]}
-{"text": "下单两小时就降价，这算刚买就降了吧？快给我补差价！", "labels": ["价保"]}
-{"text": "保价期内降价，申请补差价后还能开发票吗？发票内容要写“价格保护补偿款”可以吗？", "labels": ["价保", "发票"]}
-{"text": "保价期内降价，申请补差价时提示失败，是不是支付方式有问题？", "labels": ["价保", "支付"]}
-{"text": "买完就降价，补差价的同时能把收货地址也改成新地址吗？", "labels": ["价保", "订单修改"]}
-{"text": "包邮差额投诉无门，客服推给物流部，物流部说归运费类——那到底找谁？再问下这单能保价吗？", "labels": ["运费", "价保"]}
-{"text": "降价补差需要自己申请还是自动到账？顺便问下这个商品什么时候补货？", "labels": ["价保", "库存补货"]}
-{"text": "刚买就降了，补差价能不能和上次退货的退款合并到账？", "labels": ["价保", "退换货"]}
-{"text": "买完就降价，补差价流程太复杂，能远程帮我操作一下吗？还有登录老提示验证码错误。", "labels": ["价保", "账号"]}
-{"text": "刚买就降了，补差价能当天到账吗？另外想把这笔订单加入会员积分加速包。", "labels": ["价保", "会员积分"]}
-{"text": "买完就降价，补差价申请提交后一直没审核，能加急处理吗？另外快递显示签收但我没收到。", "labels": ["价保", "物流"]}
-{"text": "买贵了，补差价请打到原支付账户，另外这个商品详情页写的材质和实物不符，算质量问题吗？", "labels": ["价保", "质量问题"]}
-{"text": "洗衣机保修期内修，发票抬头错了能一起换开吗", "labels": ["保修维修", "发票"]}
-{"text": "扫地机器人不工作了，能修吗？修不好就退换货", "labels": ["保修维修", "退换货"]}
-{"text": "裙子买大了，肩膀空荡荡的，能改地址寄到公司吗", "labels": ["尺码", "订单修改"]}
-{"text": "这件衬衫偏紧，腋下绷得难受，发票能开电子版吗", "labels": ["尺码", "发票"]}
-{"text": "连衣裙买大了，腰身完全不贴合，能帮我查下物流到哪了吗", "labels": ["尺码", "物流"]}
-{"text": "运费谁出？我按要求寄回了，但快递员没给取件单，现在商家不认，这损失谁担？", "labels": ["运费", "退换货"]}
-{"text": "买大了想退，运费险怎么理赔？另外发票抬头填错了能改吗？", "labels": ["退换货", "运费", "发票"]}
-{"text": "免运费的订单为啥扣了运费？而且商品颜色和详情页严重不符，这算质量问题吧？", "labels": ["运费", "质量问题"]}
-{"text": "退货后运费险还没到账，查物流显示已签收三天了，这正常吗？", "labels": ["退换货", "运费", "物流"]}
-{"text": "包邮的订单拆成两个包裹发，第二个收了运费，这合理吗？顺便问下订单能合并开一张发票不？", "labels": ["物流", "运费", "发票"]}
-{"text": "包邮差额能退现金吗？别老让我等运费险到账，太慢了！另外会员积分怎么没到账？", "labels": ["运费", "会员积分"]}
-{"text": "快递费发票能开吗？我要报销用，还有这个订单的电子发票什么时候能下载？", "labels": ["运费", "发票"]}
+{"text": "换货后新订单的物流单号在哪看", "labels": ["退换货", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "换货怎么走流程，有几天时限，来回运费谁付", "labels": ["退换货", "运费"], "src": "pool", "typo_fixed": true}
+{"text": "收到的杯子和详情页图片完全不一样，颜色深很多，这算描述不符能退吗", "labels": ["退换货", "商品信息"], "src": "synth", "typo_fixed": false}
+{"text": "能退吗？这单用了满199减20的券，退完券会失效吗", "labels": ["退换货", "优惠活动"], "src": "synth", "typo_fixed": false}
+{"text": "衣服穿了一次觉得不合适，能退吗", "labels": ["退换货", "尺码"], "src": "synth", "typo_fixed": false}
+{"text": "退货后运费险还没到账，查物流显示已签收三天了，这正常吗？", "labels": ["退换货", "运费", "物流"], "src": "synth", "typo_fixed": false}
+{"text": "预售定金支持无理由退吗，尾款没按时付怎么办", "labels": ["退换货", "订单修改"], "src": "pool", "typo_fixed": true}

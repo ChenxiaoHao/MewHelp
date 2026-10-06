@@ -37,3 +37,10 @@ def test_count_synth_missing_and_rows(tmp_path):
                  '{"text": "再来一句够长的话", "main_class": "物流"}\n',
                  encoding="utf-8")
     assert count_synth(f) == {"物流": 2}
+
+
+def test_frozen_channel_pins_temperature_zero():
+    # 终审 I-5:造数/预标必须温度 0(重跑标签稳定,与 plan 口径一致)
+    from finetune.synth import get_frozen_model
+
+    assert get_frozen_model().temperature == 0.0

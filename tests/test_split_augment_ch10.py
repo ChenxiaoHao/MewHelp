@@ -76,3 +76,13 @@ def test_augment_only_train_labels_preserved_no_collision():
         assert all(lb in CLASSES for lb in r["labels"])
         src = next((t for t in train if t["labels"] == r["labels"]), None)
         assert src is not None, "标签必须守恒于某原行"
+
+
+def test_split_dedups_exact_text_keep_first():
+    # 终审 I-1:池含字面重复行,split 前必须按文本去重,任何一行不得跨集/集内重复
+    rows = [{"text": "同一问题呀", "labels": ["物流"]}] * 3
+    rows += [{"text": f"独特{i}", "labels": ["发票"]} for i in range(9)]
+    out = stratified_split(rows)
+    texts = [r["text"] for k in ("train", "valid", "test") for r in out[k]]
+    assert texts.count("同一问题呀") == 1
+    assert len(texts) == len(set(texts))

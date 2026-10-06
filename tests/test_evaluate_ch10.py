@@ -67,3 +67,13 @@ def test_misclassified_pred_zero_hit_shows_fallback_other():
     mis = misclassified_rows([{"text": "保修期从哪天算", "labels": ["保修维修"]}],
                              [[0] * len(CLASSES)])
     assert mis[0]["pred"] == "其他"
+
+
+def test_report_macro_is_mean_of_f1_column_only():
+    # 终审 I-2 钉:P≠R 的已知矩阵里 macro 必须=逐类 F1 均值,不是 P/R/F1 混平均
+    import numpy as np
+    from finetune.evaluate import prf as _prf
+    conf = {c: {"tp": 1, "fp": 3, "fn": 0, "tn": 0} for c in CLASSES}  # P=1/4,R=1
+    md = report_text(conf, 0.5, 1, [])
+    want = np.mean([_prf(1, 3, 0)[2] for _ in CLASSES]).item()
+    assert f"macro-F1:{want:.4f}" in md

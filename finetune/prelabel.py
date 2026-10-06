@@ -101,12 +101,11 @@ async def _load_pool_texts() -> list[dict]:
 
 
 async def _run(args) -> int:
-    from app.core.config import get_settings
-    from app.services.chat_service import get_model
+    from finetune.synth import get_frozen_model  # 温度钉 0(终审 I-5)
 
     from finetune.synth import parse_questions  # noqa: F401  仅同源语料面
 
-    model = get_model(get_settings())
+    model = get_frozen_model()
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     done = set()

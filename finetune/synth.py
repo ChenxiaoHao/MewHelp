@@ -68,10 +68,7 @@ def default_targets(per_class: int) -> dict[str, int]:
 
 
 async def _run(args) -> int:
-    from app.core.config import get_settings
-    from app.services.chat_service import get_model
-
-    model = get_model(get_settings())
+    model = get_frozen_model()
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     plan = gap_plan(count_synth(out), default_targets(args.target))
@@ -116,3 +113,12 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def get_frozen_model():
+    """造数/预标专用通道:温度钉 0(终审 I-5——重跑标签必须逐字稳定)。"""
+    from app.core.config import get_settings
+    from app.services.chat_service import get_model
+
+    st = get_settings().model_copy(update={"temperature": 0.0})
+    return get_model(st)

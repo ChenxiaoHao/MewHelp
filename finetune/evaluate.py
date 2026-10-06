@@ -71,7 +71,7 @@ def report_text(conf: dict, threshold: float, n: int,
     lines = ["# ch10 主题分类器评测报告(封存 test 集)", "",
              f"- 样本数:{n} · 阈值:{threshold:.2f}(valid 扫描,config 同源)",
              f"- micro-F1:{micro_f1(conf):.4f} · macro-F1:"
-             f"{np.mean([prf(**{k: conf[c][k] for k in ('tp', 'fp', 'fn')}) for c in CLASSES]).item():.4f}",
+             f"{np.mean([prf(**{k: conf[c][k] for k in ('tp', 'fp', 'fn')})[2] for c in CLASSES]).item():.4f}",
              "", "| 类目 | TP | FP | FN | TN | P | R | F1 | support |",
              "|---|---|---|---|---|---|---|---|---|"]
     for c in CLASSES:

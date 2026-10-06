@@ -46,5 +46,6 @@ async def test_accept2_distribution_api_has_data():
         assert len(body) >= 1, "演示归类行未进分布(先跑 T9 真写)"
         assert all(item["label"] in CLASSES for item in body)
         assert body == sorted(body, key=lambda i: -i["count"])  # count 降序
+        assert Path("static/topic.html").exists()  # 终审 I-3:页与入口在分支面上
     finally:
         await dispose_engine()

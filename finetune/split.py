@@ -15,6 +15,17 @@ from pathlib import Path
 
 def stratified_split(rows: list[dict], ratios: tuple = (0.8, 0.1, 0.1),
                      seed: int = 7) -> dict[str, list]:
+    # 终审 I-1:池含字面重复行——先按空白归一文本 keep-first 去重,
+    # 否则同题跨集泄漏(train 背过题的 test 分数虚高)。
+    seen: set[str] = set()
+    uniq: list[dict] = []
+    for r in rows:
+        key = " ".join(r["text"].split())
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(r)
+    rows = uniq
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for r in rows:
         groups[tuple(sorted(r["labels"]))].append(dict(r))

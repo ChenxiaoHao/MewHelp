@@ -87,7 +87,8 @@ async def _amain(args) -> int:
             n = 0
             for i in range(0, len(rows), BATCH):
                 chunk = rows[i:i + BATCH]
-                labels = clf.classify_batch([t for _, t in chunk])
+                from finetune.clean import clean  # 训练面同口径(终审 I-4)
+                labels = clf.classify_batch([clean(t) for _, t in chunk])
                 n += await store_results(session,
                                          [(qid, lb) for (qid, _), lb in
                                           zip(chunk, labels)], args.rerun)
