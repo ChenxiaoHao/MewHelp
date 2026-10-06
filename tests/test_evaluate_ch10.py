@@ -60,3 +60,10 @@ def test_misclassified_rows_detects_diff():
     # 全对则空
     perfect = [to_multi_hot(r["labels"], CLASSES) for r in rows]
     assert misclassified_rows(rows, perfect) == []
+
+
+def test_misclassified_pred_zero_hit_shows_fallback_other():
+    # 与部署端 labels_from_probs 口径一致:零命中显示兜底「其他」
+    mis = misclassified_rows([{"text": "保修期从哪天算", "labels": ["保修维修"]}],
+                             [[0] * len(CLASSES)])
+    assert mis[0]["pred"] == "其他"

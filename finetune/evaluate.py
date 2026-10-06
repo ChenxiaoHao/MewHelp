@@ -61,7 +61,8 @@ def misclassified_rows(rows: list[dict], preds: list[list[int]]) -> list[dict]:
         if pr != gold:
             out.append({"text": r["text"],
                         "gold": "|".join(r["labels"]),
-                        "pred": "|".join(c for c, v in zip(CLASSES, pr) if v)})
+                        "pred": "|".join(c for c, v in zip(CLASSES, pr) if v)
+                        or "其他"})  # 与部署端零命中兜底同口径
     return out
 
 
