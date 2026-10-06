@@ -671,3 +671,32 @@ async def insert_tool_audit(session: AsyncSession, **fields) -> None:
     审计不许反拦工具执行是需求5 红线,故这里不做重试也不做兜底。"""
     session.add(ToolAuditLog(**fields))
     await session.commit()
+
+
+async def topic_distribution(session, days: int | None = None) -> list[dict]:
+    """ch10 T10:主题分布——labels JSON 在 Python 层展开计数(行数小);count 降序。
+
+    days=按问题入池时间(low_confidence_questions.created_at)过滤近 N 天窗。
+    多标签句每类各计一次,pct 按标签出现总次数归一。"""
+    from datetime import datetime, timedelta
+    from collections import Counter
+
+    from sqlalchemy import select
+
+    from app.db.models import LowConfidenceQuestion, TopicClassification
+
+    q = (select(TopicClassification.labels,
+                LowConfidenceQuestion.created_at)
+         .join(LowConfidenceQuestion,
+               LowConfidenceQuestion.id == TopicClassification.question_id))
+    if days is not None:
+        q = q.where(LowConfidenceQuestion.created_at
+                    >= datetime.now() - timedelta(days=days))
+    rows = (await session.execute(q)).all()
+    cnt: Counter[str] = Counter()
+    for labels, _ in rows:
+        for lb in labels or []:
+            cnt[lb] += 1
+    total = sum(cnt.values())
+    return [{"label": k, "count": v, "pct": round(v / total * 100, 2) if total else 0.0}
+            for k, v in cnt.most_common()]

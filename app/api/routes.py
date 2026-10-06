@@ -25,7 +25,7 @@ from app.schemas.conversation import ConversationItem, ConversationList, Message
 from app.schemas.extraction import AfterSaleExtraction, ExtractRequest
 from app.schemas.refund import RefundRequest
 from app.schemas.ticket import TicketConfirmRequest, TicketCreateRequest, TicketOut
-from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch
+from app.schemas.knowledge import ChunkOut, FaithCaseOut, FaithCasePatch, TopicStat
 from app.schemas.review import (
     ReviewDetail,
     ReviewOut,
@@ -282,6 +282,17 @@ async def cast_feedback(req: FeedbackRequest, session=Depends(dep_db_session)):
         retrieved_chunks=anchor.retrieval_snapshot)
     flywheel.spawn_process(row_id)  # T7 拍板 2A:👎 路落池成功即触发(不走吞错漏斗)
     return {"pooled": True}
+
+
+@router.get("/api/topics/distribution", response_model=list[TopicStat])
+async def topics_distribution(days: int | None = None,
+                              session=Depends(dep_db_session)):
+    """ch10 T10 只读:主题分布(count 降序),days=近 N 天窗(按问题入池时间,≥1)。"""
+    if session is None:
+        raise HTTPException(status_code=503, detail="数据库未初始化")
+    if days is not None and days < 1:
+        raise HTTPException(status_code=422, detail="days 必须 ≥1 或缺省")
+    return await crud.topic_distribution(session, days=days)
 
 
 @router.get("/api/review_queue", response_model=list[ReviewQueueItem])

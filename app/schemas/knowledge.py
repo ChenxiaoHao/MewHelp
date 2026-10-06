@@ -37,6 +37,14 @@ class FaithCaseOut(BaseModel):
     resolved_at: datetime | None
 
 
+class TopicStat(BaseModel):
+    """ch10 T10:主题分布一项(count=该标签出现次数,多标签句计入多类)。"""
+
+    label: str
+    count: int
+    pct: float
+
+
 class FaithCasePatch(BaseModel):
     status: Literal["未解决", "已解决", "无需解决"]
     resolution: str | None = None
