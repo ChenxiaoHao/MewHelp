@@ -3,6 +3,7 @@ name = "mewhelp"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "accelerate>=1.1.0",
     "aiomysql>=0.3.2",
     "cryptography>=50.0.1",
     "fastapi>=0.141.1",
