@@ -35,11 +35,11 @@
 
 **Interfaces:** Produces 表 `topic_classifications(id, question_id uk→low_confidence_questions.id, labels JSON, classified_at)`;ORM 字段与其余表同律(`_pk()`、`BIGINT(unsigned=True)`)。
 
-- [ ] Step1 落 sql 文件(原文逐字,含 SET NAMES utf8mb4)。
-- [ ] Step2 活库执行建表:`docker compose exec -T mysql mysql -uroot -p"$(grep -E '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2 -)" mewhelp < sql/10_ch10_topic_classifications.sql`(口令从 .env 变量取,不回显明文)。Expected: `SHOW TABLES LIKE 'topic_classifications'` 命中。
-- [ ] Step3 RED:integration 测试——向真池任一行 insert 归类行成功、二次 insert 同 question_id 触发 `IntegrityError`(uk 幂等),测后删行。Expected FAIL(类不存在)。
-- [ ] Step4 GREEN:models.py 加类;测试转绿。
-- [ ] Step5 commit `feat(ch10-t1): topic_classifications DDL+ORM+uk幂等钉`。
+- [x] Step1 落 sql 文件(原文逐字,含 SET NAMES utf8mb4)。
+- [x] Step2 活库执行建表:`docker compose exec -T mysql mysql -uroot -p"$(grep -E '^MYSQL_ROOT_PASSWORD=' .env | cut -d= -f2 -)" mewhelp < sql/10_ch10_topic_classifications.sql`(口令从 .env 变量取,不回显明文)。Expected: `SHOW TABLES LIKE 'topic_classifications'` 命中。
+- [x] Step3 RED:integration 测试——向真池任一行 insert 归类行成功、二次 insert 同 question_id 触发 `IntegrityError`(uk 幂等),测后删行。Expected FAIL(类不存在)。
+- [x] Step4 GREEN:models.py 加类;测试转绿。
+- [x] Step5 commit `feat(ch10-t1): topic_classifications DDL+ORM+uk幂等钉`。
 
 ### Task 2: 术语表 `finetune/glossary.py`
 
@@ -47,9 +47,9 @@
 
 **Interfaces:** Produces `CLASSES: list[str]`(17 类定序,唯一权威)、`load_glossary() -> dict[str, dict]`(name → {boundary, synonyms})、`assert_valid_labels(labels) -> list[str]`。
 
-- [ ] Step1 RED:钉 17 类名单与顺序(退换货领头、其他收尾)、JSON 每类 boundary 非空、三对近邻边界句在对应类 boundary 原文中出现(修/退、运费/物流、价保/优惠)、synonyms 每类 ≥3。Expected FAIL。
-- [ ] Step2 GREEN:glossary.json 按 spec 类目契约撰写(边界说明原文进 boundary);glossary.py 加载+缓存+校验。
-- [ ] Step3 commit `feat(ch10-t2): 17类权威术语表——边界说明+同义词表`。
+- [x] Step1 RED:钉 17 类名单与顺序(退换货领头、其他收尾)、JSON 每类 boundary 非空、三对近邻边界句在对应类 boundary 原文中出现(修/退、运费/物流、价保/优惠)、synonyms 每类 ≥3。Expected FAIL。
+- [x] Step2 GREEN:glossary.json 按 spec 类目契约撰写(边界说明原文进 boundary);glossary.py 加载+缓存+校验。
+- [x] Step3 commit `feat(ch10-t2): 17类权威术语表——边界说明+同义词表`。
 
 ### Task 3: 清洗 `finetune/clean.py`
 
@@ -57,9 +57,9 @@
 
 **Interfaces:** Produces `clean(text: str) -> str`(= `desensitize` ∘ `normalize`);手机号→`<PHONE>`、订单号/长数字串→`<NUM>`、连续空白折叠、全角 ASCII 归半角、首尾修剪。错别字**不在**本模块(拍板 2 进预标)。
 
-- [ ] Step1 RED:脱敏三例+格式三例+幂等(clean(clean(x))==clean(x))+空串。Expected FAIL。
-- [ ] Step2 GREEN 实现;跑一遍真实池:`uv run python -m finetune.clean --dump finetune/audit/pool_cleaned.csv`(138 行 UTF-8,人可查)——样例验证替代步骤,记 dev-notes。
-- [ ] Step3 commit `feat(ch10-t3): 清洗——脱敏+格式规范,池全量清洗落盘可查`。
+- [x] Step1 RED:脱敏三例+格式三例+幂等(clean(clean(x))==clean(x))+空串。Expected FAIL。
+- [x] Step2 GREEN 实现;跑一遍真实池:`uv run python -m finetune.clean --dump finetune/audit/pool_cleaned.csv`(138 行 UTF-8,人可查)——样例验证替代步骤,记 dev-notes。
+- [x] Step3 commit `feat(ch10-t3): 清洗——脱敏+格式规范,池全量清洗落盘可查`。
 
 ### Task 4: 造数 `finetune/synth.py`
 
@@ -67,7 +67,7 @@
 
 **Interfaces:** Consumes glossary、chat_service.get_model;Produces `build_prompt(cls_name, glossary, n) -> str`(含术语表全文+边界+多诉求 directive)、`parse_questions(reply) -> list[str]`(行拆+去序号+校验非空/长度)、`gap_plan(counts, target_per_class) -> dict[str, int]`(缺口=目标-已有,真实池与已造都算已有)。CLI:`-m finetune.synth --target 100 --out finetune/drafts/synth.jsonl`(断点续造:已有行按类计数,只补缺口)。
 
-- [ ] Step1 RED:build_prompt 含 17 类名+该类目标词+「≥2 标签」示例句要求;parse_questions 抗「1. 」「- 」前缀与空行;gap_plan 只补缺口、不超造。Expected FAIL。
+- [x] Step1 RED:build_prompt 含 17 类名+该类目标词+「≥2 标签」示例句要求;parse_questions 抗「1. 」「- 」前缀与空行;gap_plan 只补缺口、不超造。Expected FAIL。
 - [ ] Step2 GREEN(fake LLM 单测全绿后)**实跑 LLM 造数**至 ~1560+(1700-138 缺口,多诉求句 directive 常驻 prompt)→ 验证:类分布统计 ASCII 打印 + 抽查 20 条 UTF-8 落 `finetune/audit/synth_check.csv`(样例验证替代 TDD 尾步)。
 - [ ] Step3 commit `feat(ch10-t4): 术语表驱动造数——缺口续算+多诉求directive,~1700语料成形`。
 
