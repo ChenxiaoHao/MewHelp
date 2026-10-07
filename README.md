@@ -1,9 +1,10 @@
 # MewHelp 电商智能客服系统
 
-「喵帮」电商智能客服项目，按章递进：
+「喵帮」电商智能客服项目，按章递进（每章一节，见下文；含开发留痕 dev-notes/）：
 
-- **ch01 纯对话**：SSE 流式多轮对话 + Prompt 模板管理 + 售后描述结构化提取 + token 预算历史裁剪
-- **ch02 Function Calling 工具链**：五个 LangChain 工具 + MySQL 四表落库 + 单轮调用收敛 + 前端工具徽章
+ch01 SSE 流式对话 → ch02 Function Calling 工具链+MySQL → ch03 RAG 语义检索 → ch04 混合检索+重排+评估体系
+→ ch05 LangGraph 工作流+ReAct → ch06 分流器 → ch07 上下文三层管理 → ch08 工具注册中心+MCP+三道闸+确认流
+→ ch09 Langfuse 可观测性+数据飞轮 → ch10 自训 17 类主题分类器（RoBERTa-wwm-ext 全参微调）+旁路归类+主题分布后台
 
 ## 技术栈
 
@@ -153,8 +154,8 @@ dev-notes/             # 开发过程留痕（ch01 / ch02）
 ### 准备(老库升级一次性)
 ```bash
 docker compose up -d
-docker compose exec -i mysql mysql -uroot -pmewhelp_dev mewhelp < db/init/03_ch03_schema.sql
-docker compose exec -i mysql mysql -uroot -pmewhelp_dev mewhelp < db/init/04_ch03_seed.sql
+docker compose exec -i mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" mewhelp' < db/init/03_ch03_schema.sql
+docker compose exec -i mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" mewhelp' < db/init/04_ch03_seed.sql
 ```
 
 ### 建库与挖知识
@@ -300,7 +301,7 @@ uv run python evals/run_ch08_eval.py                          # 三桶话术评�
 ```bash
 # 部署(一次性;Milvus 栈已在跑的前提下)
 docker compose --profile langfuse up -d        # lf 四件套+web(3001)+worker
-docker exec milvus-minio sh -c "mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb -p local/langfuse"   # 建观测桶(已存在=幂等)
+docker exec milvus-minio sh -c 'mc alias set local http://127.0.0.1:9000 "$MINIO_ACCESS_KEY" "$MINIO_SECRET_KEY" && mc mb -p local/langfuse'   # 建观测桶(口令取容器 env;已存在=幂等)
 # .env 补 LANGFUSE_HOST=http://127.0.0.1:3001 + 两把 key(web UI 建 project 后拿)
 
 # ⚠⚠ 旧 MySQL 卷必读 ⚠⚠

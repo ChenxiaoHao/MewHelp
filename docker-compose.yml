@@ -3,7 +3,7 @@ services:
     image: mysql:8.0
     container_name: mewhelp-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: mewhelp_dev
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
       MYSQL_DATABASE: mewhelp
       TZ: Asia/Shanghai
     ports:
@@ -19,7 +19,7 @@ services:
       - mewhelp_mysql_data:/var/lib/mysql
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-pmewhelp_dev"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${MYSQL_ROOT_PASSWORD:?set in .env}"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -47,8 +47,8 @@ services:
     container_name: milvus-minio
     image: minio/minio:RELEASE.2024-05-28T17-19-04Z
     environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set in .env}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?set in .env}
     volumes:
       - minio-data:/minio_data
     command: minio server /minio_data --console-address ":9001"
@@ -92,7 +92,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: langfuse
-      POSTGRES_PASSWORD: langfuse_dev
+      POSTGRES_PASSWORD: ${LF_PG_PASSWORD:?set in .env}
       POSTGRES_DB: langfuse
     volumes:
       - lf-postgres-data:/var/lib/postgresql/data
@@ -108,9 +108,9 @@ services:
     profiles: ["langfuse"]
     restart: unless-stopped
     # langfuse ioredis 客户端总会发 AUTH(无密码则报 ERR AUTH),显式设密码对齐两侧
-    command: ["redis-server", "--requirepass", "langfuse_dev"]
+    command: ["redis-server", "--requirepass", "${LF_REDIS_PASSWORD:?set in .env}"]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a langfuse_dev ping | grep -q PONG"]
+      test: ["CMD-SHELL", "redis-cli -a ${LF_REDIS_PASSWORD:?set in .env} ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 24
@@ -123,12 +123,12 @@ services:
     environment:
       # 官方 compose 用两个 config.xml bind-mount(Windows 0777 前科,拍板走 env 建用户)
       CLICKHOUSE_USER: langfuse
-      CLICKHOUSE_PASSWORD: langfuse_dev
+      CLICKHOUSE_PASSWORD: ${LF_CLICKHOUSE_PASSWORD:?set in .env}
       CLICKHOUSE_DB: langfuse
     volumes:
       - lf-clickhouse-data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD-SHELL", "clickhouse-client --user langfuse --password langfuse_dev -q 'SELECT 1'"]
+      test: ["CMD-SHELL", "clickhouse-client --user langfuse --password ${LF_CLICKHOUSE_PASSWORD:?set in .env} -q 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 24
@@ -143,7 +143,7 @@ services:
       langfuse-redis: {condition: service_healthy}
       langfuse-clickhouse: {condition: service_healthy}
     environment: &lf-env
-      DATABASE_URL: postgresql://langfuse:langfuse_dev@langfuse-postgres:5432/langfuse
+      DATABASE_URL: postgresql://langfuse:${LF_PG_PASSWORD:?set in .env}@langfuse-postgres:5432/langfuse
       # 密钥真值一律进 gitignored .env(T1 终审规矩:compose 只留占位默认)
       SALT: ${LF_SALT:-changeme-salt}
       NEXTAUTH_SECRET: ${LF_NEXTAUTH_SECRET:-changeme-auth}
@@ -151,15 +151,15 @@ services:
       CLICKHOUSE_URL: http://langfuse-clickhouse:8123
       CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
       CLICKHOUSE_USER: langfuse
-      CLICKHOUSE_PASSWORD: langfuse_dev
+      CLICKHOUSE_PASSWORD: ${LF_CLICKHOUSE_PASSWORD:?set in .env}
       CLICKHOUSE_CLUSTER_ENABLED: "false"
       REDIS_HOST: langfuse-redis
       REDIS_PORT: "6379"
-      REDIS_AUTH: langfuse_dev  # langfuse v3 变量名是 REDIS_AUTH(shared/env.ts),非 REDIS_PASSWORD
+      REDIS_AUTH: ${LF_REDIS_PASSWORD:?set in .env}  # langfuse v3 变量名是 REDIS_AUTH(shared/env.ts),非 REDIS_PASSWORD
       # blob 复用既有 minio(桶 langfuse,起栈后 mc mb 一次,命令见 dev-notes/README)
       LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
-      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minioadmin
-      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: minioadmin
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:?set in .env}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:?set in .env}
       LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
       LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
@@ -186,7 +186,7 @@ services:
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-change-me}  # 占位默认=假值,真值走 .env(M2)
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-change-me}
       LANGFUSE_INIT_USER_EMAIL: ${LF_INIT_USER_EMAIL:-dev@mewhelp.local}
-      LANGFUSE_INIT_USER_PASSWORD: ${LF_INIT_USER_PASSWORD:-mewhelp_dev}
+      LANGFUSE_INIT_USER_PASSWORD: ${LF_INIT_USER_PASSWORD:-change-me}
       LANGFUSE_INIT_USER_NAME: MewHelpDev
 
 volumes:

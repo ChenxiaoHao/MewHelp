@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     mysql_host: str = "127.0.0.1"
     mysql_port: int = 3306
     mysql_user: str = "root"
-    mysql_password: str = "mewhelp_dev"
+    mysql_password: str = ""  # 2026-10-07 公开化:口令不留默认值,真值只走 gitignored .env
     mysql_db: str = "mewhelp"
     # --- ch02: 会话与工具执行 ---
     demo_user_id: str = "demo_user"

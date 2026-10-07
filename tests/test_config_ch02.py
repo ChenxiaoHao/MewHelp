@@ -25,7 +25,7 @@ def test_ch02_defaults(env):
     assert s.mysql_host == "127.0.0.1"
     assert s.mysql_port == 3306
     assert s.mysql_user == "root"
-    assert s.mysql_password == "mewhelp_dev"
+    assert s.mysql_password == ""  # 公开化整改:口令不再入代码默认值(真值只在 .env)
     assert s.mysql_db == "mewhelp"
     assert s.demo_user_id == "demo_user"
     assert s.tool_timeout_seconds == 10.0  # ch08 T5 基准 5→10(MCP 往返留余量)
