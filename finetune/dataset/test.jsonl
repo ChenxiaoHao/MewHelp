@@ -217,7 +217,7 @@
 {"text": "我下单时页面说包邮，结果结账又收了5块钱运费，这算不算虚假宣传？", "labels": ["运费", "优惠活动"], "src": "synth", "typo_fixed": false}
 {"text": "我买完发现不包邮，运费怎么算的？", "labels": ["运费"], "src": "synth", "typo_fixed": false}
 {"text": "积分能抵扣运费险费用吗", "labels": ["运费", "会员积分"], "src": "synth", "typo_fixed": false}
-{"text": "说好包邮结果收了12块，客服解释是偏远地区附加费，这合法吗？", "labels": ["运费", "价保"], "src": "synth", "typo_fixed": false}
+{"text": "说好包邮结果收了12块，客服解释是偏远地区附加费，这合法吗？", "labels": ["运费"], "src": "synth", "typo_fixed": false}
 {"text": "七天无理由退换，但商品页面写着“特价不退”，这还适用吗？", "labels": ["退换货"], "src": "synth", "typo_fixed": false}
 {"text": "下单时选错颜色了，现在又发现耳机左耳没声音，我想直接退掉行不行？", "labels": ["退换货", "质量问题"], "src": "synth", "typo_fixed": false}
 {"text": "买大了想退，顺便问下电子发票能换开成公司抬头吗", "labels": ["退换货", "发票"], "src": "synth", "typo_fixed": false}
